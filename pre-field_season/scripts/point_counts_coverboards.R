@@ -9,28 +9,7 @@ library(tidyverse)
 
 tmap_mode("view")
 
-patches_edited <- read_rds("data/patches_edited_start.rds")
-
-patches_named <-
-  patches_edited %>% 
-  mutate(
-    patch_name = 
-      c(
-        "firehouse",
-        "forest_a",
-        "forest_b",
-        "grassland_a",
-        "grassland_b_fence",
-        "grassland_b",
-        "banding",
-        "early_succ",
-        "forest_geo",
-        "coyote",
-        "leech"
-      )
-  )
-
-rm(patches_edited)
+patches_edited <- st_read("data/spatial/proc/patches_edited.geojson")
 
 # read and pre-process raster data ----------------------------------------
 
@@ -102,7 +81,7 @@ rm(
 # Get a focal patch:
 
 focal_patch <-
-  patches_named %>% 
+  patches_edited %>% 
   filter(patch_name == "forest_a") %>% 
   st_transform(32618)
 
@@ -157,7 +136,7 @@ tm_shape(focal_patch) +
 # Get a focal patch:
 
 focal_patch <-
-  patches_named %>% 
+  patches_edited %>% 
   filter(patch_name == "coyote") %>% 
   st_transform(32618)
 
