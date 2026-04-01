@@ -1,0 +1,157 @@
+---
+title: "Point count map"
+format: html
+output:
+  html_document:
+    self_contained: true
+editor: source
+---
+
+```{r}
+#| include: false
+
+library(leaflet)
+library(htmlwidgets)
+library(tidyverse)
+```
+
+```{r}
+#| echo: false
+
+leaflet(
+  width = "100%",
+  height = 700
+) %>%
+  
+  # Add basemaps:
+  
+  addProviderTiles(
+    "Esri.WorldImagery", 
+    options = providerTileOptions(maxZoom = 21),
+    group = "Imagery"
+  ) %>%
+  addProviderTiles("Esri.WorldTopoMap", group = "Topo") %>%
+  addProviderTiles("OpenStreetMap", group = "OpenStreetMap") %>%
+  
+  # Add table of contents for basemap layer control:
+  
+  addLayersControl(
+    baseGroups = 
+      c(
+        "Imagery",
+        "OpenStreetMap",
+        "Topo"
+      ),
+    options = 
+      layersControlOptions(collapsed = FALSE)
+  ) %>% 
+  
+  # Add scale bar (obviously):
+  
+  addScaleBar(position = "bottomleft") %>% 
+  
+  # Adding your estimated location and all of the other map elements:
+  
+  onRender("
+    function(el, x) {
+      var map = this;
+      var rings = [];
+      var userMarker = null;
+      
+      // Function to set the ring style:
+      
+      function ring_style(base_name) {
+        if (base_name === 'Imagery') {
+          return {
+            color: 'white'
+          };
+        } else {
+          return {
+            color: 'red'
+          };
+        }
+      }
+      
+      // Function to update the ring style:
+
+      function update_ring_styles(base_name) {
+        var style = ring_style(base_name);
+        
+        rings.forEach(function(ring) {
+        ring.setStyle(style);
+        }
+        );
+      }
+
+      // The mapping happens when your location is found:
+      
+      function on_location_found(e) {
+        var latlng = e.latlng;
+
+        // Add point:
+        
+        if (userMarker) {
+          map.removeLayer(userMarker);
+        }
+    
+        userMarker = L.marker(latlng).addTo(map)
+
+        // Ring color responds to basemap:
+        
+        rings.forEach(function(ring) {
+          map.removeLayer(ring);
+        });
+        rings = [];
+        
+        // Because Imagery is the initial basemap
+        
+        var current_base = 'Imagery';
+        var style = ring_style(current_base);
+
+        // Concentric circles every 25 m to 100 m:
+        
+        var max_radius = 100;
+        var step = 25;
+
+        for (var r = step; r <= max_radius; r += step) {
+          var ring = 
+            L.circle(
+                latlng, {
+                radius: r,
+                color: style.color,
+                weight: 2,
+                opacity: 0.9,
+                fill: false 
+                }
+            )
+          .addTo(map);
+          
+          rings.push(ring);
+        }
+      }
+
+      function onLocationError(e) {
+        console.log('Location error: ' + e.message);
+      }
+
+      map.on('locationfound', on_location_found);
+      map.on('locationerror', onLocationError);
+      
+      // Listen and respond to the change in the base layer:
+      
+      map.on('baselayerchange', function(e) {
+        update_ring_styles(e.name);
+        }
+      );
+
+      map.locate(
+        {
+        setView: true,
+        maxZoom: 18,
+        enableHighAccuracy: true
+        }
+      );
+    }
+  ")
+```
+
