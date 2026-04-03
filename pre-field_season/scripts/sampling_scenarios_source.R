@@ -47,7 +47,7 @@ get_predator_time <-
     .n_boards_checked   = 2   # Number of cover boards checked per patch
   ) {
     
-    if(.n_predator_patches == 0) {
+    if(.n_predator_patches == 0 | .n_boards_checked == 0) {
       return(
         empty_duration_tbl()
       )
@@ -93,7 +93,7 @@ get_nest_check_time <-
     
     # If there are no active nests, there is no transit time to or from nests:
     
-    if(.n_active_nests == 0) {
+    if(.n_active_nests == 0 | .n_active_patches == 0) {
       return(
         empty_duration_tbl()
       )
