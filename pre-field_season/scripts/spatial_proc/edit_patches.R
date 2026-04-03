@@ -18,15 +18,22 @@ library(tidyverse)
 
 tmap_mode("view")
 
-source("scripts/source_script_spatial.R")
+source("pre-field_season/scripts/source_script_spatial.R")
+
+read_dir <- "pre-field_season/data/spatial/proc"
 
 # Read in the data:
 
-patches_start <- st_read("data/spatial/proc/patches_edited.geojson")
-
-coverboards <- st_read("data/spatial/proc/coverboards_gps.geojson")
-
-coyote_line <- st_read("data/spatial/proc/coyote_line.geojson")
+c(
+  patches_start = "patches_edited.geojson",
+  coverboards = "coverboards_gps.geojson",
+  coyote_line = "coyote_line.geojson"
+) %>% 
+  map(
+    ~ file.path(read_dir, .x) %>% 
+      st_read(quiet = TRUE)
+  ) %>% 
+  list2env(.GlobalEnv)
 
 # Edit patches ------------------------------------------------------------
 
