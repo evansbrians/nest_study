@@ -84,7 +84,7 @@ make_map <-
       out_map <-
         out_map %>% 
         leaflet::addCircles(
-          data = coverboards_gps,
+          data = coverboards,
           radius = 3,
           weight = 1,
           opacity = 1,
