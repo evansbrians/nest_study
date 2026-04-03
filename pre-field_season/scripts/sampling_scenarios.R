@@ -5,7 +5,7 @@
 library(suncalc)
 library(tidyverse)
 
-source("scripts/sampling_scenarios_source.R")
+source("pre-field_season/scripts/sampling_scenarios_source.R")
 
 # parameter definitions ---------------------------------------------------
 
@@ -23,6 +23,143 @@ source("scripts/sampling_scenarios_source.R")
 .board_transit      = 5    # Transit time between cover boards
 .check_time         = 5    # Minutes per check & concealment photo
 .nest_transit       = 5    # How long does it take to move between nests?
+
+# potentially final version -----------------------------------------------
+
+## scenario 1: lots of nests ----------------------------------------------
+# * Callie 1 day/week
+# * Mama Snedgen 1 day/week
+# * Brian 1 day/week and tough Sundays
+# * Solo 3 days per week
+
+### CS/MS days ------------------------------------------------------------
+# * T conducts the point count
+# * T checks one board, CS/MS checks the other
+# * T checks half the nests, CS/MS checks the other half
+# * T searches patches with CS/MS (search time cut in half)
+
+get_daily_schedule(
+  "2026-06-01", 
+  .n_active_nests = 8,
+  .n_active_patches = 4,
+  .n_boards_checked = 1,
+  .search_time = 30,
+  .n_search_patches = 3
+)
+
+### Brian days ------------------------------------------------------------
+
+# T only does nest searching:
+
+get_daily_schedule(
+  "2026-06-01", 
+  .n_active_nests = 0,
+  .n_active_patches = 0,
+  .n_boards_checked = 0,
+  .search_time = 60,
+  .n_search_patches = 6
+)
+
+# B does predator counts, nest checks, and nest searching:
+
+get_daily_schedule(
+  "2026-06-01", 
+  .n_active_nests = 16,
+  .n_active_patches = 4,
+  .n_boards_checked = 2,
+  .search_time = 60,
+  .n_search_patches = 1
+)
+
+# Tough Sundays (missed two days of nest sampling), T & B:
+
+get_daily_schedule(
+  "2026-06-01", 
+  .n_active_nests = 16,
+  .n_active_patches = 4,
+  .n_boards_checked = 2,
+  .search_time = 60,
+  .n_search_patches = 0
+)
+
+# Really tough Sundays (missed two days of sampling & searching), T & B:
+
+get_daily_schedule(
+  "2026-06-01", 
+  .n_active_nests = 16,
+  .n_active_patches = 4,
+  .n_boards_checked = 2,
+  .search_time = 60,
+  .n_search_patches = 1
+)
+
+### Solo days -------------------------------------------------------------
+
+get_daily_schedule(
+  "2026-06-01", 
+  .n_active_nests = 16,
+  .n_active_patches = 4,
+  .n_boards_checked = 2,
+  .n_search_patches = 0
+)
+
+
+
+## scenario 2: fewer nests ------------------------------------------------
+# * Callie 1 day/week
+# * Mama Snedgen 1 day/week
+# * Brian 1 day/week and tough Sundays
+# * Solo 3 days per week
+
+### CS/MS days ------------------------------------------------------------
+# * T conducts the point count
+# * T checks one board, CS/MS checks the other
+# * T checks half the nests, CS/MS checks the other half
+# * T searches patches with CS/MS (search time cut in half)
+
+get_daily_schedule(
+  "2026-06-01", 
+  .n_active_nests = 4,
+  .n_active_patches = 4,
+  .n_boards_checked = 1,
+  .search_time = 30,
+  .n_search_patches = 4
+)
+
+### Brian days ------------------------------------------------------------
+
+# T only does nest searching:
+
+get_daily_schedule(
+  "2026-06-01", 
+  .n_active_nests = 0,
+  .n_active_patches = 0,
+  .n_boards_checked = 0,
+  .search_time = 60,
+  .n_search_patches = 5
+)
+
+# B does predator counts, nest checks, and nest searching:
+
+get_daily_schedule(
+  "2026-06-01", 
+  .n_active_nests = 8,
+  .n_active_patches = 4,
+  .n_boards_checked = 2,
+  .search_time = 60,
+  .n_search_patches = 1
+)
+
+### solo days -------------------------------------------------------------
+
+get_daily_schedule(
+  "2026-06-01", 
+  .n_active_nests = 8,
+  .n_active_patches = 4,
+  .n_boards_checked = 2,
+  .search_time = 0,
+  .n_search_patches = 0
+)
 
 ## solo Tara --------------------------------------------------------------
 
