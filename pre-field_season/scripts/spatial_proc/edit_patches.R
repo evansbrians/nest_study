@@ -72,9 +72,9 @@ make_map(patches_edited[[2]])
 # numbering, but:
 
 patches_edited[[2]] %>% 
-st_write(
-  file.path(
-    "data/spatial/proc",
-    "patches_edited_2.geojson"
+  st_write(
+    file.path(
+      "pre-field_season/data/spatial/proc",
+      "patches_edited_2.geojson"
+    )
   )
-)
