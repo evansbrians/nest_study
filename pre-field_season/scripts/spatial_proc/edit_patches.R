@@ -25,7 +25,7 @@ read_dir <- "pre-field_season/data/spatial/proc"
 # Read in the data:
 
 c(
-  patches_start = "patches_edited.geojson",
+  patches_start = "patches_edited_3_fa_ese.geojson",
   coverboards = "coverboards_gps.geojson",
   coyote_line = "coyote_line.geojson"
 ) %>% 
@@ -75,6 +75,6 @@ patches_edited[[2]] %>%
   st_write(
     file.path(
       "pre-field_season/data/spatial/proc",
-      "patches_edited_2.geojson"
+      "patches_edited_3_fa_ese.geojson"
     )
   )
