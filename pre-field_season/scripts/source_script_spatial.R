@@ -197,14 +197,19 @@ add_area_display <-
 
 edit_patches <-
   function(
-    .patches = patches_edited
+    .patches = patches_edited,
+    .coverboards = FALSE,
+    .coyote_line = FALSE
   ) {
     
     # Target a patch and use my function for mapping:
     
     edited_layer <-  
       .patches %>% 
-      make_map() %>%  
+      make_map(
+        .coverboards = {{ .coverboards }},
+        .coyote_line = {{ .coyote_line }}
+      ) %>%  
       
       # Add the editing toolbar:
       
