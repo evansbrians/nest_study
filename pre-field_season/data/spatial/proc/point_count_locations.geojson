@@ -1,0 +1,17 @@
+{
+"type": "FeatureCollection",
+"name": "point_count_locations",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::32618" } },
+"features": [
+{ "type": "Feature", "properties": { "name": "banding", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 225312.864977229415672, 4309516.564254486933351 ] } },
+{ "type": "Feature", "properties": { "name": "firehouse", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 225534.947628616500879, 4309280.21438255161047 ] } },
+{ "type": "Feature", "properties": { "name": "forest_a", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 225973.013182622293243, 4309477.219814446754754 ] } },
+{ "type": "Feature", "properties": { "name": "forest_b", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 225760.020292990608141, 4309638.085071907378733 ] } },
+{ "type": "Feature", "properties": { "name": "forest_geo", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 226176.767357535281917, 4309658.084043923765421 ] } },
+{ "type": "Feature", "properties": { "name": "grassland_a", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 225986.80853776508593, 4310023.873559575527906 ] } },
+{ "type": "Feature", "properties": { "name": "grassland_b", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 225426.943529491021764, 4309887.629261209629476 ] } },
+{ "type": "Feature", "properties": { "name": "grassland_b_fence", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 225398.470194981666282, 4310011.859432484023273 ] } },
+{ "type": "Feature", "properties": { "name": "leech", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 226789.017898889636854, 4310097.978185982443392 ] } },
+{ "type": "Feature", "properties": { "name": "witch_hazel", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 226306.942600687005324, 4309884.80331680458039 ] } }
+]
+}
