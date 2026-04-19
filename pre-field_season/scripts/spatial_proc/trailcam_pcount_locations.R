@@ -125,7 +125,7 @@ inner_patch <-
       pull()
   ) %>% 
   filter(dist_to_open < 10)
-  
+
 # Have a look:
 
 tm_basemap("Esri.WorldImagery") +
@@ -161,7 +161,10 @@ tm_basemap("Esri.WorldImagery") +
   
   # Add camera location and centroid:
   
-  list(camera_position, st_centroid(focal_patch)) %>% 
+  list(
+    camera_position, 
+    st_centroid(focal_patch)
+  ) %>% 
   bind_rows() %>% 
   st_sf() %>% 
   mutate(
@@ -267,9 +270,9 @@ outer_patch <-
   st_buffer(dist = 25) %>% 
   st_boundary() %>% 
   st_cast("LINESTRING", warn = FALSE) %>% 
-
+  
   # Convert the boundary of the buffer to points:
-
+  
   st_line_sample(
     density = 1,
     type = "regular"
@@ -299,7 +302,7 @@ tm_basemap("Esri.WorldImagery") +
 point_count_position <- 
   outer_patch %>% 
   
-  # Subset to the point closes to the centroid
+  # Subset to the point closes to the centroid:
   
   slice_min(
     n = 1,
@@ -318,9 +321,13 @@ point_count_position <-
 tm_basemap("Esri.WorldImagery") +
   tm_shape(focal_patch) +
   tm_polygons() +
+  
   # Add camera location and centroid:
   
-  list(point_count_position, st_centroid(focal_patch)) %>% 
+  list(
+    point_count_position, 
+    st_centroid(focal_patch)
+  ) %>% 
   bind_rows() %>% 
   st_sf() %>% 
   mutate(
