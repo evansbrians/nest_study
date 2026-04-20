@@ -19,7 +19,7 @@ get_coverboard_order <-
     candidates <-
       
       # `crossing()` generates all pairwise combinations of .pool with itself:
-    
+      
       crossing(x = .pool, y = .pool) %>%
       
       # Subset to where x is the low number and there is at least one coverboard
@@ -147,3 +147,34 @@ get_coverboard_season <-
       
       list_rbind()
   }
+
+# schedule ----------------------------------------------------------------
+
+patch_boards <-
+  list.files(
+    "pre-field_season/data/spatial/proc",
+    pattern = "^patches.*[0-9].*geojson$"
+  ) %>% 
+  str_remove_all(".*[0-9]{1,2}_|\\.geojson") %>% 
+  map_df(
+    ~ get_coverboard_season(.n_weeks = 14) %>% 
+      mutate(
+        patch = .x,
+        .before = 1
+      )
+  )
+
+# One way we could do this for a sampling sheet:
+
+patch_boards %>% 
+  unite(
+    "coverboards",
+    matches("board"),
+    sep = " "
+  ) %>% 
+  pivot_wider(
+    names_from = day,
+    values_from = coverboards,
+    names_prefix = "day_"
+  ) %>% 
+  arrange(week, patch)
