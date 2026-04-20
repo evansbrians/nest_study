@@ -14,12 +14,47 @@
 library(sf)
 library(tidyverse)
 
+# Path to files:
+
+path_spatial <- 
+  "pre-field_season/data/spatial"
+
 # Read in the full raster:
 
 lc_start <-
-  terra::rast(
-    "data/spatial/raw/warr_51187_lulc_2021_2024-Edition.tif"
+  path_spatial %>% 
+  file.path("raw/warr_51187_lulc_2021_2024-Edition.tif") %>% 
+  terra::rast()
+
+# Read in the patch data:
+
+patches_start <- 
+  path_spatial %>% 
+  file.path("proc/patches_start.geojson") %>% 
+  st_read(quiet = TRUE) %>% 
+  st_transform(
+    st_crs(lc_start)
   )
+
+# make an extent for cropping ---------------------------------------------
+
+# Make an bounding box polygon, extending patches by 200 m:
+
+patch_extent <-
+  patches_start %>% 
+  st_buffer(dist = 150) %>% 
+  st_bbox() %>% 
+  st_as_sfc() %>% 
+  st_sf()
+
+# Have a look:
+
+tm_basemap("Esri.WorldImagery") +
+  tm_view(set_view = 14) +
+  tm_shape(patches_start) +
+  tm_polygons() +
+  tm_shape(patch_extent) +
+  tm_polygons(fill_alpha = 0.25)
 
 # subset and reproject the raster -----------------------------------------
 
@@ -28,24 +63,7 @@ lc <-
   
   # Crop the raster to the SCBI campus:
   
-  terra::crop(
-    
-    # Define the extent of SCBI:
-    
-    terra::ext(
-      -78.18,
-      -78.131,
-      38.875, 
-      38.903
-    ) %>% 
-      
-      # Convert to a SpatVector with EPSG 4326:
-      
-      terra::vect("epsg:4326") %>% 
-      terra::project(
-        y = terra::crs(lc_start)
-      )
-  ) %>% 
+  terra::crop(patch_extent) %>% 
   
   # Project to UTM:
   
@@ -59,7 +77,9 @@ lc <-
 # Read the XML file for the raster class definitions:
 
 nodes <-
-  xml2::read_xml("data/spatial/raw/lulc_2024-Edition.xml") %>% 
+  path_spatial %>% 
+  file.path("raw/lulc_2024-Edition.xml") %>% 
+  xml2::read_xml() %>% 
   
   # Extract value-definition pairs:
   
@@ -93,17 +113,18 @@ lc_reclass <-
         terra::values(lc)
       )
   )
-  
+
 # Assign labels to raster classes (ugh, terra is annoying):
 
 levels(lc) <- lc_reclass
 
 # write to file -----------------------------------------------------------
 
-terra::writeRaster(
-  lc,
-  "data/spatial/proc/lc_scbi.tif"
-)
+lc %>% 
+  terra::writeRaster(
+    file.path(path_spatial, "proc/lc_scbi.tif"),
+    overwrite = TRUE
+  )
 
 # Remove unnecessary files:
 
