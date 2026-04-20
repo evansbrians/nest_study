@@ -1,4 +1,6 @@
 
+# Script for determining the locations of your point counts and trail cameras.
+
 # setup -------------------------------------------------------------------
 
 # The bread-and-butter:
@@ -8,6 +10,8 @@ library(tmap)
 library(tidyverse)
 
 tmap_mode("view")
+
+# Path to files:
 
 path_spatial <-
   "pre-field_season/data/spatial/proc"
@@ -19,7 +23,7 @@ path_spatial <-
 patches <- 
   list.files(
     path_spatial,
-    pattern = "edited_[0-9]{1,2}_"
+    pattern = ".*[0-9]{1,2}_"
   ) %>% 
   map(
     ~ file.path(path_spatial, .x) %>% 
@@ -40,6 +44,14 @@ lc <-
     y = "epsg:32618",
     method = "near"
   )
+
+# Have a look:
+
+tm_basemap("Esri.WorldImagery") +
+  tm_shape(lc) +
+  tm_raster(col_alpha = 0.7) +
+  tm_shape(patches) +
+  tm_polygons(fill_alpha = 0.10)
 
 # raster processing -------------------------------------------------------
 
@@ -62,10 +74,43 @@ lc_grass_shrub <-
     others = NA
   )
 
+# Have a look:
+
+tm_basemap("Esri.WorldImagery") +
+  tm_shape(lc_grass_shrub) +
+  tm_raster(col_alpha = 0.7) +
+  tm_shape(patches) +
+  tm_polygons(
+    col = "yellow",
+    fill_alpha = 0.30
+  )
+
 # Generate a raster that represents the distance to open habitat:
 
 open_dist <-
-  terra::distance(lc_grass_shrub)
+  terra::distance(lc_grass_shrub) %>% 
+  
+  # We are only interested in distance-to-open values near patches:
+  
+  terra::crop(
+    patches %>% 
+      st_buffer(dist = 30),
+    mask = TRUE
+  )
+
+# Have a look:
+
+tm_basemap("Esri.WorldImagery") +
+  tm_shape(open_dist) +
+  tm_raster(
+    col.scale =
+      tm_scale_continuous(values = "panoply")
+  ) +
+  tm_shape(patches) +
+  tm_polygons(
+    col = "black",
+    fill_alpha = 0.30
+  )
 
 # nest camera locations ---------------------------------------------------
 
@@ -80,7 +125,7 @@ open_dist <-
 
 focal_patch <-
   patches %>% 
-  filter(name == "forest_a")
+  filter(name == "coyote")
 
 # Make an inner-patch to subset to areas greater than 5 meters from the
 # boundary:
@@ -124,7 +169,7 @@ inner_patch <-
       terra::extract(open_dist, .) %>% 
       pull()
   ) %>% 
-  filter(dist_to_open < 10)
+  filter(dist_to_open < 11)
 
 # Have a look:
 
@@ -208,7 +253,7 @@ camera_locations <-
             terra::extract(open_dist, .) %>% 
             pull()
         ) %>% 
-        filter(dist_to_open < 10) %>% 
+        filter(dist_to_open < 11) %>% 
         
         # Get point on boundary closest to the centroid:
         
@@ -245,6 +290,8 @@ tm_basemap("Esri.WorldImagery") +
     size = 0.4
   )
 
+# The only one that's weird is grassland_b_fence, that forest has filled in.
+
 # point count location ----------------------------------------------------
 
 # Goal is to choose a point within the patch that is:
@@ -260,14 +307,14 @@ focal_patch <-
   patches %>% 
   filter(name == "forest_b")
 
-# Get points that are 25 m from a patch boundary:
+# Get points that are 11 m from a patch boundary:
 
 outer_patch <-
   focal_patch %>% 
   
-  # Buffer to 25 m from the patch edge (check distance with Tara):
+  # Buffer to 11 m from the patch edge (check distance with Tara):
   
-  st_buffer(dist = 25) %>% 
+  st_buffer(dist = 11) %>% 
   st_boundary() %>% 
   st_cast("LINESTRING", warn = FALSE) %>% 
   
@@ -354,7 +401,7 @@ point_count_locations <-
       # Calculate inner patch boundary and convert to points:
       
       .focal_patch %>% 
-        st_buffer(dist = 25) %>% 
+        st_buffer(dist = 11) %>% 
         st_cast("LINESTRING", warn = FALSE) %>% 
         
         # Convert the boundary of the buffer to points:
@@ -409,6 +456,8 @@ tm_basemap("Esri.WorldImagery") +
     fill = "yellow",
     size = 0.4
   )
+
+# These seem pretty good!
 
 # write to file -----------------------------------------------------------
 
