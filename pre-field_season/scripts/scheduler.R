@@ -1,4 +1,6 @@
 
+# The goal for this script is to create a data frame that can be used as a daily
+# and weekly scheduling sheet.
 
 # setup -------------------------------------------------------------------
 
@@ -45,3 +47,20 @@ sampling_start <-
       )
     )
   )
+
+# next steps --------------------------------------------------------------
+
+# 1. We need to group patches into sets that will be checked (nest check, point
+# count, coverboards) on a given day.
+
+# 2. We need to figure out which days your mom, Callie, and I will be coming 
+# out. That will tell us how many patches will be searched on a given day and 
+# on which day.
+
+# 3. Align the sampling schedule in `sampling_scenarios.R` with the dates.
+
+# 4. Add the coverboard check order
+
+# 5. Determine what the google spreadsheet & field sheet will look like for this
+
+
