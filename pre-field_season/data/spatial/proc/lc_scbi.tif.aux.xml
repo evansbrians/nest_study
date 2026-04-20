@@ -13,10 +13,10 @@
       <Category></Category>
       <Category></Category>
       <Category></Category>
-      <Category>Lakes and Reservoirs</Category>
+      <Category></Category>
       <Category>Riverine Ponds</Category>
-      <Category>Terrene Ponds</Category>
-      <Category>Streams and Rivers</Category>
+      <Category></Category>
+      <Category></Category>
       <Category></Category>
       <Category></Category>
       <Category></Category>
@@ -44,7 +44,7 @@
       <Category></Category>
       <Category>Forest</Category>
       <Category>Forested Other</Category>
-      <Category>Natural Succession Barren</Category>
+      <Category></Category>
       <Category>Natural Succession Herbaceous</Category>
       <Category>Natural Succession Shrubland</Category>
       <Category></Category>
@@ -53,10 +53,6 @@
       <Category></Category>
       <Category></Category>
       <Category></Category>
-      <Category>Riverine Wetlands Herbaceous</Category>
-      <Category></Category>
-      <Category>Riverine Wetlands Forested Other</Category>
-      <Category>Riverine Wetlands Forest</Category>
       <Category></Category>
       <Category></Category>
       <Category></Category>
@@ -83,7 +79,11 @@
       <Category></Category>
       <Category></Category>
       <Category></Category>
-      <Category>Cropland Herbaceous</Category>
+      <Category></Category>
+      <Category></Category>
+      <Category></Category>
+      <Category></Category>
+      <Category></Category>
       <Category></Category>
       <Category>Orchards and Vineyards Herbaceous</Category>
       <Category></Category>
