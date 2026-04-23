@@ -82,3 +82,79 @@ patches_edited[[2]] %>%
       "patches_edited_2_firehouse.geojson"
     )
   )
+
+# final version -----------------------------------------------------------
+
+# Writing files to the main data folder!
+
+patches_final <-
+  list.files(
+    path_spatial,
+    pattern = ".*[0-9]{1,2}_"
+  ) %>% 
+  map(
+    ~ file.path(path_spatial, .x) %>% 
+      st_read(quiet = TRUE) %>% 
+      filter(
+        name == str_remove_all(.x, ".*[0-9]{1,2}_|\\.geojson")
+      )
+  ) %>% 
+  bind_rows() 
+
+# Write geojson:
+
+patches_final %>% 
+  st_write(
+    "data/spatial/patches.geojson",
+    delete_dsn = TRUE
+  )
+
+## write kml --------------------------------------------------------------
+
+library(xml2)
+
+# Start by writing as a basic kml file: 
+
+patches_final %>% 
+  
+  # rename `name` to `Name` so Google Earth recognizes the label:
+  
+  # rename(Name = name) %>% 
+  st_write(
+    "data/spatial/patches.kml",
+    delete_dsn = TRUE
+  )
+
+# Read as plain text:
+
+kml_lines <-
+  readLines("data/spatial/patches.kml")
+
+readLines("data/spatial/patches_styled.kml") %>% .[[57]]
+
+# Change styling:
+
+kml_lines %>% 
+  
+  # Replace default red border:
+  
+  str_replace_all(
+    "<LineStyle>.*</LineStyle>",
+    "<LineStyle><color>dd00ffff</color><width>1</width></LineStyle>"
+  ) %>% 
+  
+  # Replace fill:
+  
+  str_replace_all(
+    "<PolyStyle>.*</PolyStyle>",
+    "<PolyStyle><color>66ffffff</color><fill>1</fill></PolyStyle>"
+  ) %>% 
+  
+  # Write to file:
+  
+  writeLines("data/spatial/patches_styled.kml")
+
+# Note: Annoyingly, kml formatting is different than html:
+# * html: #rrggbb + opacity (ff is fully opaque 00 is transparent)
+# * kml: opacity + bbggrr
+
