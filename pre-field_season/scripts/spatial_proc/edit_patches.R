@@ -116,10 +116,6 @@ library(xml2)
 # Start by writing as a basic kml file: 
 
 patches_final %>% 
-  
-  # rename `name` to `Name` so Google Earth recognizes the label:
-  
-  # rename(Name = name) %>% 
   st_write(
     "data/spatial/patches.kml",
     delete_dsn = TRUE
@@ -152,7 +148,7 @@ kml_lines %>%
   
   # Write to file:
   
-  writeLines("data/spatial/patches_styled.kml")
+  writeLines("data/spatial/patches.kml")
 
 # Note: Annoyingly, kml formatting is different than html:
 # * html: #rrggbb + opacity (ff is fully opaque 00 is transparent)
