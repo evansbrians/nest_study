@@ -1,0 +1,18 @@
+{
+"type": "FeatureCollection",
+"name": "point_count_locations",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::32618" } },
+"features": [
+{ "type": "Feature", "properties": { "name": "banding", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 225359.23672138445545, 4309562.862020267173648 ] } },
+{ "type": "Feature", "properties": { "name": "coyote", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 224892.136356657138094, 4309592.896233703009784 ] } },
+{ "type": "Feature", "properties": { "name": "firehouse", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 225561.948003252357012, 4309373.647757103666663 ] } },
+{ "type": "Feature", "properties": { "name": "forest_a", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 225959.120296795095783, 4309478.948679024353623 ] } },
+{ "type": "Feature", "properties": { "name": "forest_b", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 225752.311486940539908, 4309650.262869903817773 ] } },
+{ "type": "Feature", "properties": { "name": "forest_geo", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 226193.610833402955905, 4309658.541631801053882 ] } },
+{ "type": "Feature", "properties": { "name": "grassland_a", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 225974.181876362970797, 4310029.931693758815527 ] } },
+{ "type": "Feature", "properties": { "name": "grassland_b", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 225444.580629079107894, 4309883.44609643612057 ] } },
+{ "type": "Feature", "properties": { "name": "grassland_b_fence", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 225388.328136263036868, 4310021.597469910979271 ] } },
+{ "type": "Feature", "properties": { "name": "leech", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 226781.526336016657297, 4310123.099377762526274 ] } },
+{ "type": "Feature", "properties": { "name": "witch_hazel", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 226304.406904259172734, 4309898.583201876841486 ] } }
+]
+}
