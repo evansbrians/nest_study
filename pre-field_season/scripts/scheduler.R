@@ -4,6 +4,7 @@
 
 # setup -------------------------------------------------------------------
 
+library(suncalc)
 library(tidyverse)
 
 source("pre-field_season/scripts/sampling_scenarios_source.R")
@@ -21,7 +22,8 @@ sampling_start <-
   ) %>% 
   mutate(
     week = isoweek(date) - 19,
-    day = wday(date, label = TRUE),
+    day = 
+      wday(date, label = TRUE),
     
     # Arrive at dawn:
     
@@ -46,6 +48,33 @@ sampling_start <-
         .x
       )
     )
+  )
+
+# example -----------------------------------------------------------------
+
+# As an example scenario:
+
+# * Callie helps Tuesdays (3 patches searched)
+# * Mama S. helps Thursdays (3 patches searched)
+# * I help Saturdays (which is probably ideal because of traffic; 6 patches
+#   searched)
+
+sampling_start %>% 
+  mutate(
+    helper = 
+      case_when(
+        day == "Tue" ~ "Callie",
+        day == "Thu" ~ "Mama S",
+        day == "Sat" ~ "Brian",
+        .default = "-"
+      ),
+    search_patches = 
+      case_when(
+        day == "Tue" ~ " ",
+        day == "Thu" ~ " ",
+        day == "Sat" ~ " ",
+        .default = "-"
+      )
   )
 
 # next steps --------------------------------------------------------------
