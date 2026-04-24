@@ -102,5 +102,51 @@ tm_basemap("Esri.WorldImagery") +
 
 # All looks good ... except for coyote and Forest B #6! I think renumbering this one from S to N might make the most sense. T's decision.
 
+# I think this is the fix?
+
+cb_labels <-
+  cb_labels_start %>%
+  mutate(
+    board_id =
+      case_when(
+        patch_id == "coyote" & 
+          name == "133" ~ 1,
+        patch_id == "coyote" & 
+          name == "RTWNW2" ~ 2,
+        patch_id == "coyote" & 
+          name == "137" ~ 3,
+        patch_id == "coyote" & 
+          name == "136" ~ 4,
+        patch_id == "coyote" & 
+          name == "135" ~ 5,
+        patch_id == "forest_b" &
+          name == "170" ~ 6,
+        .default = as.integer(board_id)
+      )
+  )
+
+# Have a look:
+
+tm_basemap("Esri.WorldImagery") +
+  tm_view(set_view = 15) +
+  
+  # The actual points (locations recorded GPS): 
+  
+  tm_shape(cb_labels) +
+  tm_text(
+    "board_id",
+    col = "yellow", 
+    size = 1
+  ) +
+  
+  # The planning points (contains coverboard id): 
+  
+  tm_shape(cb_placement) +
+  tm_text(
+    "board_id",
+    col = "red", 
+    size = 1
+  )
+
 # Another idea: Start at the southmost point and the next number in a series
 # will be the closest board (or something like that).
