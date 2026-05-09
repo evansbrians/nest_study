@@ -79,17 +79,33 @@ sampling_start %>%
 
 # next steps --------------------------------------------------------------
 
-# 1. We need to group patches into sets that will be checked (nest check, point
-# count, coverboards) on a given day.
+# We need to ...
 
-# 2. We need to figure out which days your mom, Callie, and I will be coming 
-# out. That will tell us how many patches will be searched on a given day and 
-# on which day.
+# 1. Group patches into sets that will be checked (nest check, point count,
+# coverboards) on a given date. Those cannot be random (because of the 3-day
+# nest check interval), but will not likely fall on the same day each week
+# (e.g., Mondays).
 
-# 3. Align the sampling schedule in `sampling_scenarios.R` with the dates.
+# 2. Figure out which patches will be searched on a given day -- for days with
+# Callie and your mom, this will be the same as the patches that are checked
+# (-1, I think). You *will* be checking at least one patch more than once per
+# week. I say you schedule the first check of a patch in a given week and any
+# additional checks can happen at the patches that you think require an
+# additional search (i.e., the extra sampling does not have to be scheduled)
 
-# 4. Add the coverboard check order
+# 3. Randomly assign the order of the patches checked on a given date. For
+# example, perhaps on Monday you check coyote, banding, firehouse, and grassland
+# a then Thursday you check firehouse, coyote, grassland a, and banding. This
+# limits bias associated with point count times.
 
-# 5. Determine what the google spreadsheet & field sheet will look like for this
+# 4. Align the sampling schedule in `sampling_scenarios.R` with the dates.
+
+# 5. Modify the coverboard order script such that it uses spatial distance
+# rather than just numbering and define the order for each date.
+
+# 6. Determine what the google spreadsheet & field sheet will look like for this.
+
+# 7. Add all of the above to sampling start (so that each of the above is 
+# associated with a date and populate a google spreadsheet.
 
 
