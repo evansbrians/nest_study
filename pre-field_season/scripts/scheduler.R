@@ -15,7 +15,7 @@ sampling_start <-
   tibble(
     date = 
       seq(
-        as_date("2026-05-15"),
+        as_date("2026-05-10"),
         as_date("2026-08-15"),
         by = 1
       )
@@ -50,6 +50,69 @@ sampling_start <-
     )
   )
 
+# patch ordering ----------------------------------------------------------
+
+patch_names <- 
+  tibble(
+    patch_num = 1:11,
+    patch_name = 
+      c(
+        "banding_shed",
+        "coyote",
+        "grass_b_fence",
+        "grass_b_s",
+        "grass_a",
+        "leech_n",
+        "witch_hazel",
+        "forest_geo",
+        "forest_a",
+        "forest_b",
+        "firehouse"
+      )
+  )
+
+order <-
+  tibble(
+    date = 
+      seq(
+        as_date("2026-05-10"),
+        as_date("2026-08-15"),
+        by = 1
+      ) %>% 
+      keep(
+        ~ wday(
+          .x, 
+          label = TRUE
+        ) != "Sun"
+      ),
+    day_num = row_number(date)
+  ) %>% 
+  expand(
+    nesting(
+      date, day_num
+    ),
+    patch = 1:4
+  ) %>% 
+  mutate(
+    patch_num = 
+      (patch + (day_num - 1) * 4) %% 11,
+    patch_num =
+      ifelse(
+        patch_num == 0,
+        11,
+        patch_num
+      )
+  ) %>%
+  left_join(
+    patch_names,
+    by = "patch_num"
+  ) %>%
+  select(
+    date, 
+    "pred_count_order" = patch,
+    "pred_count" = patch_name
+  )
+
 # example -----------------------------------------------------------------
 
 # As an example scenario:
@@ -59,11 +122,15 @@ sampling_start <-
 # * I help Saturdays (which is probably ideal because of traffic; 6 patches
 #   searched)
 
+scheduling <- 
 sampling_start %>% 
   mutate(
     helper = 
       case_when(
-        day == "Tue" ~ "Callie",
+        (
+          day == "Tue" &
+           !week %in% 8:10
+        ) ~ "Callie",
         day == "Thu" ~ "Mama S",
         day == "Sat" ~ "Brian",
         .default = "-"
@@ -75,6 +142,27 @@ sampling_start %>%
         day == "Sat" ~ " ",
         .default = "-"
       )
+  ) %>% 
+  full_join(
+    order,
+    by = "date"
+  )
+
+# Temp
+
+scheduling %>% 
+  filter(
+    str_detect(helper, "Cal|Mama")
+  ) %>% 
+      slice_min(
+        pred_count_order,
+        n = 3,
+        by = date
+      ) %>% 
+  mutate(
+    search_patches = 
+      str_flatten(pred_count, collapse = ", "),
+    .by = date
   )
 
 # next steps --------------------------------------------------------------

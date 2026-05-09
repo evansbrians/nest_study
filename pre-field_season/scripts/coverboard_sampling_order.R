@@ -1,10 +1,74 @@
+
 # Script for generating a random coverboard order for each week, where no
 # coverboard is sample more than once per week and adjacent coverboards are
 # not sampled.
 
 # setup -------------------------------------------------------------------
 
+library(sf)
+library(tmap)
 library(tidyverse)
+
+read_dir <- "pre-field_season/data/spatial/proc"
+
+# Read in patch data:
+
+patches <- 
+  list.files(
+    read_dir,
+    pattern = ".*[0-9]{1,2}_"
+  ) %>% 
+  map(
+    ~ file.path(read_dir, .x) %>% 
+      st_read(quiet = TRUE) %>% 
+      filter(
+        name == str_remove_all(.x, ".*[0-9]{1,2}_|\\.geojson")
+      )
+  ) %>% 
+  bind_rows() 
+
+# Read in coverboard gps points:
+
+coverboards <- 
+  file.path(read_dir, "coverboards_gps.geojson") %>% 
+  st_read(quiet = TRUE)
+
+# temp --------------------------------------------------------------------
+
+# Assign each coverboard to its patch
+
+cb_grouped <- 
+  patches %>% 
+  pull(name) %>% 
+  set_names() %>% 
+  map(
+    ~ coverboards %>% 
+      st_filter(
+        patches %>% 
+          filter(
+            name == .x
+          )
+      )
+  )
+
+# Distance matrix?
+
+cb_grouped$grassland_b_fence %>% 
+  st_distance() %>% 
+  as_tibble(
+    rownames = "cb_1"
+  ) %>% 
+  pivot_longer(
+    !cb_1,
+    names_to = "cb_2",
+    values_to = "dist"
+  ) %>% 
+  mutate(
+    cb_2 = str_remove_all(cb_2, "V")
+  ) %>% 
+  filter(
+    cb_1 < cb_2
+  )
 
 # function to calculate the coverboard order for a given week -------------
 
