@@ -23,13 +23,13 @@ path_spatial <-
 patches <- 
   list.files(
     path_spatial,
-    pattern = ".*[0-9]{1,2}_"
+    pattern = ".*[0-9]{1,2}_.*new"
   ) %>% 
   map(
     ~ file.path(path_spatial, .x) %>% 
       st_read(quiet = TRUE) %>% 
       filter(
-        name == str_remove_all(.x, ".*[0-9]{1,2}_|\\.geojson")
+        name == str_remove_all(.x, ".*[0-9]{1,2}_|_new|\\.geojson")
       )
   ) %>% 
   bind_rows() %>% 

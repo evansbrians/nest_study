@@ -25,7 +25,7 @@ read_dir <- "pre-field_season/data/spatial/proc"
 # Read in the data:
 
 c(
-  patches_start = "patches_edited_2_firehouse.geojson",
+  patches_start = "patches_edited_9_leech_new.geojson",
   coverboards = "coverboards_gps.geojson",
   coyote_line = "coyote_line.geojson"
 ) %>% 
@@ -79,8 +79,9 @@ patches_edited[[2]] %>%
   st_write(
     file.path(
       "pre-field_season/data/spatial/proc",
-      "patches_edited_2_firehouse.geojson"
-    )
+      "patches_edited_10_coyote_new.geojson"
+    ),
+    append = FALSE
   )
 
 # final version -----------------------------------------------------------
@@ -90,13 +91,13 @@ patches_edited[[2]] %>%
 patches_final <-
   list.files(
     path_spatial,
-    pattern = ".*[0-9]{1,2}_"
+    pattern = ".*[0-9]{1,2}_.*new"
   ) %>% 
   map(
     ~ file.path(path_spatial, .x) %>% 
       st_read(quiet = TRUE) %>% 
       filter(
-        name == str_remove_all(.x, ".*[0-9]{1,2}_|\\.geojson")
+        name == str_remove_all(.x, ".*[0-9]{1,2}_|_new|\\.geojson")
       )
   ) %>% 
   bind_rows() 
