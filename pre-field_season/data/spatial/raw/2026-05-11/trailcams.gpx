@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<gpx version="1.1" creator="GDAL 3.5.3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.topografix.com/GPX/1/1" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+<metadata><bounds minlat="38.889689585040429" minlon="-78.171969633577319" maxlat="38.897884079504749" maxlon="-78.150325663020311"/></metadata>                
+<wpt lat="38.892081524467955" lon="-78.166789413376364">
+  <ele>0.0</ele>
+</wpt>
+<wpt lat="38.892292756432099" lon="-78.171969633577319">
+  <ele>0.0</ele>
+<name>trailcam_0_coyote</name><cmt></cmt></wpt>
+<wpt lat="38.889689585040429" lon="-78.163821124265112">
+  <ele>0.0</ele>
+</wpt>
+<wpt lat="38.891480652644546" lon="-78.159764531831229">
+  <ele>0.0</ele>
+</wpt>
+<wpt lat="38.89301649892159" lon="-78.162190943068239">
+  <ele>0.0</ele>
+</wpt>
+<wpt lat="38.893181412244154" lon="-78.156755485827631">
+  <ele>0.0</ele>
+</wpt>
+<wpt lat="38.896478275915747" lon="-78.159799498083174">
+  <ele>0.0</ele>
+</wpt>
+<wpt lat="38.894902813843821" lon="-78.165483905504672">
+  <ele>0.0</ele>
+</wpt>
+<wpt lat="38.896404690538091" lon="-78.166723326975287">
+  <ele>0.0</ele>
+</wpt>
+<wpt lat="38.897884" lon="-78.150336">
+  <ele>145.706223</ele>
+<time>2026-05-11T17:18:02Z</time><name>leech_trailcam_0</name><extensions><wptx1:WaypointExtension><wptx1:Samples>2</wptx1:Samples></wptx1:WaypointExtension></extensions></wpt>
+<wpt lat="38.895443095559216" lon="-78.156081862292453">
+  <ele>0.0</ele>
+</wpt>
+</gpx>
