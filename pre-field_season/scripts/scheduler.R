@@ -52,118 +52,177 @@ sampling_start <-
 
 # patch ordering ----------------------------------------------------------
 
-patch_names <- 
-  tibble(
-    patch_num = 1:11,
-    patch_name = 
-      c(
-        "banding_shed",
-        "coyote",
-        "grass_b_fence",
-        "grass_b_s",
-        "grass_a",
-        "leech_n",
-        "witch_hazel",
-        "forest_geo",
-        "forest_a",
-        "forest_b",
-        "firehouse"
-      )
+patches <-
+  c(
+    
+    # Group 1, Monday/Thursday (Callie patches):
+    
+    "coyote",
+    "firehouse",
+    "witch_hazel",
+    
+    # Group 2, Tuesday/Friday (Mom patches):
+    
+    "forest_geo",
+    "grassland_a",
+    "grassland_b_fence",
+    
+    # Group 3, Wednesday/Saturday (Brian patches): 
+    
+    "forest_a",
+    "leech",
+    "grassland_b"
   )
 
-order <-
-  tibble(
-    date = 
-      seq(
-        as_date("2026-05-10"),
-        as_date("2026-08-15"),
-        by = 1
-      ) %>% 
-      keep(
-        ~ wday(
-          .x, 
-          label = TRUE
-        ) != "Sun"
-      ),
-    day_num = row_number(date)
-  ) %>% 
-  expand(
-    nesting(
-      date, day_num
-    ),
-    patch = 1:4
-  ) %>% 
+# patch counts ------------------------------------------------------------
+
+# Sequential patches:
+
+patch_counts_sequential <- 
+  sampling_start %>% 
+  
+  # Remove Sundays:
+  
+  filter(day != "Sun") %>% 
+  
+  # Repeat each day 4 times:
+  
+  uncount(3) %>% 
+  
+  # Assign patches to days:
+  
   mutate(
-    patch_num = 
-      (patch + (day_num - 1) * 4) %% 11,
-    patch_num =
-      ifelse(
-        patch_num == 0,
-        11,
-        patch_num
+    patch_count = 
+      rep_len(
+        patches, 
+        n()
       )
-  ) %>%
-  left_join(
-    patch_names,
-    by = "patch_num"
-  ) %>%
-  select(
-    date, 
-    "pred_count_order" = patch,
-    "pred_count" = patch_name
-  )
-
-# example -----------------------------------------------------------------
-
-# As an example scenario:
-
-# * Callie helps Tuesdays (3 patches searched)
-# * Mama S. helps Thursdays (3 patches searched)
-# * I help Saturdays (which is probably ideal because of traffic; 6 patches
-#   searched)
-
-scheduling <- 
-sampling_start %>% 
+  ) %>% 
+  
+  # Add helpers:
+  
   mutate(
     helper = 
       case_when(
-        (
-          day == "Tue" &
-           !week %in% 8:10
-        ) ~ "Callie",
-        day == "Thu" ~ "Mama S",
+        day == "Thu" & week %in% 8:10 ~ "-",
+        day == "Thu" ~ "Callie",
+        day == "Tue" ~ "Mama S",
         day == "Sat" ~ "Brian",
         .default = "-"
       ),
-    search_patches = 
-      case_when(
-        day == "Tue" ~ " ",
-        day == "Thu" ~ " ",
-        day == "Sat" ~ " ",
-        .default = "-"
-      )
-  ) %>% 
-  full_join(
-    order,
+    .after = day
+  )
+
+# Randomize patch order on a given day:
+
+patch_counts_randomized <-
+  patch_counts_sequential %>% 
+  slice_sample(
+    n = 4,
     by = "date"
   )
 
-# Temp
+# nest searching: sequential version --------------------------------------
 
-scheduling %>% 
-  filter(
-    str_detect(helper, "Cal|Mama")
-  ) %>% 
-      slice_min(
-        pred_count_order,
-        n = 3,
-        by = date
-      ) %>% 
+patch_search_sequential <-
+  patch_counts_sequential %>% 
   mutate(
-    search_patches = 
-      str_flatten(pred_count, collapse = ", "),
+    patch_search =
+      case_when(
+        helper == "-" ~ "-",
+        helper == "Brian" ~ NA_character_,
+        
+        # When you are sampling with Callie and your mom, you will search the
+        # last three patches sampled:
+        
+        patch_count != last(patch_count) ~ patch_count
+      ),
+    .by = c(week, helper)
+  ) %>% 
+  
+  # When you are sampling with me, all remaining patches will be searched:
+  
+  mutate(
+    patch_search =
+      case_when(
+        helper == "Brian" & 
+          patch_count == last(patch_count) ~
+          str_flatten(
+            patches[!patches %in% patch_search], 
+            collapse = ", "
+          ),
+        .default = patch_search
+      ),
+    .by = week
+  ) %>% 
+  
+  # Flatten the counts and searches then remove duplicates:
+  
+  mutate(
+    patch_count = 
+      str_flatten(patch_count, collapse = " \u2192 "),
+    patch_search = 
+      patch_search %>% 
+      unique() %>% 
+      str_flatten(
+        collapse = ", ", 
+        na.rm = TRUE
+      ),
     .by = date
-  )
+  ) %>% 
+  distinct() %>% 
+  select(helper, patch_count: patch_search)
+
+# nest searching: random version ------------------------------------------
+
+patch_counts_randomized %>% 
+  mutate(
+    patch_search =
+      case_when(
+        helper == "-" ~ "-",
+        helper == "Brian" ~ NA_character_,
+        
+        # When you are sampling with Callie and your mom, you will search the
+        # last three patches sampled:
+        
+        patch_count != last(patch_count) ~ patch_count
+      ),
+    .by = c(week, helper)
+  ) %>% 
+  
+  # When you are sampling with me, all remaining patches will be searched:
+  
+  mutate(
+    patch_search =
+      case_when(
+        helper == "Brian" & 
+          patch_count == last(patch_count) ~
+          str_flatten(
+            patches[!patches %in% patch_search], 
+            collapse = ", "
+          ),
+        .default = patch_search
+      ),
+    .by = week
+  ) %>% 
+  
+  # Flatten the counts and searches then remove duplicates:
+  
+  mutate(
+    patch_count = 
+      str_flatten(patch_count, collapse = " \u2192 "),
+    patch_search = 
+      patch_search %>% 
+      unique() %>% 
+      str_flatten(
+        collapse = ", ", 
+        na.rm = TRUE
+      ),
+    .by = date
+  ) %>% 
+  distinct() %>% 
+  select(week, helper, patch_count: patch_search) %>% 
+  print(n = 30)
 
 # next steps --------------------------------------------------------------
 
