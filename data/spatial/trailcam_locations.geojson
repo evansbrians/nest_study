@@ -1,18 +1,16 @@
 {
 "type": "FeatureCollection",
 "name": "trailcam_locations",
-"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::32618" } },
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
 "features": [
-{ "type": "Feature", "properties": { "name": "banding", "dist_to_open": 3.1620278358459473 }, "geometry": { "type": "Point", "coordinates": [ 225336.201473339693621, 4309569.281619018875062 ] } },
-{ "type": "Feature", "properties": { "name": "coyote", "dist_to_open": 10.999131202697754 }, "geometry": { "type": "Point", "coordinates": [ 224887.625664228253299, 4309608.353155560791492 ] } },
-{ "type": "Feature", "properties": { "name": "firehouse", "dist_to_open": 10.629305839538574 }, "geometry": { "type": "Point", "coordinates": [ 225584.490088086051401, 4309294.823214154690504 ] } },
-{ "type": "Feature", "properties": { "name": "forest_a", "dist_to_open": 3.6052663326263428 }, "geometry": { "type": "Point", "coordinates": [ 225943.307613002718426, 4309481.435519595630467 ] } },
-{ "type": "Feature", "properties": { "name": "forest_b", "dist_to_open": 9.218815803527832 }, "geometry": { "type": "Point", "coordinates": [ 225738.72521112189861, 4309659.220913119614124 ] } },
-{ "type": "Feature", "properties": { "name": "forest_geo", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 226210.885819268471096, 4309661.184910936281085 ] } },
-{ "type": "Feature", "properties": { "name": "grassland_a", "dist_to_open": 7.2795348167419434 }, "geometry": { "type": "Point", "coordinates": [ 225959.503570611472242, 4310036.302160239778459 ] } },
-{ "type": "Feature", "properties": { "name": "grassland_b", "dist_to_open": 4.9996047019958496 }, "geometry": { "type": "Point", "coordinates": [ 225460.331052645575255, 4309878.525977205485106 ] } },
-{ "type": "Feature", "properties": { "name": "grassland_b_fence", "dist_to_open": 1.4141018390655518 }, "geometry": { "type": "Point", "coordinates": [ 225358.605447917361744, 4310048.976498558185995 ] } },
-{ "type": "Feature", "properties": { "name": "leech", "dist_to_open": 4.1227798461914062 }, "geometry": { "type": "Point", "coordinates": [ 226786.712561157648452, 4310163.908406316302717 ] } },
-{ "type": "Feature", "properties": { "name": "witch_hazel", "dist_to_open": 10.999131202697754 }, "geometry": { "type": "Point", "coordinates": [ 226278.014659285370726, 4309910.219685697928071 ] } }
+{ "type": "Feature", "properties": { "name": "coyote_trailcam_0", "elevation": 0.0, "datetime": null }, "geometry": { "type": "Point", "coordinates": [ -78.171969633577319, 38.892292756432099 ] } },
+{ "type": "Feature", "properties": { "name": "firehouse_trailcam_0", "elevation": 151.47818, "datetime": "2026-05-13T16:10:28Z" }, "geometry": { "type": "Point", "coordinates": [ -78.163787, 38.889655 ] } },
+{ "type": "Feature", "properties": { "name": "grassland_b_trailcam_0", "elevation": 163.683441, "datetime": "2026-05-13T14:33:33Z" }, "geometry": { "type": "Point", "coordinates": [ -78.16546, 38.894874 ] } },
+{ "type": "Feature", "properties": { "name": "grassland_b_fence_trailcam_0", "elevation": 167.4077, "datetime": "2026-05-13T11:49:31Z" }, "geometry": { "type": "Point", "coordinates": [ -78.166768, 38.896411 ] } },
+{ "type": "Feature", "properties": { "name": "leech_trailcam_0", "elevation": 145.706223, "datetime": "2026-05-11T17:18:02Z" }, "geometry": { "type": "Point", "coordinates": [ -78.150336, 38.897884 ] } },
+{ "type": "Feature", "properties": { "name": "witch_hazel_trailcam_0", "elevation": 167.959, "datetime": "2026-05-13T19:17:04Z" }, "geometry": { "type": "Point", "coordinates": [ -78.156083, 38.895445 ] } },
+{ "type": "Feature", "properties": { "name": "grassland_trailcam_0", "elevation": 382.595215, "datetime": "2026-05-11T14:12:11Z" }, "geometry": { "type": "Point", "coordinates": [ -78.159878, 38.896553 ] } },
+{ "type": "Feature", "properties": { "name": "forest_geo_trailcam_0", "elevation": 359.194794, "datetime": "2026-05-15T17:48:09Z" }, "geometry": { "type": "Point", "coordinates": [ -78.156657, 38.893131 ] } },
+{ "type": "Feature", "properties": { "name": "forest_a_trailcam_0", "elevation": 347.433441, "datetime": "2026-05-16T17:42:08Z" }, "geometry": { "type": "Point", "coordinates": [ -78.159857, 38.89151 ] } }
 ]
 }

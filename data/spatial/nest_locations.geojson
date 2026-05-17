@@ -1,0 +1,12 @@
+{
+"type": "FeatureCollection",
+"name": "nest_locations",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "name": "N001", "elevation": 360.91626, "datetime": "2026-05-13T12:15:35Z" }, "geometry": { "type": "Point", "coordinates": [ -78.167187, 38.895761 ] } },
+{ "type": "Feature", "properties": { "name": "N002", "elevation": 306.266479, "datetime": "2026-05-14T16:10:01Z" }, "geometry": { "type": "Point", "coordinates": [ -78.171613, 38.892552 ] } },
+{ "type": "Feature", "properties": { "name": "N004", "elevation": 377.277191, "datetime": "2026-05-15T15:24:22Z" }, "geometry": { "type": "Point", "coordinates": [ -78.167868, 38.895564 ] } },
+{ "type": "Feature", "properties": { "name": "N003", "elevation": 377.277191, "datetime": "2026-05-15T15:24:39Z" }, "geometry": { "type": "Point", "coordinates": [ -78.167884, 38.895567 ] } },
+{ "type": "Feature", "properties": { "name": "N005", "elevation": 362.444702, "datetime": "2026-05-15T15:41:00Z" }, "geometry": { "type": "Point", "coordinates": [ -78.166805, 38.895998 ] } }
+]
+}

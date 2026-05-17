@@ -1,18 +1,16 @@
 {
 "type": "FeatureCollection",
 "name": "point_count_locations",
-"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::32618" } },
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
 "features": [
-{ "type": "Feature", "properties": { "name": "banding", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 225359.23672138445545, 4309562.862020267173648 ] } },
-{ "type": "Feature", "properties": { "name": "coyote", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 224892.136356657138094, 4309592.896233703009784 ] } },
-{ "type": "Feature", "properties": { "name": "firehouse", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 225561.948003252357012, 4309373.647757103666663 ] } },
-{ "type": "Feature", "properties": { "name": "forest_a", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 225959.120296795095783, 4309478.948679024353623 ] } },
-{ "type": "Feature", "properties": { "name": "forest_b", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 225752.311486940539908, 4309650.262869903817773 ] } },
-{ "type": "Feature", "properties": { "name": "forest_geo", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 226193.610833402955905, 4309658.541631801053882 ] } },
-{ "type": "Feature", "properties": { "name": "grassland_a", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 225974.181876362970797, 4310029.931693758815527 ] } },
-{ "type": "Feature", "properties": { "name": "grassland_b", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 225444.580629079107894, 4309883.44609643612057 ] } },
-{ "type": "Feature", "properties": { "name": "grassland_b_fence", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 225388.328136263036868, 4310021.597469910979271 ] } },
-{ "type": "Feature", "properties": { "name": "leech", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 226781.526336016657297, 4310123.099377762526274 ] } },
-{ "type": "Feature", "properties": { "name": "witch_hazel", "dist_to_open": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 226304.406904259172734, 4309898.583201876841486 ] } }
+{ "type": "Feature", "properties": { "name": "point_count_coyote", "elevation": 0.0, "datetime": null }, "geometry": { "type": "Point", "coordinates": [ -78.171911508777825, 38.892155092093624 ] } },
+{ "type": "Feature", "properties": { "name": "point_count_firehouse", "elevation": 0.0, "datetime": null }, "geometry": { "type": "Point", "coordinates": [ -78.164112146473585, 38.890391789926831 ] } },
+{ "type": "Feature", "properties": { "name": "point_count_forest_a", "elevation": 0.0, "datetime": null }, "geometry": { "type": "Point", "coordinates": [ -78.159581483673819, 38.891463207840935 ] } },
+{ "type": "Feature", "properties": { "name": "point_count_grassland_a", "elevation": 0.0, "datetime": null }, "geometry": { "type": "Point", "coordinates": [ -78.159627948333309, 38.896425533890948 ] } },
+{ "type": "Feature", "properties": { "name": "point_count_grassland_b", "elevation": 0.0, "datetime": null }, "geometry": { "type": "Point", "coordinates": [ -78.165667219463614, 38.894942162389398 ] } },
+{ "type": "Feature", "properties": { "name": "point_count_grassland_b", "elevation": 168.128006, "datetime": "2026-05-13T10:45:04Z" }, "geometry": { "type": "Point", "coordinates": [ -78.166382, 38.896163 ] } },
+{ "type": "Feature", "properties": { "name": "point_count_leech", "elevation": 0.0, "datetime": null }, "geometry": { "type": "Point", "coordinates": [ -78.150369139198631, 38.897515272638749 ] } },
+{ "type": "Feature", "properties": { "name": "point_count_witch_hazel", "elevation": 0.0, "datetime": null }, "geometry": { "type": "Point", "coordinates": [ -78.155773344679474, 38.895346614098415 ] } },
+{ "type": "Feature", "properties": { "name": "point_count_forest_geo", "elevation": 381.645447, "datetime": "2026-05-15T10:19:12Z" }, "geometry": { "type": "Point", "coordinates": [ -78.15715, 38.893092 ] } }
 ]
 }
