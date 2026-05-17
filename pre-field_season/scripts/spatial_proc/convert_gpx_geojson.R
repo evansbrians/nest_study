@@ -63,3 +63,23 @@ names(cat_points) %>%
         delete_dsn = TRUE
       )
   )
+
+# upload patches to garmin ------------------------------------------------
+
+patches_gpx <- 
+  st_read(
+    "data/spatial/patches.geojson",
+    quiet = TRUE
+  ) %>% 
+  st_cast("MULTILINESTRING")
+
+st_write(
+  patches_gpx,
+  file.path(
+    garmin_dir,
+    "patches"
+  ) %>% 
+    str_c(".gpx"),
+  driver = "GPX",
+  dataset_options = "GPX_USE_EXTENSIONS=YES"
+)

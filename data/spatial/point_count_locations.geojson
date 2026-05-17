@@ -8,7 +8,7 @@
 { "type": "Feature", "properties": { "name": "point_count_forest_a", "elevation": 0.0, "datetime": null }, "geometry": { "type": "Point", "coordinates": [ -78.159581483673819, 38.891463207840935 ] } },
 { "type": "Feature", "properties": { "name": "point_count_grassland_a", "elevation": 0.0, "datetime": null }, "geometry": { "type": "Point", "coordinates": [ -78.159627948333309, 38.896425533890948 ] } },
 { "type": "Feature", "properties": { "name": "point_count_grassland_b", "elevation": 0.0, "datetime": null }, "geometry": { "type": "Point", "coordinates": [ -78.165667219463614, 38.894942162389398 ] } },
-{ "type": "Feature", "properties": { "name": "point_count_grassland_b", "elevation": 168.128006, "datetime": "2026-05-13T10:45:04Z" }, "geometry": { "type": "Point", "coordinates": [ -78.166382, 38.896163 ] } },
+{ "type": "Feature", "properties": { "name": "point_count_grassland_b_fence", "elevation": 168.128006, "datetime": "2026-05-13T10:45:04Z" }, "geometry": { "type": "Point", "coordinates": [ -78.166382, 38.896163 ] } },
 { "type": "Feature", "properties": { "name": "point_count_leech", "elevation": 0.0, "datetime": null }, "geometry": { "type": "Point", "coordinates": [ -78.150369139198631, 38.897515272638749 ] } },
 { "type": "Feature", "properties": { "name": "point_count_witch_hazel", "elevation": 0.0, "datetime": null }, "geometry": { "type": "Point", "coordinates": [ -78.155773344679474, 38.895346614098415 ] } },
 { "type": "Feature", "properties": { "name": "point_count_forest_geo", "elevation": 381.645447, "datetime": "2026-05-15T10:19:12Z" }, "geometry": { "type": "Point", "coordinates": [ -78.15715, 38.893092 ] } }
