@@ -170,8 +170,8 @@ add_cams <-
         inner_patch_points %>% 
         filter(name == .focal_patch_name)
       
-      # Make a numeric vector of distances between each point and the location of the
-      # trailcam at the centroid:
+      # Make a numeric vector of distances between each point and the location
+      # of the trailcam at the centroid:
       
       cam_distance <-
         st_distance(
@@ -192,24 +192,24 @@ add_cams <-
           seq_len(
             nrow(dist_matrix)
           ),
-          \(i) {
+          \(.i) {
             
-            # Maximize the sum of pairwise distances between points and the centroid
-            # trailcam and points and themselves:
+            # Maximize the sum of pairwise distances between points and the
+            # centroid trailcam and points and themselves:
             
             distance_sums <- 
-              cam_distance[i] + 
+              cam_distance[.i] + 
               cam_distance + 
-              as.numeric(dist_matrix[i, ])
+              as.numeric(dist_matrix[.i, ])
             
             # Exclude self-pairing:
             
-            distance_sums[i] <- -Inf
+            distance_sums[.i] <- -Inf
             
             # Get the row ids for each distance measure:
             
             tibble(
-              cam1_id = i,
+              cam1_id = .i,
               cam2_id = which.max(distance_sums),
               maximized_distance = max(distance_sums)
             )
