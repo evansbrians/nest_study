@@ -15,21 +15,13 @@ patches <-
   
   st_transform(3857)
 
-# Get a bounding box around all of the patches and make it a little bigger:
-
-patches_bbox <-
-  patches %>% 
-  st_buffer(100) %>% 
-  st_bbox() %>% 
-  st_as_sfc()
-
 # raster and raster processing --------------------------------------------
 
 # Get the full-color raster from ESRI for each patch
 
 photo_list <-
   patches %>% 
-  st_buffer(50) %>% 
+  st_buffer(25) %>% 
   split(.$name) %>% 
   map(
     ~ maptiles::get_tiles(
@@ -66,7 +58,8 @@ photo_list_grayscale %>%
         file.path(
           "data/spatial/aerial_images",
           str_c(.name, ".tif")
-        )
+        ),
+        overwrite = TRUE
       )
     }
   )
