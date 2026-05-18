@@ -1,95 +1,114 @@
 
-# Script for generating a random coverboard order for each week, where no
-# coverboard is sample more than once per week and adjacent coverboards are
-# not sampled.
+# Script for generating a stratified random coverboard order for each day and
+# week, where the following constraints are met:
+
+# 1) All coverboard are sampled once per week
+# 2) No coverboard is sampled more than once per week
+# 3) Spatially adjacent coverboards are not sampled on the same day
+# 4) The last coverboards sampled on a given week are not sampled on the first
+#    sampling event of the following week.
 
 # setup -------------------------------------------------------------------
 
 library(sf)
-library(tmap)
 library(tidyverse)
 
-read_dir <- "pre-field_season/data/spatial/proc"
+# Read in shapefiles and convert each to a list (one list item per patch):
 
-# Read in patch data:
+patches <-
+  st_read("data/spatial/patches.geojson", quiet = TRUE) %>% 
+  st_transform(32618) %>% 
+  split(.$name)
 
-patches <- 
-  list.files(
-    read_dir,
-    pattern = ".*[0-9]{1,2}_"
+coverboards <-
+  st_read("data/spatial/coverboard_locations.geojson", quiet = TRUE) %>% 
+  st_transform(32618) %>% 
+  mutate(
+    patch = str_remove(name, "_cb.*"),
+    board_name = name,
+    .before = 1,
+    .keep = "unused"
   ) %>% 
-  map(
-    ~ file.path(read_dir, .x) %>% 
-      st_read(quiet = TRUE) %>% 
-      filter(
-        name == str_remove_all(.x, ".*[0-9]{1,2}_|\\.geojson")
-      )
-  ) %>% 
-  bind_rows() 
+  split(.$patch)
 
-# Read in coverboard gps points:
+# Get starts:
 
-coverboards <- 
-  file.path(read_dir, "coverboards_gps.geojson") %>% 
-  st_read(quiet = TRUE)
+coverboard_url <-
+  file.path(
+    "https://docs.google.com/spreadsheets/d",
+    "1XkozYdl1UfBVF9lMcP9ZjmTHflzF3q7l-NU6t2U11o4"
+  )
 
-# temp --------------------------------------------------------------------
-
-# Assign each coverboard to its patch
-
-cb_grouped <- 
-  patches %>% 
-  pull(name) %>% 
+board_starts <-
+  googlesheets4::sheet_names(coverboard_url) %>% 
   set_names() %>% 
   map(
-    ~ coverboards %>% 
-      st_filter(
-        patches %>% 
-          filter(
-            name == .x
-          )
+    ~ googlesheets4::read_sheet(coverboard_url, sheet = .x) %>% 
+      mutate(
+        board_id = 
+          str_c(
+            patch_id,
+            "_cb_",
+            board_num
+          ),
+        date = as_date(date),
+        .keep = "none"
       )
   )
 
-# Distance matrix?
+# generate the sampling pool between boards -------------------------------
 
-cb_grouped$grassland_b_fence %>% 
-  st_distance() %>% 
-  as_tibble(
-    rownames = "cb_1"
-  ) %>% 
-  pivot_longer(
-    !cb_1,
-    names_to = "cb_2",
-    values_to = "dist"
-  ) %>% 
-  mutate(
-    cb_2 = str_remove_all(cb_2, "V")
-  ) %>% 
-  filter(
-    cb_1 < cb_2
+# Make a 3-column data frame where the first column is the origin, the second
+# column is destination, and the third column is the distance between boards:
+
+board_distances <-
+  coverboards %>% 
+  map(
+    \(.coverboards) {
+      st_distance(.coverboards) %>%
+        as_tibble(
+          .name_repair = ~ .coverboards$board_name
+        ) %>% 
+        mutate(
+          board_1 = as.character(.coverboards$board_name),
+          across(
+            !board_1,
+            ~ as.numeric(.x)
+          )
+        ) %>% 
+        pivot_longer(
+          cols = !board_1, 
+          names_to = "board_2", 
+          values_to = "distance"
+        ) %>% 
+        filter(board_1 != board_2) %>% 
+        arrange(board_1, board_2)
+    }
   )
 
-# function to calculate the coverboard order for a given week -------------
+# Generate a reduced pool to sample from, omitting the closest boards:
+
+board_pools <-
+  board_distances %>% 
+  map(
+    \(.board_distances) {
+      .board_distances %>% 
+        filter(
+          distance > min(distance),
+          .by = board_1
+        ) %>% 
+        select(!distance)
+    }
+  )
+
+# function to get the coverboard order for a single week ------------------
 
 get_coverboard_order <-
   function(
-    .pool = 1:6, 
-    .n_draws = 3
+    .board_pool,
+    .n_draws = 3,
+    .prev_boards = NULL
   ) {
-    
-    # Make a data frame of all potential coverboards to check on a sampling day:
-    
-    candidates <-
-      
-      # `crossing()` generates all pairwise combinations of .pool with itself:
-      
-      crossing(x = .pool, y = .pool) %>%
-      
-      # Subset to where x is the low number and there is at least one coverboard
-      # between the selected boards:
-      
-      filter(y > x + 1)
     
     # `repeat` is a control flow construct that repeats a process until the
     # desired output has been generated (to account for potential problems along
@@ -112,41 +131,51 @@ get_coverboard_order <-
             seq_len(.n_draws),
             ~ {
               
-              # Get a one-row sample of the candidate data frame:
+              # Constraint: Exclude boards checked on the previous sampling day
+              # for the first draw only. Filter available from .x$cands (not
+              # from `available` itself) in the cands update so that boards
+              # excluded here remain eligible for draws 2 and 3:
               
-              draw <- slice_sample(.x$cands, n = 1)
+              available <-
+                if (.x$first_draw && !is.null(.prev_boards)) {
+                  filter(
+                    .x$cands,
+                    !board_1 %in% .prev_boards,
+                    !board_2 %in% .prev_boards
+                  )
+                } else {
+                  .x$cands
+                }
               
-              # If the candidates pool has been exhausted before the draws are
-              # complete, this will end the process. tryCatch() and `repeat`
-              # ensures that our function tries again:
+              draw <- slice_sample(available, n = 1)
               
               if (nrow(draw) == 0) stop("dead end")
+              
               list(
-                
-                # Combine the previous draws with the current draw:
-                
+                first_draw = FALSE,
                 draws = bind_rows(.x$draws, draw),
                 
-                # Subset the remaining candidates to just those that haven't 
-                # been used:
+                # Constraint: Remove used boards from future draws this week:
                 
                 cands =
                   filter(
                     .x$cands,
-                    !x %in% c(draw$x, draw$y),
-                    !y %in% c(draw$x, draw$y)
+                    !board_1 %in% c(draw$board_1, draw$board_2),
+                    !board_2 %in% c(draw$board_1, draw$board_2)
                   )
               )
             },
             
-            # .init is the starting point of the reduction -- it starts with the
-            # original candidates frame and 0-row tibble of `draws` that will be
-            # populated in each iteration:
+            # .init is the starting point of the reduction -- it starts with a
+            # switch that identifies when it is a first or subsequent draw, the
+            # original candidates frame, and 0-row tibble of `draws` that will
+            # be populated in each iteration:
             
             .init =
               list(
+                first_draw = TRUE,
                 draws = tibble(),
-                cands = candidates
+                cands = .board_pool
               )
           ) %>%
             
@@ -165,80 +194,102 @@ get_coverboard_order <-
       # it returns the result:
       
       if(
-        !is.null(result) &&
+        !is.null(result) && 
         nrow(result) == .n_draws
       ) return(result)
     }
   }
 
-# wrapper function for a given patch --------------------------------------
+# function to generate a full season schedule for a single patch ----------
 
 get_coverboard_season <-
-  function(.n_weeks = 12) {
+  function(
+    .board_pool,
+    .board_starts,
+    .n_draws = 3,
+    .n_weeks = 12
+  ) {
     
-    # All potential combinations of days and weeks:
+    # Constraint: Boards from the most recent sampling date are not the sampled
+    # on the first day of the following week. Currently sampled board seed this
+    # constraint:
     
-    crossing(
-      week = 1:.n_weeks,
-      day = 1:3
-    ) %>% 
+    previous_boards_init <-
+      if(!is.null(.board_starts)) {
+        .board_starts %>% 
+          filter(
+            date == max(date)
+          ) %>% 
+          pull(board_id)
+      } else {
+        NA
+      }
+    
+    # `crossing()` generates all pairwise combinations of weeks and days:
+    
+    crossing(week = 1:.n_weeks, day = 1:.n_draws) %>%
       
-      # Convert the above to a list, where each list item is a week:
+      # Split each week into its own list:
       
-      group_split(week) %>% 
+      group_split(week) %>%
       
-      # Iterate across weeks:
+      # `reduce()` here works on the week accumulator and the loop counter:
       
-      map(
-        \(.x) {
+      reduce(
+        ~ {
           
-          # Add coverboard sampling as columns:
+          # Get the coverboard order for a week:
           
-          .x %>% 
-            bind_cols(
-              get_coverboard_order() %>% 
-                
-                # Giving reasonable names to our board checks:
-                
-                set_names(
-                  str_c("board_", 1:2)
-                )
+          week_order <- 
+            get_coverboard_order(
+              .board_pool = .board_pool,
+              .n_draws = .n_draws,
+              .prev_boards = .x$prev_boards
             )
-        }
-      ) %>% 
-      
-      # Convert the list to a data frame:
-      
-      list_rbind()
+          
+          list(
+            
+            # Pass the results to the accumulator:
+            
+            result =
+              bind_rows(
+                .x$result,
+                bind_cols(.y, week_order)
+              ),
+            
+            # Send the last draw to the accumulator so the last 2 boards checked
+            # are not among the first two boards of the next week:
+            
+            prev_boards = 
+              week_order %>% 
+              slice_tail() %>% 
+              as.character()
+          )
+        },
+        
+        # Initial values are a 0-row tibble that will be filled with results in
+        # each iteration and the starting previous board values (from last
+        # week):
+        
+        .init =
+          list(
+            result = tibble(),
+            prev_boards = previous_boards_init
+          )
+      ) %>%
+      pluck("result")
   }
 
-# schedule ----------------------------------------------------------------
+# run across all patches --------------------------------------------------
 
-patch_boards <-
-  list.files(
-    "pre-field_season/data/spatial/proc",
-    pattern = "^patches.*[0-9].*geojson$"
-  ) %>% 
-  str_remove_all(".*[0-9]{1,2}_|\\.geojson") %>% 
-  map_df(
-    ~ get_coverboard_season(.n_weeks = 14) %>% 
-      mutate(
-        patch = .x,
-        .before = 1
-      )
+season_schedules <-
+  map2(
+    board_pools,
+    board_starts,
+    ~ get_coverboard_season(
+      .board_pool = .x,
+      .board_starts = .y,
+      .n_draws = 3,
+      .n_weeks = 12
+    )
   )
-
-# One way we could do this for a sampling sheet:
-
-patch_boards %>% 
-  unite(
-    "coverboards",
-    matches("board"),
-    sep = " "
-  ) %>% 
-  pivot_wider(
-    names_from = day,
-    values_from = coverboards,
-    names_prefix = "day_"
-  ) %>% 
-  arrange(week, patch)
