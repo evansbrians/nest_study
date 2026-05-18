@@ -164,6 +164,7 @@ add_cams <-
   pull(name) %>% 
   map_dfr(
     \(.focal_patch_name) {
+      
       # Get the inner patch points associated with just the focal patch:
       
       patch_points_focal <-
