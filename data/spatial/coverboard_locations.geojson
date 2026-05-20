@@ -43,7 +43,6 @@
 { "type": "Feature", "properties": { "name": "grassland_b_fence_cb_4", "elevation": 4.9999997810117631e+24, "datetime": "2026-05-13T12:48:40Z" }, "geometry": { "type": "Point", "coordinates": [ -78.166231, 38.89656 ] } },
 { "type": "Feature", "properties": { "name": "grassland_b_fence_cb_3", "elevation": 4.9999997810117631e+24, "datetime": "2026-05-13T12:05:27Z" }, "geometry": { "type": "Point", "coordinates": [ -78.166688, 38.896055 ] } },
 { "type": "Feature", "properties": { "name": "grassland_b_fence_cb_2", "elevation": 4.9999997810117631e+24, "datetime": "2026-05-13T12:14:13Z" }, "geometry": { "type": "Point", "coordinates": [ -78.167156, 38.895734 ] } },
-{ "type": "Feature", "properties": { "name": "grassland_b_fence_cb_1", "elevation": 3.3333332834179675e+24, "datetime": "2026-05-13T12:33:21Z" }, "geometry": { "type": "Point", "coordinates": [ -78.167469, 38.895696 ] } },
 { "type": "Feature", "properties": { "name": "firehouse_cb_1", "elevation": 4.9999997810117631e+24, "datetime": "2026-05-13T15:52:18Z" }, "geometry": { "type": "Point", "coordinates": [ -78.163298, 38.889318 ] } },
 { "type": "Feature", "properties": { "name": "leech_cb_5", "elevation": 4.9999997810117631e+24, "datetime": "2026-05-11T16:16:35Z" }, "geometry": { "type": "Point", "coordinates": [ -78.151479, 38.898072 ] } },
 { "type": "Feature", "properties": { "name": "leech_cb_6", "elevation": 4.9999997810117631e+24, "datetime": "2026-05-11T16:34:37Z" }, "geometry": { "type": "Point", "coordinates": [ -78.150836, 38.897738 ] } },
@@ -56,6 +55,7 @@
 { "type": "Feature", "properties": { "name": "firehouse_cb_4", "elevation": 4.9999997810117631e+24, "datetime": "2026-05-13T16:28:31Z" }, "geometry": { "type": "Point", "coordinates": [ -78.163641, 38.890622 ] } },
 { "type": "Feature", "properties": { "name": "firehouse_cb_2", "elevation": 4.9999997810117631e+24, "datetime": "2026-05-13T17:44:28Z" }, "geometry": { "type": "Point", "coordinates": [ -78.163133, 38.89018 ] } },
 { "type": "Feature", "properties": { "name": "firehouse_cb_3", "elevation": 4.9999997810117631e+24, "datetime": "2026-05-13T17:27:42Z" }, "geometry": { "type": "Point", "coordinates": [ -78.162817, 38.890685 ] } },
-{ "type": "Feature", "properties": { "name": "grassland_a_cb_2", "elevation": 379.451965, "datetime": "2026-05-11T14:49:26Z" }, "geometry": { "type": "Point", "coordinates": [ -78.160453, 38.895903 ] } }
+{ "type": "Feature", "properties": { "name": "grassland_a_cb_2", "elevation": 379.451965, "datetime": "2026-05-11T14:49:26Z" }, "geometry": { "type": "Point", "coordinates": [ -78.160453, 38.895903 ] } },
+{ "type": "Feature", "properties": { "name": "grassland_b_fence_cb_1", "elevation": 344.467957, "datetime": "2026-05-19T14:18:27Z" }, "geometry": { "type": "Point", "coordinates": [ -78.167811, 38.89557 ] } }
 ]
 }

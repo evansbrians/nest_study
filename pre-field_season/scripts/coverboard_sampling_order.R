@@ -94,7 +94,7 @@ board_pools <-
     \(.board_distances) {
       .board_distances %>% 
         filter(
-          distance > min(distance),
+          distance > min(distance) + 10,
           .by = board_1
         ) %>% 
         select(!distance)
@@ -207,7 +207,7 @@ get_coverboard_season <-
     .board_pool,
     .board_starts,
     .n_draws = 3,
-    .n_weeks = 12
+    .n_weeks = 11
   ) {
     
     # Constraint: Boards from the most recent sampling date are not the sampled
@@ -290,6 +290,14 @@ season_schedules <-
       .board_pool = .x,
       .board_starts = .y,
       .n_draws = 3,
-      .n_weeks = 12
-    )
+      .n_weeks = 11
+    ) %>% 
+      # mutate(
+      #   patch_count =
+      #     str_remove(board_1, "_cb.*"),
+      #   .before = 1
+      # ) %>% 
+      select(
+        !week:day
+      )
   )

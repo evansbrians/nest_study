@@ -9,13 +9,15 @@ library(tidyverse)
 
 source("pre-field_season/scripts/sampling_scenarios_source.R")
 
+source("pre-field_season/scripts/coverboard_sampling_order.R")
+
 # basic sampling frame ----------------------------------------------------
 
 sampling_start <- 
   tibble(
     date = 
       seq(
-        as_date("2026-05-10"),
+        as_date("2026-05-20"),
         as_date("2026-08-15"),
         by = 1
       )
@@ -33,7 +35,7 @@ sampling_start <-
     
     # Start your point count at sunrise:
     
-    start_pcount = 
+    sunrise = 
       our_time(date, .sun = "sunrise") %>% 
       format("%H:%M"),
     
@@ -41,37 +43,64 @@ sampling_start <-
     # time of the previous day):
     
     across(
-      arrive:start_pcount,
+      arrive:sunrise,
       ~ if_else(
         day == "Sun",
         "-",
         .x
       )
     )
+  ) %>% 
+  mutate(
+    helper = 
+      case_when(
+        (
+          day == "Thu" &
+            !week %in% 8:10
+        ) ~ "Callie",
+        day == "Tue" ~ "Mama S",
+        (
+          day == "Sat" &
+            !week == 1
+        ) ~ "Brian",
+        .default = "-"
+      ),
+    search_patches = 
+      case_when(
+        day == "Tue" ~ " ",
+        day == "Thu" ~ " ",
+        day == "Sat" ~ " ",
+        .default = "-"
+      )
   )
 
-# patch ordering ----------------------------------------------------------
+# patch order -------------------------------------------------------------
+
+# Define patches and their optimal order:
+
+# Final decision:
 
 patches <-
   c(
     
-    # Group 1, Monday/Thursday (Callie patches):
+    # Wednesday/Saturday (Brian patches): 
+    
+    "forest_a",
+    "grassland_b",
+    "leech",
+    
+    # Monday/Thursday (Callie patches):
     
     "coyote",
     "firehouse",
     "witch_hazel",
     
-    # Group 2, Tuesday/Friday (Mom patches):
+    # Tuesday/Friday (Mom patches):
     
     "forest_geo",
     "grassland_a",
-    "grassland_b_fence",
+    "grassland_b_fence"
     
-    # Group 3, Wednesday/Saturday (Brian patches): 
-    
-    "forest_a",
-    "leech",
-    "grassland_b"
   )
 
 # patch counts ------------------------------------------------------------
@@ -171,11 +200,12 @@ patch_search_sequential <-
     .by = date
   ) %>% 
   distinct() %>% 
-  select(helper, patch_count: patch_search)
+  select(date, helper, patch_count: patch_search)
 
 # nest searching: random version ------------------------------------------
 
-patch_counts_randomized %>% 
+patch_search_randomized <- 
+  patch_counts_randomized %>% 
   mutate(
     patch_search =
       case_when(
@@ -221,8 +251,68 @@ patch_counts_randomized %>%
     .by = date
   ) %>% 
   distinct() %>% 
-  select(week, helper, patch_count: patch_search) %>% 
-  print(n = 30)
+  select(
+    date, 
+    week, 
+    helper, 
+    patch_count:patch_search
+  ) #%>% 
+  # print(n = 30)
+
+# add coverboard order ----------------------------------------------------
+
+patch_counts_season <- 
+  patch_counts_randomized %>% 
+  pull(patch_count) %>% 
+  unique() %>% 
+  map_df(
+    \(x) {
+      
+      cb_start <- 
+        patch_counts_randomized %>% 
+        filter(patch_count == x) %>% 
+        select(date, patch_count)
+      
+      cb_start %>% 
+        bind_cols(
+          season_schedules %>% 
+            pluck(x) %>% 
+            slice(
+              1:nrow(cb_start)
+            )
+        )
+      
+    }
+  ) %>% 
+  select(date, patch_count:board_2) %>% 
+  left_join(
+    patch_counts_randomized,
+    .,
+    by = c("date", "patch_count")
+  ) %>% 
+  mutate(
+    across(
+      board_1:board_2,
+      ~ str_remove(.x, "[a-z_]*")
+    )
+  ) %>% 
+  unite(
+    col = "coverboards",
+    board_1:board_2,
+    sep = ", "
+  ) %>% 
+  left_join(
+    patch_search_randomized %>% 
+      select(
+        !c(
+          week:patch_count,
+        )
+      ),
+    by = "date"
+  )
+
+patch_counts_season %>% 
+  clipr::write_clip()
 
 # next steps --------------------------------------------------------------
 

@@ -264,6 +264,20 @@ tm_basemap("Esri.WorldImagery") +
     fill = "red"
   )
 
+# write to file -----------------------------------------------------------
+
+add_cams %>% 
+  bind_rows(
+    st_read("data/spatial/trailcam_locations.geojson", quiet = TRUE) %>% 
+      st_transform(32618) %>% 
+      select(
+        !c(elevation, datetime)
+      )
+  ) %>% 
+  st_write(
+    file.path("data/spatial/trailcam_locations_new.geojson"),
+    delete_dsn = TRUE
+  )
 
 
 
