@@ -8,7 +8,7 @@ library(tidyverse)
 
 # Garmin file location when I plug it in:
 
-garmin_dir <- "../../../../Volumes/GARMIN/Garmin/GPX"
+garmin_dir <- "Volumes/GARMIN/Garmin/GPX"
 
 # read and pre-process GPS files ------------------------------------------
 
