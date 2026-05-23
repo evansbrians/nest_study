@@ -275,9 +275,8 @@ add_cams %>%
       )
   ) %>% 
   st_write(
-    file.path("data/spatial/trailcam_locations_new.geojson"),
+    "data/spatial/trailcam_locations_new.geojson",
     delete_dsn = TRUE
   )
-
 
 

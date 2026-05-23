@@ -11,13 +11,13 @@ source("pre-field_season/scripts/sampling_scenarios_source.R")
 
 source("pre-field_season/scripts/coverboard_sampling_order.R")
 
-# basic sampling frame ----------------------------------------------------
+# visit table -------------------------------------------------------------
 
-sampling_start <- 
+sampling_start <-
   tibble(
     date = 
       seq(
-        as_date("2026-05-20"),
+        as_date("2026-05-14"),
         as_date("2026-08-15"),
         by = 1
       )
@@ -33,7 +33,7 @@ sampling_start <-
       our_time(date, .sun = "dawn") %>% 
       format("%H:%M"),
     
-    # Start your point count at sunrise:
+    # Start point count at sunrise:
     
     sunrise = 
       our_time(date, .sun = "sunrise") %>% 
@@ -57,19 +57,20 @@ sampling_start <-
         (
           day == "Thu" &
             !week %in% 8:10
-        ) ~ "Callie",
-        day == "Tue" ~ "Mama S",
+        ) ~ "CMS",
+        day == "Tue" ~ "JLS",
+        (
+          day == "Fri" &
+            week == 1
+        ) ~ "JLS",
         (
           day == "Sat" &
             !week == 1
-        ) ~ "Brian",
-        .default = "-"
-      ),
-    search_patches = 
-      case_when(
-        day == "Tue" ~ " ",
-        day == "Thu" ~ " ",
-        day == "Sat" ~ " ",
+        ) ~ "BSE",
+        (
+          day == "Wed" &
+            week == 2
+        ) ~ "BSE",
         .default = "-"
       )
   )
@@ -78,16 +79,8 @@ sampling_start <-
 
 # Define patches and their optimal order:
 
-# Final decision:
-
 patches <-
   c(
-    
-    # Wednesday/Saturday (Brian patches): 
-    
-    "forest_a",
-    "grassland_b",
-    "leech",
     
     # Monday/Thursday (Callie patches):
     
@@ -99,20 +92,30 @@ patches <-
     
     "forest_geo",
     "grassland_a",
-    "grassland_b_fence"
+    "grassland_b_fence",
+    
+    # Wednesday/Saturday (Brian patches): 
+    
+    "forest_a",
+    "grassland_b",
+    "leech"
     
   )
 
 # patch counts ------------------------------------------------------------
 
-# Sequential patches:
+# Assign patches to each day:
 
-patch_counts_sequential <- 
+patch_counts_start <-
   sampling_start %>% 
   
   # Remove Sundays:
   
   filter(day != "Sun") %>% 
+  
+  select(
+    !c(week:helper)
+  ) %>% 
   
   # Repeat each day 4 times:
   
@@ -126,101 +129,150 @@ patch_counts_sequential <-
         patches, 
         n()
       )
-  ) %>% 
-  
-  # Add helpers:
-  
-  mutate(
-    helper = 
-      case_when(
-        day == "Thu" & week %in% 8:10 ~ "-",
-        day == "Thu" ~ "Callie",
-        day == "Tue" ~ "Mama S",
-        day == "Sat" ~ "Brian",
-        .default = "-"
-      ),
-    .after = day
   )
 
-# Randomize patch order on a given day:
+# Randomize patch order on a given day (excluding days already sampled
+# sequentially)
 
 patch_counts_randomized <-
-  patch_counts_sequential %>% 
-  slice_sample(
-    n = 4,
+  bind_rows(
+    patch_counts_start %>% 
+      filter(
+        str_detect(date, "05-1[4-9]")
+      ),
+    patch_counts_start %>% 
+      filter(
+        !str_detect(date, "05-1[4-9]")
+      ) %>% 
+      slice_sample(
+        n = 4,
+        by = "date"
+      )
+  ) %>%
+  mutate(
+    patch_order = 
+      rep_len(
+        1:3, 
+        n()
+      ),
+    .before = patch_count
+  )
+
+# add coverboard order ----------------------------------------------------
+
+# Boards already sampled
+
+patch_counts_prev <- 
+  board_starts %>% 
+  bind_rows() %>% 
+  mutate(
+    patch_count = 
+      str_remove_all(board_id, "_cb_[1-6]"),
+    date =
+      if_else(
+        date == as_date("2026-05-24"),
+        as_date("2026-05-23"),
+        date
+      )
+  ) %>% 
+  left_join(
+    patch_counts_randomized,
+    by = c("date", "patch_count")
+  )
+
+# The rest of the season:
+
+patch_counts_future <- 
+  patch_counts_randomized %>% 
+  anti_join(
+    patch_counts_prev %>% 
+      select(date),
     by = "date"
   )
 
-# nest searching: sequential version --------------------------------------
+# Determine which boards are sampled on which days for the rest of the season:
 
-patch_search_sequential <-
-  patch_counts_sequential %>% 
-  mutate(
-    patch_search =
-      case_when(
-        helper == "-" ~ "-",
-        helper == "Brian" ~ NA_character_,
-        
-        # When you are sampling with Callie and your mom, you will search the
-        # last three patches sampled:
-        
-        patch_count != last(patch_count) ~ patch_count
-      ),
-    .by = c(week, helper)
+patch_counts_future <-
+  patch_counts_randomized %>% 
+  pull(patch_count) %>% 
+  unique() %>% 
+  map_df(
+    \(x) {
+      
+      cb_start <- 
+        patch_counts_future %>% 
+        filter(patch_count == x) %>% 
+        select(date, patch_count)
+      
+      cb_start %>% 
+        bind_cols(
+          season_schedules %>% 
+            pluck(x) %>% 
+            slice(
+              1:nrow(cb_start)
+            )
+        )
+      
+    }
   ) %>% 
-  
-  # When you are sampling with me, all remaining patches will be searched:
-  
-  mutate(
-    patch_search =
-      case_when(
-        helper == "Brian" & 
-          patch_count == last(patch_count) ~
-          str_flatten(
-            patches[!patches %in% patch_search], 
-            collapse = ", "
-          ),
-        .default = patch_search
-      ),
-    .by = week
+  left_join(
+    patch_counts_future,
+    .,
+    by = c("date", "patch_count")
   ) %>% 
-  
-  # Flatten the counts and searches then remove duplicates:
-  
-  mutate(
-    patch_count = 
-      str_flatten(patch_count, collapse = " \u2192 "),
-    patch_search = 
-      patch_search %>% 
-      unique() %>% 
-      str_flatten(
-        collapse = ", ", 
-        na.rm = TRUE
-      ),
-    .by = date
+  pivot_longer(
+    board_1:board_2,
+    names_to = "temp",
+    values_to = "board_id"
   ) %>% 
-  distinct() %>% 
-  select(date, helper, patch_count: patch_search)
+  select(!temp)
+
+# Stick em together for the season schedule:
+
+patch_counts_season <- 
+  bind_rows(
+    patch_counts_prev,
+    patch_counts_future
+  ) %>% 
+  select(
+    date,
+    patch_order,
+    patch_count,
+    board_id
+  ) %>% 
+  arrange(
+    date,
+    patch_order
+  ) %>% 
+  mutate(
+    board_id =
+      str_remove(board_id, "[a-z_]*")
+  )
 
 # nest searching: random version ------------------------------------------
 
-patch_search_randomized <- 
+# patch_search_randomized <- 
   patch_counts_randomized %>% 
+  left_join(
+    sampling_start %>% 
+      select(date:week, helper),
+    by = "date"
+  ) %>% 
   mutate(
     patch_search =
       case_when(
         helper == "-" ~ "-",
         helper == "Brian" ~ NA_character_,
         
-        # When you are sampling with Callie and your mom, you will search the
-        # last three patches sampled:
+        # When sampling with Callie or mom, search the last two patches
+        # sampled:
         
         patch_count != last(patch_count) ~ patch_count
       ),
     .by = c(week, helper)
   ) %>% 
   
-  # When you are sampling with me, all remaining patches will be searched:
+  # When sampling with Brian, search all remaining patches:
   
   mutate(
     patch_search =
@@ -256,63 +308,7 @@ patch_search_randomized <-
     week, 
     helper, 
     patch_count:patch_search
-  ) #%>% 
-  # print(n = 30)
-
-# add coverboard order ----------------------------------------------------
-
-patch_counts_season <- 
-  patch_counts_randomized %>% 
-  pull(patch_count) %>% 
-  unique() %>% 
-  map_df(
-    \(x) {
-      
-      cb_start <- 
-        patch_counts_randomized %>% 
-        filter(patch_count == x) %>% 
-        select(date, patch_count)
-      
-      cb_start %>% 
-        bind_cols(
-          season_schedules %>% 
-            pluck(x) %>% 
-            slice(
-              1:nrow(cb_start)
-            )
-        )
-      
-    }
-  ) %>% 
-  select(date, patch_count:board_2) %>% 
-  left_join(
-    patch_counts_randomized,
-    .,
-    by = c("date", "patch_count")
-  ) %>% 
-  mutate(
-    across(
-      board_1:board_2,
-      ~ str_remove(.x, "[a-z_]*")
-    )
-  ) %>% 
-  unite(
-    col = "coverboards",
-    board_1:board_2,
-    sep = ", "
-  ) %>% 
-  left_join(
-    patch_search_randomized %>% 
-      select(
-        !c(
-          week:patch_count,
-        )
-      ),
-    by = "date"
   )
-
-patch_counts_season %>% 
-  clipr::write_clip()
 
 # next steps --------------------------------------------------------------
 

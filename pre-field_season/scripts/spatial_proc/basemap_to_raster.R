@@ -112,7 +112,7 @@ create_map <-
         col.scale = 
           tm_scale_continuous(values = "gray"),
         col.legend = tm_legend_hide(),
-        col_alpha = 0.4
+        col_alpha = 0.3
       ) +
       patches %>% 
       tm_shape() +
@@ -201,8 +201,11 @@ create_map <-
         col = "black",
         size = 0.5,
         fill_alpha = 0.9
-      ) +
-      tm_text()
+      ) #+
+      # tm_text(
+      #   text = "name",
+      #   size = 0.8
+      # )
   }
 
 names(background_images) %>% 

@@ -34,7 +34,7 @@ raw_points <-
 
 # assign points -----------------------------------------------------------
 
-cat_points <- 
+categorized_points <- 
   c(
     coverboard_locations = "_cb_",
     point_count_locations = "point",
@@ -50,9 +50,9 @@ cat_points <-
 
 # save as geojson ---------------------------------------------------------
 
-names(cat_points) %>% 
+names(categorized_points) %>% 
   map(
-    ~ cat_points %>% 
+    ~ categorized_points %>% 
       pluck(.x) %>% 
       write_sf(
         file.path(
@@ -64,7 +64,9 @@ names(cat_points) %>%
       )
   )
 
-# upload patches to garmin ------------------------------------------------
+# upload to garmin --------------------------------------------------------
+
+# Patches
 
 patches_gpx <- 
   st_read(
@@ -82,4 +84,24 @@ st_write(
     str_c(".gpx"),
   driver = "GPX",
   dataset_options = "GPX_USE_EXTENSIONS=YES"
+)
+
+# Trailcam points:
+
+trailcams <- 
+  st_read(
+    "data/spatial/trailcam_locations_new.geojson"
+  ) %>% 
+  st_transform(4326)
+
+st_write(
+  trailcams,
+  file.path(
+    garmin_dir,
+    "trailcams"
+  ) %>% 
+    str_c(".gpx"),
+  driver = "GPX",
+  dataset_options = "GPX_USE_EXTENSIONS=YES",
+  delete_dsn = TRUE
 )

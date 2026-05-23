@@ -292,11 +292,6 @@ season_schedules <-
       .n_draws = 3,
       .n_weeks = 11
     ) %>% 
-      # mutate(
-      #   patch_count =
-      #     str_remove(board_1, "_cb.*"),
-      #   .before = 1
-      # ) %>% 
       select(
         !week:day
       )
