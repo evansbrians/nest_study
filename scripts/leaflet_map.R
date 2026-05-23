@@ -49,7 +49,7 @@ icons <-
   set_names_from_path() %>% 
   map(
     ~ makeIcon(
-      iconUrl = .x,
+      iconUrl = base64enc::dataURI(file = .x, mime = "image/png"),
       iconWidth = 26,
       iconHeight = 26,
       iconAnchorX = 13,
@@ -151,7 +151,7 @@ map <-
 
 saveWidget(
   map,
-  file = "outputs/nest_study_map.html",
+  file = "field_map/index.html",
   selfcontained = FALSE,
   title = "Nest Study Field Map"
 )
