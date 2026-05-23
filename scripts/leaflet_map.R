@@ -147,10 +147,154 @@ map <-
     )
   )
 
+# bigger controls and scale bar -------------------------------------------
+
+map_mobile_friendly <-
+  map %>%
+  htmlwidgets::prependContent(
+    htmltools::tags$style(
+      htmltools::HTML(
+        "
+        /* Layer control panel and all text within it */
+        
+        .leaflet-control-layers {
+          font-size: 16px;
+          line-height: 1.8;
+          padding: 8px 12px;
+        }
+
+        /* Individual layer labels -- padding increases touch target height */
+        
+        .leaflet-control-layers label {
+          font-size: 16px;
+          padding: 4px 0;
+          display: flex;
+          align-items: center;
+        }
+
+        /* Checkboxes and radio buttons -- larger for touch accuracy */
+        
+        .leaflet-control-layers input[type='checkbox'],
+        .leaflet-control-layers input[type='radio'] {
+          width: 20px;
+          height: 20px;
+          margin-right: 8px;
+          cursor: pointer;
+        }
+
+        /* Separator line between base layers and overlay groups */
+        
+        .leaflet-control-layers-separator {
+          margin: 8px 0;
+        }
+
+        /* Scale bar text and border */
+        
+        .leaflet-control-scale-line {
+          font-size: 14px;
+          line-height: 1.6;
+          padding: 4px 10px;
+          border-width: 2px;
+        }
+        "
+      )
+    )
+  )
+
+# add location tracking ---------------------------------------------------
+
+map_tracking <-
+  map_mobile_friendly %>%
+  htmlwidgets::onRender(
+    "
+    function(el, x) {
+
+      // 'this' inside onRender refers to the live leaflet map object:
+
+      var map = this;
+
+      // Assign position marker and accuracy circle to objects:
+
+      var positionMarker  = null;
+      var accuracyCircle  = null;
+
+      // Track whether this is the first GPS fix so we can pan your location
+      // on load without re-centering every time you move.
+
+      var firstFix = true;
+
+      // Start watching your position.
+      // * `watch: true` keeps the listener running continuously rather than
+      //    running just once. 
+      // * `enableHighAccuracy` requests GPS on devices that have it
+
+      map.locate({
+        watch:               true,
+        enableHighAccuracy:  true
+      });
+
+      // `locationfound` runs each time a new position is available:
+
+      map.on('locationfound', function(e) {
+
+        // Pan to your location on the first fix only. After that, the map stays
+        // wherever you scrolled so you can look around without it going back to
+        // your location:
+
+        if (firstFix) {
+          map.setView(e.latlng, map.getZoom());
+          firstFix = false;
+        }
+
+        // `e.accuracy` is the GPS uncertainty circle in meters. This will
+        // update if the circle already exists and creates it otherwise:
+
+        if (accuracyCircle) {
+          accuracyCircle
+            .setLatLng(e.latlng)
+            .setRadius(e.accuracy);
+        } else {
+          accuracyCircle = L.circle(e.latlng, {
+            radius:      e.accuracy,
+            color:       '#136aec',
+            fillColor:   '#136aec',
+            fillOpacity: 0.15,
+            weight:      1,
+            interactive: false
+          }).addTo(map);
+        }
+
+        // `L.circleMarker` stays a fixed pixel size on screen regardless of
+        // zoom:
+
+        if (positionMarker) {
+          positionMarker.setLatLng(e.latlng);
+        } else {
+          positionMarker = L.circleMarker(e.latlng, {
+            radius:      9,
+            color:       '#ffffff',  // white border
+            fillColor:   '#136aec',  // blue fill matching the accuracy circle
+            fillOpacity: 1,
+            weight:      2,
+            interactive: false
+          }).addTo(map);
+        }
+      });
+
+      // `locationerror` happens if the browser denies permission or your phone
+      // has no location signal.
+
+      map.on('locationerror', function(e) {
+        console.warn('Location error: ' + e.message);
+      });
+    }
+    "
+  )
+
 # save to HTML ------------------------------------------------------------
 
 saveWidget(
-  map,
+  map_tracking,
   file = "field_map/index.html",
   selfcontained = FALSE,
   title = "Nest Study Field Map"
