@@ -158,15 +158,15 @@ map_mobile_friendly <-
         /* Layer control panel and all text within it */
         
         .leaflet-control-layers {
-          font-size: 16px;
-          line-height: 1.8;
+          font-size: 24px;
+          line-height: 2;
           padding: 8px 12px;
         }
 
         /* Individual layer labels -- padding increases touch target height */
         
         .leaflet-control-layers label {
-          font-size: 16px;
+          font-size: 24px;
           padding: 4px 0;
           display: flex;
           align-items: center;
@@ -176,8 +176,8 @@ map_mobile_friendly <-
         
         .leaflet-control-layers input[type='checkbox'],
         .leaflet-control-layers input[type='radio'] {
-          width: 20px;
-          height: 20px;
+          width: 36px;
+          height: 36px;
           margin-right: 8px;
           cursor: pointer;
         }
@@ -191,7 +191,7 @@ map_mobile_friendly <-
         /* Scale bar text and border */
         
         .leaflet-control-scale-line {
-          font-size: 14px;
+          font-size: 24px;
           line-height: 1.6;
           padding: 4px 10px;
           border-width: 2px;
