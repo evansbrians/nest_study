@@ -11,6 +11,10 @@ source("pre-field_season/scripts/sampling_scenarios_source.R")
 
 source("pre-field_season/scripts/coverboard_sampling_order.R")
 
+# Set seed for reproducibility (?):
+
+set.seed(2358)
+
 # visit table -------------------------------------------------------------
 
 sampling_start <-
@@ -249,6 +253,17 @@ patch_counts_season <-
       str_remove(board_id, "[a-z_]*")
   )
 
+sampling_start %>% 
+  full_join(
+    patch_counts_season %>% 
+      nest(boards = board_id),
+    by = "date"
+  ) %>% 
+  nest(patch_counts = patch_order:boards) %>% 
+  write_rds(
+    "data/season_schedule.rds"
+  )
+
 # nest searching: random version ------------------------------------------
 
 # patch_search_randomized <- 
@@ -264,10 +279,9 @@ patch_counts_season <-
         helper == "-" ~ "-",
         helper == "Brian" ~ NA_character_,
         
-        # When sampling with Callie or mom, search the last two patches
-        # sampled:
+        # When sampling with Callie or mom, search the three patches sampled:
         
-        patch_count != last(patch_count) ~ patch_count
+        TRUE ~ patch_count
       ),
     .by = c(week, helper)
   ) %>% 
@@ -283,7 +297,7 @@ patch_counts_season <-
             patches[!patches %in% patch_search], 
             collapse = ", "
           ),
-        .default = patch_search
+        TRUE ~ patch_search
       ),
     .by = week
   ) %>% 
