@@ -1,14 +1,14 @@
 
-# GPX to .geojson
+# Download and save points from the Garmin
 
 # setup -------------------------------------------------------------------
 
 library(sf)
 library(tidyverse)
 
-# Garmin file location when I plug it in:
+# Garmin file location:
 
-garmin_dir <- "Volumes/GARMIN/Garmin/GPX"
+garmin_dir <- "/Volumes/GARMIN/Garmin/GPX"
 
 # read and pre-process GPS files ------------------------------------------
 
@@ -64,44 +64,8 @@ names(categorized_points) %>%
       )
   )
 
-# upload to garmin --------------------------------------------------------
+# clear global environment ------------------------------------------------
 
-# Patches
-
-patches_gpx <- 
-  st_read(
-    "data/spatial/patches.geojson",
-    quiet = TRUE
-  ) %>% 
-  st_cast("MULTILINESTRING")
-
-st_write(
-  patches_gpx,
-  file.path(
-    garmin_dir,
-    "patches"
-  ) %>% 
-    str_c(".gpx"),
-  driver = "GPX",
-  dataset_options = "GPX_USE_EXTENSIONS=YES"
-)
-
-# Trailcam points:
-
-trailcams <- 
-  st_read(
-    "data/spatial/trailcam_locations_new.geojson"
-  ) %>% 
-  st_transform(4326)
-
-st_write(
-  trailcams,
-  file.path(
-    garmin_dir,
-    "trailcams"
-  ) %>% 
-    str_c(".gpx"),
-  driver = "GPX",
-  dataset_options = "GPX_USE_EXTENSIONS=YES",
-  delete_dsn = TRUE
+rm(
+  list = ls()
 )

@@ -18,20 +18,17 @@ library(tidyverse)
 
 tmap_mode("view")
 
-source("pre-field_season/scripts/source_script_spatial.R")
-
-read_dir <- "pre-field_season/data/spatial/proc"
+source("pre-field_season/scripts/spatial_proc/source_script_spatial.R")
 
 # Read in the data:
 
 c(
-  patches_start = "patches_edited_9_leech_new.geojson",
-  coverboards = "coverboards_gps.geojson",
-  coyote_line = "coyote_line.geojson"
+  patches_start = "data/spatial/patches.geojson",
+  coverboards = "data/spatial/coverboard_locations.geojson",
+  coyote_line = "pre-field_season/data/spatial/proc/coyote_line.geojson"
 ) %>% 
   map(
-    ~ file.path(read_dir, .x) %>% 
-      st_read(quiet = TRUE)
+    ~ st_read(.x, quiet = TRUE)
   ) %>% 
   list2env(.GlobalEnv)
 

@@ -12,14 +12,14 @@ source("scripts/functions.R")
 
 # Remove previous KMZ file:
 
-file.remove("nest_study.kmz")
+file.remove("outputs/nest_study.kmz")
 
 # Get shapefiles:
 
 spatial_files <-
   list.files(
     "data/spatial",
-    pattern = "geojson",
+    pattern = "geojson$",
     full.names = TRUE
   ) %>%
   set_names_from_path() %>%
@@ -32,7 +32,7 @@ spatial_files <-
 
 icon_urls <-
   list.files(
-    "www/map_icons",
+    "icons/map_icons",
   ) %>% 
   set_names_from_path() %>% 
   map(
@@ -43,97 +43,6 @@ icon_urls <-
 
 doc <- xml_new_root("kml", xmlns = "http://www.opengis.net/kml/2.2")
 root <- xml_add_child(doc, "Document")
-
-# helper functions --------------------------------------------------------
-
-# Icon styles for points:
-
-add_icon_styles <- 
-  function(
-    parent, 
-    values, 
-    scale = "0.8"
-  ) {
-    values %>%
-      unique() %>%
-      walk(
-        \(val) {
-          style <- xml_add_child(parent, "Style", id = val)
-          icon_style <- xml_add_child(style, "IconStyle")
-          xml_add_child(icon_style, "scale", scale)
-          xml_add_child(
-            xml_add_child(icon_style, "Icon"),
-            "href",
-            icon_urls[[val]]
-          )
-          xml_add_child(
-            xml_add_child(style, "LabelStyle"),
-            "scale",
-            "0"
-          )
-        }
-      )
-  }
-
-# Add placemarks to points:
-
-add_point_placemarks <- 
-  function(
-    parent, 
-    pts, 
-    value_col
-  ) {
-    pts %>%
-      bind_cols(
-        st_coordinates(.)
-      ) %>% 
-      st_drop_geometry() %>%
-      rename(
-        lon = X,
-        lat = Y,
-        val_col = {{ value_col }}
-      ) %>%
-      pwalk(
-        \(
-          name, 
-          val_col, 
-          lon, 
-          lat, 
-          ...
-        ) {
-          pm <- xml_add_child(parent, "Placemark")
-          xml_add_child(
-            pm,
-            "name", 
-            name
-          )
-          xml_add_child(
-            pm,
-            "styleUrl", 
-            str_c("#", val_col)
-          )
-          xml_add_child(
-            xml_add_child(pm, "Point"),
-            "coordinates",
-            str_c(lon, lat, 0, sep = ",")
-          )
-        }
-      )
-  }
-
-# The ugly way to provide coordinates for the patch polygons (it's going to get
-# uglier!):
-
-ring_to_coords <- 
-  function(xy) {
-    str_c(
-      xy[, "X"], 
-      xy[, "Y"], 
-      0, 
-      sep = ","
-    ) %>%
-      str_c(collapse = " ")
-  }
 
 # coverboards -------------------------------------------------------------
 
@@ -171,7 +80,7 @@ xml_add_child(cam_folder, "name", "Trail Cameras")
 
 cam_pts <-
   spatial_files %>%
-  pluck("trailcam_locations_new") %>%
+  pluck("trailcam_locations") %>%
   mutate(
     cam_value = str_extract(name, "cam_[0-2]$")
   )
@@ -318,7 +227,7 @@ write_xml(
 
 local_icons <-
   list.files(
-    "www/map_icons",
+    "icons/map_icons",
     full.names = TRUE
   ) %>% 
   set_names_from_path()
@@ -344,15 +253,17 @@ local_icons %>%
 withr::with_dir(
   kmz_dir,
   zip::zip(
-    zipfile = 
-      file.path(
-        here::here(),
-        "nest_study.kmz"
-      ),
+    zipfile = "outputs/nest_study.kmz",
     files = 
       c(
         "doc.kml", 
         list.files("files", full.names = TRUE)
       )
   )
+)
+
+# clear global environment ------------------------------------------------
+
+rm(
+  list = ls()
 )
