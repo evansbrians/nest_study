@@ -246,3 +246,7 @@ saveWidget(
   selfcontained = FALSE,
   title = "Nest Study Field Map"
 )
+
+rm(
+  list = ls()
+)

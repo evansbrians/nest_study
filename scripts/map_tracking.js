@@ -1,52 +1,24 @@
-// JavaScript function for adding location and compass bearing icon to a map
+// JavaScript function for adding location and compass bearing to a map
 
 function(el, x) {
-  
-  // 'this' inside onRender refers to the live leaflet map object:
 
   var map = this;
-  
-  // Assign position marker and accuracy circle and compass bearing to objects:
-
-  var positionMarker = null;
   var accuracyCircle = null;
   var headingMarker = null;
-  
-  // Track whether this is the first GPS fix so we can pan your location
-  // on load without re-centering every time you move.
-      
   var firstFix = true;
 
   // location tracking ----------------------------------------------------
-  
-  // Start watching your position.
-  // * `watch: true` keeps the listener running continuously rather than
-  //    running just once. 
-  // * `enableHighAccuracy` requests GPS on devices that have it
 
   map.locate({
     watch: true,
     enableHighAccuracy: true
   });
-  
-  // `locationfound` runs each time a new position is available:
 
   map.on('locationfound', function(e) {
-    
-    // Pan to your location on the first fix only. After that, the map stays
-    // wherever you scrolled so you can look around without it going back to
-    // your location:
-        
     if (firstFix) {
-      map.setView(
-        e.latlng, 
-        map.getZoom()
-      );
+      map.setView(e.latlng, map.getZoom());
       firstFix = false;
     }
-    
-    // `e.accuracy` is the GPS uncertainty circle in meters. This will
-    // update if the circle already exists and creates it otherwise:
 
     if (accuracyCircle) {
       accuracyCircle.setLatLng(e.latlng).setRadius(e.accuracy);
@@ -61,45 +33,15 @@ function(el, x) {
       }).addTo(map);
     }
 
-    // `L.circleMarker` stays a fixed pixel size on screen regardless of
-    // zoom:
-        
-    if (positionMarker) {
-      positionMarker.setLatLng(e.latlng);
-    } else {
-      positionMarker = L.circleMarker(e.latlng, {
-        radius: 9,
-        color: '#ffffff',
-        fillColor: '#136aec',
-        fillOpacity: 1,
-        weight: 2,
-        interactive: false
-      }).addTo(map);
-    }
+    // The arrow serves as the position marker -- created on the first GPS
+    // fix and repositioned on every subsequent fix. Rotation is handled
+    // separately by handleOrientation below.
 
     if (headingMarker) {
       headingMarker.setLatLng(e.latlng);
-    }
-  });
-  
-  // `locationerror` happens if the browser denies permission or your phone
-  // has no location signal.
-
-  map.on('locationerror', function(e) {
-    console.warn('Location error: ' + e.message);
-  });
-
-  // compass heading ------------------------------------------------------
-
-  // Heading is displayed with a rotating arrow:
-      
-  function setHeading(latlng, degrees) {
-    if (!headingMarker) {
-      headingMarker = L.marker(latlng, {
+    } else {
+      headingMarker = L.marker(e.latlng, {
         icon: L.divIcon({
-  
-          // Create an SVG arrow and wrap it inside of a rotating div:
-  
           html: '<div class="heading-arrow" style="width:40px; height:40px;">' +
                   '<svg viewBox="0 0 40 40" width="40" height="40"' +
                   ' xmlns="http://www.w3.org/2000/svg">' +
@@ -113,12 +55,22 @@ function(el, x) {
           iconAnchor: [20, 20]
         }),
         interactive: false,
-        zIndexOffset: 0
+        zIndexOffset: 1000
       }).addTo(map);
-    } else {
-      headingMarker.setLatLng(latlng);
     }
-  
+  });
+
+  map.on('locationerror', function(e) {
+    console.warn('Location error: ' + e.message);
+  });
+
+  // compass heading ------------------------------------------------------
+
+  // Position is now managed by locationfound, so setHeading only needs
+  // to update the rotation of the existing marker.
+
+  function setHeading(degrees) {
+    if (!headingMarker) return;
     var markerEl = headingMarker.getElement();
     if (markerEl) {
       var arrow = markerEl.querySelector('.heading-arrow');
@@ -126,13 +78,7 @@ function(el, x) {
         arrow.style.transform = 'rotate(' + degrees + 'deg)';
       }
     }
-}
-  
-  // Orientation supplied by iOS or Android. webkitCompassHeading (iOS) 
-  // gives degrees clockwise from magnetic North directly. Android, 
-  // annoyingly, provides its orientation using deviceorientationabsolute 
-  // with alpha measured counterclockwise from the east, which needs 
-  // to then be converted to a compass bearing.
+  }
 
   function handleOrientation(event) {
     var heading;
@@ -143,13 +89,8 @@ function(el, x) {
     } else {
       return;
     }
-    if (positionMarker) {
-      setHeading(positionMarker.getLatLng(), heading);
-    }
+    setHeading(heading);
   }
-  
-  // iOS blocks DeviceOrientationEvent until a user grants permission from
-  // a gesture. Any tap on the map initiates the permission request.
 
   if (
     typeof DeviceOrientationEvent !== 'undefined' &&
@@ -157,18 +98,19 @@ function(el, x) {
   ) {
     map.once('click', function() {
       DeviceOrientationEvent.requestPermission()
-        .then(function(result) {
+        .then(
+          function(result) {
           if (result === 'granted') {
             window.addEventListener(
               'deviceorientation',
               handleOrientation,
               true
-            );
+              );
+            }
           }
-        })
+        )
         .catch(console.error);
     });
-  
   } else {
     window.addEventListener(
       'deviceorientationabsolute',
@@ -176,7 +118,7 @@ function(el, x) {
       true
     );
     window.addEventListener(
-      'deviceorientation', 
+      'deviceorientation',
       handleOrientation,
       true
     );
