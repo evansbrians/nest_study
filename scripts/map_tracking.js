@@ -91,40 +91,42 @@ function(el, x) {
 
   // compass heading ------------------------------------------------------
 
-  // Create or update a triangular arrow centred on your position. The
-  // arrow points up by default (North) and is rotated to match the compass
-  // bearing.
+  // Heading is displayed with a rotating arrow:
       
   function setHeading(latlng, degrees) {
     if (!headingMarker) {
       headingMarker = L.marker(latlng, {
         icon: L.divIcon({
-          html: '<svg class="heading-arrow" viewBox="0 0 40 40"' +
-                   ' xmlns="http://www.w3.org/2000/svg"' +
-                   ' style="transform-origin: center center;">' +
-                   '<polygon points="20,2 28,20 20,15 12,20"' +
-                   ' fill="#136aec" stroke="white"' +
-                   ' stroke-width="1.5" stroke-linejoin="round"/>' +
-                 '</svg>',
-          className: '',
-          iconSize: [40, 40],
+  
+          // Create an SVG arrow and wrap it inside of a rotating div:
+  
+          html: '<div class="heading-arrow" style="width:40px; height:40px;">' +
+                  '<svg viewBox="0 0 40 40" width="40" height="40"' +
+                  ' xmlns="http://www.w3.org/2000/svg">' +
+                  '<polygon points="20,2 28,20 20,15 12,20"' +
+                  ' fill="#136aec" stroke="white"' +
+                  ' stroke-width="1.5" stroke-linejoin="round"/>' +
+                  '</svg>' +
+                '</div>',
+          className:  '',
+          iconSize:   [40, 40],
           iconAnchor: [20, 20]
         }),
-        interactive: false,
+        interactive:  false,
         zIndexOffset: 0
       }).addTo(map);
     } else {
       headingMarker.setLatLng(latlng);
     }
-
+  
     var markerEl = headingMarker.getElement();
     if (markerEl) {
-      var svg = markerEl.querySelector('.heading-arrow');
-      if (svg) {
-        svg.style.transform = 'rotate(' + degrees + 'deg)';
+      var arrow = markerEl.querySelector('.heading-arrow');
+      if (arrow) {
+        arrow.style.transform = 'rotate(' + degrees + 'deg)';
       }
     }
-  }
+}
   
   // Orientation supplied by iOS or Android. webkitCompassHeading (iOS) 
   // gives degrees clockwise from magnetic North directly. Android, 
@@ -150,11 +152,15 @@ function(el, x) {
   // a gesture. A tap on a map control qualifies, so a compass button
   // is added. On Android the event fires immediately without any prompt.
 
+  // iOS blocks DeviceOrientationEvent until a user grants permission from
+  // a gesture. A tap on a map control qualifies, so a compass button
+  // is added. On Android the event fires immediately without any prompt.
+
   if (
     typeof DeviceOrientationEvent !== 'undefined' &&
     typeof DeviceOrientationEvent.requestPermission === 'function'
   ) {
-    var compassControl = L.control({ position: 'topright' });
+    var compassControl = L.control({ position: 'bottomright' });  // moved from topright
     compassControl.onAdd = function() {
       var div = L.DomUtil.create('div', 'leaflet-bar');
       div.innerHTML =

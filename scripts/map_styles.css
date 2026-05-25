@@ -1,4 +1,4 @@
-/* CSS for leaflet map:
+/* CSS for leaflet map: */
 
 /* Layer control panel and all text within it */
         
@@ -40,4 +40,10 @@
   line-height: 1.6;
   padding: 4px 10px;
   border-width: 2px;
+}
+
+/* Heading arrow (center on the position dot) */
+
+.heading-arrow {
+  transform-origin: center center;
 }
