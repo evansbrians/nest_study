@@ -53,8 +53,10 @@ nest_intervals <-
   mutate(
     nest_id,
     date = as_date(date),
-    nest_status,
-    young_status,
+    across(
+      host_eggs:host_young,
+      ~ as.numeric(.x)
+    ),
     .keep = "none"
   )
 
@@ -85,7 +87,8 @@ nests_proc <-
     patch = patch_id,
     earliest_check = 
       case_when(
-        young_status == "NO" ~  date + 6,
+        host_eggs == 0 & 
+          host_young == 0 ~  date + 6,
         .default = date + 3
       ),
     .keep = "none"
