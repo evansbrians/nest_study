@@ -1,26 +1,47 @@
 ---
-format: 
-  html:
-    self-contained: true
-    standalone: true
-    number-sections: false
-    search: true
-    theme: cosmo
-    css: custom_style.scss
+format: html
 editor: source
 editor_options: 
   chunk_output_type: console
+execute:
+  echo: false
+  warning: false
+  message: false
 ---
 
 ```{r}
-#| include: false
 
 library(kableExtra)
+library(glue)
 library(tidyverse)
+
+next_nest_checks <-
+  read_rds("data/temp_nest_checking.rds")
 
 schedule <- 
   read_rds("data/season_schedule.rds") %>% 
-  filter(week == 3)
+  unnest(patch_counts) %>% 
+  unnest(boards) %>% 
+  filter(
+    date >= today(),
+    date <= today() + 6
+  ) %>% 
+  summarize(
+    boards = 
+      str_flatten(board_id, collapse = ", "),
+    .by = !board_id
+  ) %>% 
+  left_join(
+    next_nest_checks,
+    by = join_by(date == date, patch_count == patch)
+  ) %>% 
+  mutate(
+    check_nests = replace_na(check_nests, "-")
+  )
+
+schedule_list <-
+  schedule %>% 
+  split(schedule$day)
 
 # custom functions --------------------------------------------------------
 
@@ -43,54 +64,31 @@ my_kable_style <-
 
 pred_counts <- 
   function(.day) {
-    schedule %>% 
-      filter(day == .day) %>% 
-      unnest(patch_counts) %>% 
-      unnest(boards) %>% 
-      mutate(
-        Patch = patch_count,
-        board_num = 
-          rep_len(
-            c("board_1", "board_2"),
-            n()
-          )
-      ) %>% 
-      pivot_wider(
-        names_from = board_num,
-        values_from = board_id
-      ) %>% 
-      unite(
-        "Coverboards",
-        board_1:board_2,
-        sep = ", "
-      ) %>% 
-      mutate(
-        Time =
-          str_c(date, sunrise, sep = " ") %>% 
-          ymd_hm(),
-        Time = 
-          case_when(
-            patch_order == 2 ~
-              Time + minutes(40),
-            patch_order == 3 ~
-              Time + minutes(80),
-            TRUE ~ Time
-          ) %>% 
-          hms::as_hms() %>%
-          as.character() %>% 
-          str_remove(":00$")
-      ) %>% 
+      schedule_list %>% 
+        pluck(.day) %>% 
+        mutate(
+          Patch = patch_count,
+          Time = 
+            str_c(date, sunrise) %>% 
+            {
+              ymd_hm(.) + 
+                minutes(40 * (patch_order - 1))
+            } %>% 
+            format("%H:%M")
+        ) %>% 
       select(
         Time,
-        Patch,
-        Coverboards
+        Patch = patch_count,
+        Coverboards = boards,
+        `Check nests` = check_nests
       ) %>% 
       kable(
         align =
           c(
             "c",
             "l",
-            "c"
+            "c",
+            "l"
           )
       ) %>% 
       my_kable_style()
@@ -100,162 +98,176 @@ pred_counts <-
 
 nest_searching <- 
   function(.day) {
-    schedule %>% 
-      filter(day == .day) %>% 
-      unnest(patch_counts) %>% 
+    schedule_list %>% 
+      pluck(.day) %>% 
       arrange(
         desc(patch_order)
       ) %>% 
       pull(patch_count) %>% 
       str_flatten(collapse = " \u2192 ")
   }
-
 ```
 
-:::{style="margin-bottom: 0px"}
-# Weekly schedule
-:::
+```{css}
 
-:::{style="margin-top: 0px"}
-### `r min(schedule$date)` - `r max(schedule$date)`
-:::
+body {
+font-family: "Times New Roman", Times, serif;
+font-size: 12px;
+}
+
+.summary_box {
+margin-bottom: 1.5em;
+}
+
+.cell {
+margin-top: 0em;
+margin-bottom: 1em;
+}
+
+h1 {
+font-size: 1.75rem;
+}
+
+h2 {
+font-size: 1.25rem;
+}
+
+p {
+margin-bottom: 0;
+}
+
+h1, h2 {
+border-bottom: 1px solid #ccc;
+padding-bottom: 0;
+margin-bottom: 0.2em;
+}
+
+hr {
+padding-top: 20px;
+margin-top: 20px;
+}
+```
+
+# Weekly schedule: `r min(schedule$date)` - `r max(schedule$date)`
 
 We will arrive at dawn to have time for set-up and travel to the point count location. The first point count starts at sunrise. We will arrive at the point count location a few minutes before then to let the birds settle down before beginning.
 
-## Monday (`r filter(schedule, day == "Mon") %>% pull(date)`)
+## Monday `r unique(schedule_list$Mon$date)`
 
-*Helper: `r filter(schedule, day == "Mon") %>% pull(helper)`*
+::: {.summary_box}
 
-**Arrival**: `r filter(schedule, day == "Mon") %>% pull(arrive)`
+*Helper: `r unique(schedule_list$Mon$helper)`*
 
-**Sunrise**: `r filter(schedule, day == "Mon") %>% pull(sunrise)`
+**Arrival**: `r unique(schedule_list$Mon$arrive)`
 
-<div style="margin-bottom: 0px">
-**Point counts and coverboards**:
-</div>
+**Sunrise**: `r unique(schedule_list$Mon$sunrise)`
 
-:::{style="margin-bottom: 100px"}
-```{r}
-#| echo: false
-#| eval: true
- 
-pred_counts(.day = "Tue")
- 
-```
 :::
 
-<div style="margin-top: 10px">
-**Nest monitoring**:
-</div>
+**Point count times, coverboards, and nests to check**:
+
+```{r}
+pred_counts(.day = "Mon")
+```
 
 **Nest searching**: `r nest_searching(.day = "Mon")`
 
-## Tuesday (`r filter(schedule, day == "Tue") %>% pull(date)`)
+## Tuesday `r unique(schedule_list$Tue$date)`
 
-*Helper: `r filter(schedule, day == "Tue") %>% pull(helper)`*
+::: {.summary_box}
 
-**Arrival**: `r filter(schedule, day == "Tue") %>% pull(arrive)`
+*Helper: `r unique(schedule_list$Tue$helper)`*
 
-**Sunrise**: `r filter(schedule, day == "Tue") %>% pull(sunrise)`
+**Arrival**: `r unique(schedule_list$Tue$arrive)`
 
-**Point counts and coverboards**:
+**Sunrise**: `r unique(schedule_list$Tue$sunrise)`
+
+:::
+
+**Point count times, coverboards, and nests to check**:
 
 ```{r}
-#| echo: false
-#| eval: true
-
 pred_counts(.day = "Tue")
-
 ```
-
-**Nest monitoring**:
 
 **Nest searching**: `r nest_searching(.day = "Tue")`
 
-## Wednesday (`r filter(schedule, day == "Wed") %>% pull(date)`)
+## Wednesday `r unique(schedule_list$Wed$date)`
 
-*Helper: `r filter(schedule, day == "Wed") %>% pull(helper)`*
+::: {.summary_box}
 
-**Arrival**: `r filter(schedule, day == "Wed") %>% pull(arrive)`
+*Helper: `r unique(schedule_list$Wed$helper)`*
 
-**Sunrise**: `r filter(schedule, day == "Wed") %>% pull(sunrise)`
+**Arrival**: `r unique(schedule_list$Wed$arrive)`
 
-**Point counts and coverboards**:
+**Sunrise**: `r unique(schedule_list$Wed$sunrise)`
+
+:::
+
+**Point count times, coverboards, and nests to check**:
 
 ```{r}
-#| echo: false
-#| eval: true
-
 pred_counts(.day = "Wed")
-
 ```
-
-**Nest monitoring**:
 
 **Nest searching**: `r nest_searching(.day = "Wed")`
 
-## Thursday (`r filter(schedule, day == "Thu") %>% pull(date)`)
+## Thursday `r unique(schedule_list$Thu$date)`
 
-*Helper: `r filter(schedule, day == "Thu") %>% pull(helper)`*
+::: {.summary_box}
 
-**Arrival**: `r filter(schedule, day == "Thu") %>% pull(arrive)`
+*Helper: `r unique(schedule_list$Thu$helper)`*
 
-**Sunrise**: `r filter(schedule, day == "Thu") %>% pull(sunrise)`
+**Arrival**: `r unique(schedule_list$Thu$arrive)`
 
-**Point counts and coverboards**:
+**Sunrise**: `r unique(schedule_list$Thu$sunrise)`
+
+:::
+
+**Point count times, coverboards, and nests to check**:
 
 ```{r}
-#| echo: false
-#| eval: true
-
 pred_counts(.day = "Thu")
-
 ```
-
-**Nest monitoring**:
 
 **Nest searching**: `r nest_searching(.day = "Thu")`
 
-## Friday (`r filter(schedule, day == "Fri") %>% pull(date)`)
+## Friday `r unique(schedule_list$Fri$date)`
 
-*Helper: `r filter(schedule, day == "Fri") %>% pull(helper)`*
+::: {.summary_box}
 
-**Arrival**: `r filter(schedule, day == "Fri") %>% pull(arrive)`
+*Helper: `r unique(schedule_list$Fri$helper)`*
 
-**Sunrise**: `r filter(schedule, day == "Fri") %>% pull(sunrise)`
+**Arrival**: `r unique(schedule_list$Fri$arrive)`
 
-**Point counts and coverboards**:
+**Sunrise**: `r unique(schedule_list$Fri$sunrise)`
+
+:::
+
+**Point count times, coverboards, and nests to check**:
 
 ```{r}
-#| echo: false
-#| eval: true
-
 pred_counts(.day = "Fri")
-
 ```
-
-**Nest monitoring**:
 
 **Nest searching**: `r nest_searching(.day = "Fri")`
 
-## Saturday (`r filter(schedule, day == "Sat") %>% pull(date)`)
+## Saturday `r unique(schedule_list$Sat$date)`
 
-*Helper: `r filter(schedule, day == "Sat") %>% pull(helper)`*
+::: {.summary_box}
 
-**Arrival**: `r filter(schedule, day == "Sat") %>% pull(arrive)`
+*Helper: `r unique(schedule_list$Fri$helper)`*
 
-**Sunrise**: `r filter(schedule, day == "Sat") %>% pull(sunrise)`
+**Arrival**: `r unique(schedule_list$Sat$arrive)`
 
-**Point counts and coverboards**:
+**Sunrise**: `r unique(schedule_list$Sat$sunrise)`
+
+:::
+
+**Point count times, coverboards, and nests to check**:
 
 ```{r}
-#| echo: false
-#| eval: true
-
 pred_counts(.day = "Sat")
-
 ```
-
-**Nest monitoring**:
 
 **Nest searching**: `r nest_searching(.day = "Sat")`
