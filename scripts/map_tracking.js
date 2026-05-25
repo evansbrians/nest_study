@@ -160,19 +160,23 @@ function(el, x) {
     typeof DeviceOrientationEvent !== 'undefined' &&
     typeof DeviceOrientationEvent.requestPermission === 'function'
   ) {
-    var compassControl = L.control({ position: 'bottomright' });  // moved from topright
+    var compassControl = L.control({ position: 'bottomright' });
     compassControl.onAdd = function() {
       var div = L.DomUtil.create('div', 'leaflet-bar');
       div.innerHTML =
         '<a href="#" title="Enable compass"' +
-        ' style="font-size:20px; line-height:34px; display:block;' +
-        ' width:34px; text-align:center; text-decoration:none;">&#x1F9ED;</a>';
+        ' style="font-size:40px; line-height:68px; display:block;' +
+        ' width:68px; text-align:center; text-decoration:none;">&#x1F9ED;</a>';
       L.DomEvent.on(div, 'click', function(e) {
         L.DomEvent.preventDefault(e);
         DeviceOrientationEvent.requestPermission()
           .then(function(result) {
             if (result === 'granted') {
-              window.addEventListener('deviceorientation', handleOrientation, true);
+              window.addEventListener(
+                'deviceorientation', 
+                handleOrientation,
+                true
+              );
               div.remove();
             }
           })
@@ -182,7 +186,15 @@ function(el, x) {
     };
     compassControl.addTo(map);
   } else {
-    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-    window.addEventListener('deviceorientation',         handleOrientation, true);
+    window.addEventListener(
+      'deviceorientationabsolute',
+      handleOrientation, 
+      true
+    );
+    window.addEventListener(
+      'deviceorientation', 
+      handleOrientation, 
+      true
+    );
   }
 }
