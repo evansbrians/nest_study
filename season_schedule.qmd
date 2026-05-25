@@ -112,7 +112,13 @@ nest_searching <-
 
 ```
 
-# Weekly schedule: `r min(schedule$date)` - `r max(schedule$date)`
+:::{style="margin-bottom: 0px"}
+# Weekly schedule
+:::
+
+:::{style="margin-top: 0px"}
+### `r min(schedule$date)` - `r max(schedule$date)`
+:::
 
 We will arrive at dawn to have time for set-up and travel to the point count location. The first point count starts at sunrise. We will arrive at the point count location a few minutes before then to let the birds settle down before beginning.
 
@@ -124,17 +130,23 @@ We will arrive at dawn to have time for set-up and travel to the point count loc
 
 **Sunrise**: `r filter(schedule, day == "Mon") %>% pull(sunrise)`
 
+<div style="margin-bottom: 0px">
 **Point counts and coverboards**:
+</div>
 
+:::{style="margin-bottom: 100px"}
 ```{r}
 #| echo: false
 #| eval: true
-
-pred_counts(.day = "Mon")
-
+ 
+pred_counts(.day = "Tue")
+ 
 ```
+:::
 
+<div style="margin-top: 10px">
 **Nest monitoring**:
+</div>
 
 **Nest searching**: `r nest_searching(.day = "Mon")`
 

@@ -6,48 +6,60 @@
 library(sf)
 library(tidyverse)
 
-# Garmin file location when I plug it in:
+source("scripts/functions.R")
 
-garmin_dir <- "Volumes/GARMIN/Garmin/GPX"
+# Garmin file location:
 
-# upload to garmin --------------------------------------------------------
+garmin_dir <- "/Volumes/GARMIN/Garmin/GPX"
 
-# Patches
+# Read in spatial files:
 
-patches_gpx <- 
-  st_read(
-    "data/spatial/patches.geojson",
-    quiet = TRUE
+spatial_files <- 
+  list.files(
+    "data/spatial",
+    pattern = "geojson$",
+    full.names = TRUE
   ) %>% 
-  st_cast("MULTILINESTRING")
+  set_names_from_path() %>% 
+  map(
+    ~ st_read(.x, quiet = TRUE)
+  )
 
-st_write(
-  patches_gpx,
-  file.path(
-    garmin_dir,
-    "patches"
+# patches -----------------------------------------------------------------
+
+spatial_files$patches %>% 
+  st_cast("MULTILINESTRING") %>% 
+  st_write(
+    file.path(
+      garmin_dir,
+      "patches"
+    ) %>% 
+      str_c(".gpx"),
+    driver = "GPX",
+    dataset_options = "GPX_USE_EXTENSIONS=YES",
+    delete_dsn = TRUE
+  )
+
+# trailcams, coverboards, point counts, nests -----------------------------
+
+names(spatial_files) %>% 
+  str_subset(
+    "patches",
+    negate = TRUE
   ) %>% 
-    str_c(".gpx"),
-  driver = "GPX",
-  dataset_options = "GPX_USE_EXTENSIONS=YES"
-)
+  map(
+    ~ spatial_files %>% 
+      pluck(.x) %>% 
+      st_transform(4326) %>% 
+      st_write(
+        file.path(
+          garmin_dir,
+          .x
+        ) %>% 
+          str_c(".gpx"),
+        driver = "GPX",
+        dataset_options = "GPX_USE_EXTENSIONS=YES",
+        delete_dsn = TRUE
+      )
+  )
 
-# Trailcam points:
-
-trailcams <- 
-  st_read(
-    "data/spatial/trailcam_locations.geojson"
-  ) %>% 
-  st_transform(4326)
-
-st_write(
-  trailcams,
-  file.path(
-    garmin_dir,
-    "trailcams"
-  ) %>% 
-    str_c(".gpx"),
-  driver = "GPX",
-  dataset_options = "GPX_USE_EXTENSIONS=YES",
-  delete_dsn = TRUE
-)

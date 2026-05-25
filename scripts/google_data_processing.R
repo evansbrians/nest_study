@@ -127,23 +127,76 @@ nests_raw <-
     )
   )
 
-nests_raw
+nests_proc <- 
+  left_join(
+    nests_raw$nest_level,
+    nests_raw$interval_level,
+    by = "nest_id"
+  ) %>% 
+  pivot_longer(
+    host_eggs:bhco_dead_young,
+    names_to = "eggs_young",
+    values_to = "count_eggs_young"
+  ) %>% 
+  select(
+    
+    # Nest level
+    
+    nest_id,
+    patch_id,
+    species,
+    height,
+    substrate,
+    gps_point,
+    location_description,
+    discovery_date,
+    discovery_stage,
+    camera_or_control,
+    camera_deployment_date,
+    nest_fate,
+    nest_fate_description,
+    
+    # Interval-check level:
+    
+    time,
+    adult_present,
+    adult_activity,
+    nest_status,
+    young_status,
+    observer,
+    notes,
+    
+    # Interval-count level:
+    
+    eggs_young,
+    count_eggs_young
+    
+  ) %>% 
+  nest(
+    interval_count_data = eggs_young:count_eggs_young
+  ) %>% 
+  nest(
+    interval_check_data = time:interval_count_data
+  ) %>% 
+  
+  # Not sure if this one is necessary:
+  
+  nest(
+    nest_level_data = patch_id:interval_check_data
+  )
 
 # write to file -----------------------------------------------------------
 
 list(
   "point_counts" = point_counts_proc,
   "coverboards" = coverboards_proc,
-  "visits" = visits_proc
+  "visits" = visits_proc,
+  "nests" = nests_proc
+) %>% 
+  write_rds("data/field_data.rds")
+
+# clear global environment ------------------------------------------------
+
+rm(
+  list = ls()
 )
-
-
-
-
-
-
-
-
-
-
-

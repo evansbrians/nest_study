@@ -12,6 +12,10 @@ source("scripts/convert_gpx_geojson.R")
 # print-outs --------------------------------------------------------------
 
 
+# read and pre-process data -----------------------------------------------
+
+source("scripts/google_data_processing.R")
+
 # update google earth map -------------------------------------------------
 
 source("scripts/update_google_earth.R")
