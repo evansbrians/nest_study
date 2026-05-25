@@ -4,10 +4,12 @@
 
 library(leaflet)
 library(sf)
-library(tidyverse)
 library(htmlwidgets)
+library(tidyverse)
 
 source("scripts/functions.R")
+
+sheets_url <- "https://docs.google.com/spreadsheets/d"
 
 # Spatial data:
 
@@ -58,6 +60,63 @@ icons <-
   ) %>% 
   do.call(iconList, .)
 
+# nest status -------------------------------------------------------------
+
+# Nest-level data:
+
+nest_level <- 
+  file.path(sheets_url, "1iosPhbwDOVhIM4EkaeexnX0kRLsBqZKEuCbCsxFyMPs") %>% 
+  googlesheets4::read_sheet(
+    sheet = "nest_level",
+    col_types = "c"
+  ) %>% 
+  select(nest_id, patch_id, nest_fate)
+
+# Interval-level data:
+
+nest_intervals <- 
+  file.path(sheets_url, "1iosPhbwDOVhIM4EkaeexnX0kRLsBqZKEuCbCsxFyMPs") %>% 
+  googlesheets4::read_sheet(
+    sheet = "interval_level",
+    col_types = "c"
+  ) %>% 
+  mutate(
+    nest_id,
+    date = as_date(date),
+    across(
+      host_eggs:host_young,
+      ~ as.numeric(.x)
+    ),
+    .keep = "none"
+  )
+
+# Combine and process for map:
+
+nests_coded <- 
+  left_join(
+    nest_intervals,
+    nest_level,
+    by = "nest_id"
+  ) %>% 
+  slice_max(date, by = nest_id) %>% 
+  mutate(
+    name = nest_id,
+    icon_id = 
+      case_when(
+        nest_fate %in% c("Success", "Failure") ~ "nest_old",
+        host_eggs == 0 & 
+          host_young == 0 ~  "nest_building",
+        is.na(host_eggs) & is.na(host_young) ~ "nest_unknown",
+        .default = "nest_active"
+      ),
+    .keep = "none"
+  ) %>% 
+  left_join(
+    select(nests, !icon_id),
+    .,
+    by = "name"
+  )
+
 # build map ---------------------------------------------------------------
 
 map <-
@@ -88,6 +147,16 @@ map <-
     label = ~ name,
     group = "Patches"
   ) %>%
+  
+  # Nests
+  
+  addMarkers(
+    data = nests_coded,
+    icon = ~ icons[icon_id],
+    popup = ~ name,
+    label = ~ name,
+    group = "Nests"
+  ) %>% 
   
   # Coverboards:
   
@@ -128,7 +197,8 @@ map <-
         "Patches",
         "Coverboards",
         "Trail Cameras",
-        "Point Counts"
+        "Point Counts",
+        "Nests"
       ),
     options = layersControlOptions(collapsed = FALSE)
   ) %>%
@@ -143,7 +213,8 @@ map <-
     c(
       "Coverboards",
       "Trail Cameras", 
-      "Point Counts"
+      "Point Counts",
+      "Nests"
     )
   )
 
@@ -287,6 +358,117 @@ map_tracking <-
       map.on('locationerror', function(e) {
         console.warn('Location error: ' + e.message);
       });
+    }
+    "
+  )
+
+# add compass heading -----------------------------------------------------
+
+map_compass <-
+  map_tracking %>%
+  htmlwidgets::onRender(
+    "
+      // Create or update a triangular arrow centred on your position. The
+      // arrow points up by default (North) and is rotated to match the compass
+      // bearing.
+
+      function setHeading(latlng, degrees) {
+        if (!headingMarker) {
+          headingMarker = L.marker(latlng, {
+            icon: L.divIcon({
+              html: '<svg class=\"heading-arrow\" viewBox=\"0 0 40 40\"' +
+                    ' xmlns=\"http://www.w3.org/2000/svg\"' +
+                    ' style=\"transform-origin: center center;\">' +
+                    '<polygon points=\"20,2 28,20 20,15 12,20\"' +
+                    ' fill=\"#136aec\" stroke=\"white\"' +
+                    ' stroke-width=\"1.5\" stroke-linejoin=\"round\"/>' +
+                    '</svg>',
+              className: '',
+              iconSize: [40, 40],
+              iconAnchor: [20, 20]
+            }),
+            interactive:  false,
+            zIndexOffset: 0
+          }).addTo(map);
+        } else {
+          headingMarker.setLatLng(latlng);
+        }
+
+        var el = headingMarker.getElement();
+        if (el) {
+          var svg = el.querySelector('.heading-arrow');
+          if (svg) {
+            svg.style.transform = 'rotate(' + degrees + 'deg)';
+          }
+        }
+      }
+
+      // Orientation supplied by iOS or Android. webkitCompassHeading (iOS) 
+      // gives degrees clockwise from magnetic North directly. Android, 
+      // annoyingly, provides its orientation using deviceorientationabsolute 
+      // with alpha measured counterclockwise from the east, which needs 
+      // to then be converted to a compass bearing.
+
+      function handleOrientation(event) {
+        var heading;
+
+        if (typeof event.webkitCompassHeading === 'number') {
+          heading = event.webkitCompassHeading;
+        } else if (event.absolute && typeof event.alpha === 'number') {
+          heading = (360 - event.alpha) % 360;
+        } else {
+          return;   // non-absolute event with no usable compass data
+        }
+
+        if (positionMarker) {
+          setHeading(positionMarker.getLatLng(), heading);
+        }
+      }
+
+      // iOS blocks DeviceOrientationEvent until a user grants permission from
+      // a gesture. A tap on a map control qualifies, so a compass button
+      // is added. On Android the event fires immediately without any prompt.
+
+      if (
+        typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function'
+      ) {
+        var compassControl = L.control({ position: 'topright' });
+        compassControl.onAdd = function() {
+          var div = L.DomUtil.create('div', 'leaflet-bar');
+          div.innerHTML =
+            '<a href=\"#\" title=\"Enable compass\"' +
+            ' style=\"font-size:20px; line-height:34px; display:block;' +
+            ' width:34px; text-align:center; text-decoration:none;\">&#x1F9ED;</a>';
+          L.DomEvent.on(div, 'click', function(e) {
+            L.DomEvent.preventDefault(e);
+            DeviceOrientationEvent.requestPermission()
+              .then(function(result) {
+                if (result === 'granted') {
+                  window.addEventListener('deviceorientation', handleOrientation, true);
+                  div.remove();
+                }
+              })
+              .catch(console.error);
+          });
+          return div;
+        };
+        compassControl.addTo(map);
+      } else {
+        // Android: prefer deviceorientationabsolute (guaranteed compass-relative).
+        // Also listen to deviceorientation as a fallback for webkitCompassHeading
+        // on devices that support it without the absolute event.
+        window.addEventListener(
+          'deviceorientationabsolute', 
+          handleOrientation, 
+          true
+        );
+        window.addEventListener(
+          'deviceorientation', 
+          handleOrientation, 
+          true
+        );
+      }
     }
     "
   )
