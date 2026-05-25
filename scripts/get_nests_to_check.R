@@ -79,8 +79,8 @@ nests_proc <-
     nest_fate %in% c("Success", "Failure")
   ) %>% 
   
-  # Earliest nest check is 3 days if the young status code is not "NO" and 6
-  # days if it is "NO:
+  # Earliest nest check is 3 days if there are eggs or young and 6 days if
+  # there is no eggs or young:
   
   mutate(
     nest_id,
