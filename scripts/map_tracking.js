@@ -45,7 +45,7 @@ function(el, x) {
           html: '<svg class="heading-arrow" viewBox="0 0 40 40"' +
             ' width="80" height="80" xmlns="http://www.w3.org/2000/svg">' +
             '<g class="heading-group">' +
-              '<polygon points="20,2 28,20 20,15 12,20"' +
+              '<polygon points="20,4 34,36 20,27 6,36"' +
                 ' fill="#136aec" stroke="white"' +
                 ' stroke-width="1.5" stroke-linejoin="round"/>' +
             '</g>' +
