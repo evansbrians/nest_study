@@ -1,6 +1,12 @@
 
 # Dashboard script for daily updates
 
+# setup -------------------------------------------------------------------
+
+library(tidyverse)
+
+googlesheets4::gs4_auth()
+
 # map print-outs ----------------------------------------------------------
 
 source("scripts/update_map_print-outs.R")
