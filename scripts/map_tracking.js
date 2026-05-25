@@ -108,11 +108,11 @@ function(el, x) {
                   ' stroke-width="1.5" stroke-linejoin="round"/>' +
                   '</svg>' +
                 '</div>',
-          className:  '',
-          iconSize:   [40, 40],
+          className: '',
+          iconSize: [40, 40],
           iconAnchor: [20, 20]
         }),
-        interactive:  false,
+        interactive: false,
         zIndexOffset: 0
       }).addTo(map);
     } else {
@@ -149,51 +149,35 @@ function(el, x) {
   }
   
   // iOS blocks DeviceOrientationEvent until a user grants permission from
-  // a gesture. A tap on a map control qualifies, so a compass button
-  // is added. On Android the event fires immediately without any prompt.
-
-  // iOS blocks DeviceOrientationEvent until a user grants permission from
-  // a gesture. A tap on a map control qualifies, so a compass button
-  // is added. On Android the event fires immediately without any prompt.
+  // a gesture. Any tap on the map initiates the permission request.
 
   if (
     typeof DeviceOrientationEvent !== 'undefined' &&
     typeof DeviceOrientationEvent.requestPermission === 'function'
   ) {
-    var compassControl = L.control({ position: 'bottomright' });
-    compassControl.onAdd = function() {
-      var div = L.DomUtil.create('div', 'leaflet-bar');
-      div.innerHTML =
-        '<a href="#" title="Enable compass"' +
-        ' style="font-size:40px; line-height:68px; display:block;' +
-        ' width:68px; text-align:center; text-decoration:none;">&#x1F9ED;</a>';
-      L.DomEvent.on(div, 'click', function(e) {
-        L.DomEvent.preventDefault(e);
-        DeviceOrientationEvent.requestPermission()
-          .then(function(result) {
-            if (result === 'granted') {
-              window.addEventListener(
-                'deviceorientation', 
-                handleOrientation,
-                true
-              );
-              div.remove();
-            }
-          })
-          .catch(console.error);
-      });
-      return div;
-    };
-    compassControl.addTo(map);
+    map.once('click', function() {
+      DeviceOrientationEvent.requestPermission()
+        .then(function(result) {
+          if (result === 'granted') {
+            window.addEventListener(
+              'deviceorientation',
+              handleOrientation,
+              true
+            );
+          }
+        })
+        .catch(console.error);
+    });
+  
   } else {
     window.addEventListener(
       'deviceorientationabsolute',
-      handleOrientation, 
+      handleOrientation,
       true
     );
     window.addEventListener(
       'deviceorientation', 
-      handleOrientation, 
+      handleOrientation,
       true
     );
   }
