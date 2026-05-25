@@ -42,17 +42,17 @@ function(el, x) {
     } else {
       headingMarker = L.marker(e.latlng, {
         icon: L.divIcon({
-          html: '<div class="heading-arrow" style="width:40px; height:40px;">' +
-                  '<svg viewBox="0 0 40 40" width="40" height="40"' +
-                  ' xmlns="http://www.w3.org/2000/svg">' +
-                  '<polygon points="20,2 28,20 20,15 12,20"' +
-                  ' fill="#136aec" stroke="white"' +
-                  ' stroke-width="1.5" stroke-linejoin="round"/>' +
-                  '</svg>' +
-                '</div>',
+          html: '<svg class="heading-arrow" viewBox="0 0 40 40"' +
+            ' width="80" height="80" xmlns="http://www.w3.org/2000/svg">' +
+            '<g class="heading-group">' +
+              '<polygon points="20,2 28,20 20,15 12,20"' +
+                ' fill="#136aec" stroke="white"' +
+                ' stroke-width="1.5" stroke-linejoin="round"/>' +
+            '</g>' +
+          '</svg>',
           className: '',
-          iconSize: [40, 40],
-          iconAnchor: [20, 20]
+          iconSize: [80, 80],
+          iconAnchor: [40, 40]
         }),
         interactive: false,
         zIndexOffset: 1000
@@ -73,9 +73,9 @@ function(el, x) {
     if (!headingMarker) return;
     var markerEl = headingMarker.getElement();
     if (markerEl) {
-      var arrow = markerEl.querySelector('.heading-arrow');
-      if (arrow) {
-        arrow.style.transform = 'rotate(' + degrees + 'deg)';
+      var g = markerEl.querySelector('.heading-group');
+      if (g) {
+      g.setAttribute('transform', 'rotate(' + degrees + ', 20, 20)');
       }
     }
   }

@@ -41,9 +41,3 @@
   padding: 4px 10px;
   border-width: 2px;
 }
-
-/* Heading arrow (center on the position dot) */
-
-.heading-arrow {
-  transform-origin: center center;
-}
