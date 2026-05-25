@@ -16,13 +16,13 @@ schedule <-
     patch = patch_count
   ) %>% 
   
-  # Subset to after today and within the next week:
+  # Subset to between today and within the next week:
   
   filter(
     between(
       date,
       today(),
-      today() + 7
+      today() + 6
     )
   ) %>% 
   
@@ -85,12 +85,13 @@ nests_proc <-
   mutate(
     nest_id,
     patch = patch_id,
-    earliest_check = 
+    check_freq = 
       case_when(
-        host_eggs == 0 & 
-          host_young == 0 ~  date + 6,
-        .default = date + 3
+        host_eggs > 0 ~ 3,
+        host_young > 0 ~ 3,
+        .default = 6
       ),
+    earliest_check = date + check_freq,
     .keep = "none"
   )
 
@@ -108,12 +109,29 @@ next_checks <-
   ) %>% 
   filter(date >= earliest_check) %>% 
   slice_min(date, by = nest_id) %>% 
+  mutate(
+    check_1 = date,
+    check_2 = date + check_freq,
+    .keep = "unused"
+  ) %>% 
+  pivot_longer(
+    check_1:check_2,
+    names_to = NULL,
+    values_to = "date"
+  ) %>% 
+  select(nest_id:patch, date) %>% 
   arrange(date, patch)
 
-# Re-arrange by patch and day to view the nests you have to check that day:
+# Re-arrange by patch and day to view the nests you have to check on a given
+# day:
 
 next_checks %>% 
   summarize(
     check_nests = str_flatten(nest_id, collapse = ", "),
     .by = c(date, patch)
-  )
+  ) %>% 
+  write_rds("data/temp_nest_checking.rds")
+
+rm(
+  list = ls()
+)
