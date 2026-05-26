@@ -88,13 +88,54 @@ hr {
   padding-top: 20px;
   margin-top: 20px;
 }
+
+/* Accordion style */
+
+.accordion {
+  margin-top: 4px;
+  background-color: #e6f0ff;
+  color: #000000;
+  cursor: pointer;
+  padding: 18px;
+  width: 100%;
+  border-style: solid;
+  border-width: 2px;
+  border-color: #ffffff;
+  text-align: left;
+  outline: none;
+  font-size: 1.15em;
+  transition: 0.4s;
+}
+
+/* When you hover your mouse over the accordion button, it changes color. */
+
+.active, .accordion:hover {
+  background-color: #80b3ff; 
+  color: #ffffff;
+  font-weight: bold;
+}
+
+/* This is where the content of the accordion is placed. */
+
+.panel {
+  padding: 4px 4px;
+  margin-top: 1em;
+  margin-bottom: 1em;
+  display: none;
+  background-color: #fff;
+  overflow: hidden;
+}
 </style>
 </div>
 <section id="weekly-schedule-2026-05-26---2026-06-01" class="level1">
 <h1>Weekly schedule: 2026-05-26 - 2026-06-01</h1>
+<div class="summary_box">
 <p>We will arrive at dawn to have time for set-up and travel to the point count location. The first point count starts at sunrise. We will arrive at the point count location a few minutes before then to let the birds settle down before beginning.</p>
-<section id="monday-2026-06-01" class="level2">
-<h2 class="anchored" data-anchor-id="monday-2026-06-01">Monday 2026-06-01</h2>
+</div>
+<button class="accordion">
+Monday 2026-06-01
+</button>
+<div class="panel">
 <div class="summary_box">
 <p><em>Helper: -</em></p>
 <p><strong>Arrival</strong>: 05:19</p>
@@ -136,9 +177,11 @@ hr {
 </div>
 </div>
 <p><strong>Nest searching</strong>: firehouse → witch_hazel → coyote</p>
-</section>
-<section id="tuesday-2026-05-26" class="level2">
-<h2 class="anchored" data-anchor-id="tuesday-2026-05-26">Tuesday 2026-05-26</h2>
+</div>
+<button class="accordion">
+Tuesday 2026-05-26
+</button>
+<div class="panel">
 <div class="summary_box">
 <p><em>Helper: JLS</em></p>
 <p><strong>Arrival</strong>: 05:22</p>
@@ -180,9 +223,11 @@ hr {
 </div>
 </div>
 <p><strong>Nest searching</strong>: grassland_b_fence → forest_geo → grassland_a</p>
-</section>
-<section id="wednesday-2026-05-27" class="level2">
-<h2 class="anchored" data-anchor-id="wednesday-2026-05-27">Wednesday 2026-05-27</h2>
+</div>
+<button class="accordion">
+Wednesday 2026-05-27
+</button>
+<div class="panel">
 <div class="summary_box">
 <p><em>Helper: -</em></p>
 <p><strong>Arrival</strong>: 05:22</p>
@@ -224,9 +269,11 @@ hr {
 </div>
 </div>
 <p><strong>Nest searching</strong>: grassland_b → leech → forest_a</p>
-</section>
-<section id="thursday-2026-05-28" class="level2">
-<h2 class="anchored" data-anchor-id="thursday-2026-05-28">Thursday 2026-05-28</h2>
+</div>
+<button class="accordion">
+Thursday 2026-05-28
+</button>
+<div class="panel">
 <div class="summary_box">
 <p><em>Helper: CMS</em></p>
 <p><strong>Arrival</strong>: 05:21</p>
@@ -268,9 +315,11 @@ hr {
 </div>
 </div>
 <p><strong>Nest searching</strong>: witch_hazel → firehouse → coyote</p>
-</section>
-<section id="friday-2026-05-29" class="level2">
-<h2 class="anchored" data-anchor-id="friday-2026-05-29">Friday 2026-05-29</h2>
+</div>
+<button class="accordion">
+Friday 2026-05-29
+</button>
+<div class="panel">
 <div class="summary_box">
 <p><em>Helper: -</em></p>
 <p><strong>Arrival</strong>: 05:20</p>
@@ -312,9 +361,11 @@ hr {
 </div>
 </div>
 <p><strong>Nest searching</strong>: grassland_a → grassland_b_fence → forest_geo</p>
-</section>
-<section id="saturday-2026-05-30" class="level2">
-<h2 class="anchored" data-anchor-id="saturday-2026-05-30">Saturday 2026-05-30</h2>
+</div>
+<button class="accordion">
+Saturday 2026-05-30
+</button>
+<div class="panel">
 <div class="summary_box">
 <p><em>Helper: -</em></p>
 <p><strong>Arrival</strong>: 05:20</p>
@@ -356,7 +407,35 @@ hr {
 </div>
 </div>
 <p><strong>Nest searching</strong>: grassland_b → forest_a → leech</p>
-</section>
+</div>
+<script>
+var acc = document.getElementsByClassName("accordion");
+var i;
+
+for (i = 0; i < acc.length; i++) {
+  acc[i].addEventListener("click", function() {
+  this.classList.toggle("active");
+  var panel = this.nextElementSibling;
+  if (panel.style.display === "block") {
+    panel.style.display = "none";
+  } else {
+    panel.style.display = "block";
+  }
+  });
+}
+
+// Expand the button for today's date by default
+var today = new Date().toISOString().slice(0, 10);
+
+for (i = 0; i < acc.length; i++) {
+  if (acc[i].textContent.includes(today)) {
+    acc[i].classList.add("active");
+    acc[i].nextElementSibling.style.display = "block";
+    break;
+  }
+}
+
+</script>
 </section>
 
 </main>
