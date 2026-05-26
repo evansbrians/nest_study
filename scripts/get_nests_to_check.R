@@ -1,5 +1,9 @@
 
+# setup -------------------------------------------------------------------
+
 library(tidyverse)
+
+source("scripts/functions.R")
 
 sheets_url <- "https://docs.google.com/spreadsheets/d"
 
