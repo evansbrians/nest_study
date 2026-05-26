@@ -1,0 +1,208 @@
+---
+format:
+  pdf:
+    documentclass: article
+    fontsize: 11pt
+    geometry: margin=1in
+    pdf-engine: xelatex
+    mainfont: "Times New Roman"
+    include-in-header:
+      text: |
+        \setlength{\parskip}{0pt}
+        \setlength{\parindent}{0pt}
+        \usepackage{titlesec}
+        \titleformat{\subsection}[block]{\normalfont\large\bfseries}{}{0em}{}[\titlerule]
+        \titlespacing*{\subsection}{0pt}{1.5em}{0.5em}
+editor: source
+editor_options: 
+  chunk_output_type: console
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+
+library(kableExtra)
+library(glue)
+library(here)
+library(tidyverse)
+
+# custom functions --------------------------------------------------------
+
+# Style for tabular output:
+
+my_kable_style <-
+  function(.kable) {
+    .kable %>% 
+      kable_styling(
+        latex_options = 
+          c(
+            "striped",
+            "hold_position"
+          ),
+        full_width = FALSE,
+        position = "left",
+        font_size = 10
+      )
+  }
+
+# Dates ranges that are easy to read:
+
+pretty_date_range <-
+  function(.schedule) {
+    first_day <- min(.schedule$date)
+    last_day <- max(.schedule$date)
+    
+    if (month(first_day) == month(last_day)) {
+      str_c(
+        mday(first_day),
+        "-",
+        mday(last_day),
+        " ",
+        month(
+          first_day,
+          label = TRUE,
+          abbr = FALSE
+        )
+      )
+    } else {
+      str_c(
+        format(first_day, "%d %B"),
+        " - ",
+        format(last_day, "%d %B")
+      )
+    }
+  }
+
+# Format point counts and coverboards for a given day:
+
+pred_counts <- 
+  function(.day) {
+    schedule_list %>% 
+      pluck(.day) %>% 
+      mutate(
+        Time = 
+          str_c(date, sunrise) %>% 
+          {
+            ymd_hm(.) + 
+              minutes(40 * (patch_order - 1))
+          } %>% 
+          format("%H:%M")
+      ) %>% 
+      select(
+        Time,
+        Patch = patch_count,
+        Coverboards = boards,
+        `Check nests` = check_nests
+      ) %>% 
+      kable(
+        booktabs = TRUE,
+        align =
+          c(
+            "c",
+            "l",
+            "c",
+            "l"
+          )
+      ) %>% 
+      my_kable_style()
+  }
+
+# Nest searching order:
+
+nest_searching <- 
+  function(.day) {
+    schedule_list %>% 
+      pluck(.day) %>% 
+      arrange(
+        desc(patch_order)
+      ) %>% 
+      pull(patch_count) %>% 
+      str_flatten(collapse = " \u2192 ")
+  }
+
+# get and process data ----------------------------------------------------
+
+next_nest_checks <-
+  here("data", "temp_nest_checking.rds") %>% 
+  read_rds()
+
+schedule <- 
+  here("data", "season_schedule.rds") %>% 
+  read_rds() %>% 
+  unnest(patch_counts) %>% 
+  unnest(boards) %>% 
+  filter(
+    week ==
+      week(today() + 1) - 18,
+  ) %>% 
+  summarize(
+    boards = 
+      str_flatten(board_id, collapse = ", "),
+    .by = !board_id
+  ) %>% 
+  left_join(
+    next_nest_checks,
+    by = join_by(date == date, patch_count == patch)
+  ) %>% 
+  mutate(
+    check_nests = replace_na(check_nests, "-")
+  )
+
+schedule_list <-
+  schedule %>% 
+  split(schedule$day)
+
+```
+
+# Weekly schedule: `r pretty_date_range(schedule)`
+
+We will arrive at dawn to have time for set-up and travel to the point count location. The first point count starts at sunrise. We will arrive at the point count location a few minutes before then to let the birds settle down before beginning.
+
+```{r, results = "asis"}
+
+day_names <- 
+  c(
+    Mon = "Monday",
+    Tue = "Tuesday",
+    Wed = "Wednesday",
+    Thu = "Thursday",
+    Fri = "Friday",
+    Sat = "Saturday"
+  )
+
+days_ordered <- 
+  intersect(
+    names(day_names),
+    names(schedule_list)
+  )
+
+days_ordered %>% 
+  map_chr(
+    \(day) {
+      day_data <- 
+        schedule_list[[day]] %>% 
+        select(
+          date,
+          arrive:helper
+        ) %>% 
+        distinct()
+      
+      str_c(
+        "\n## ", day_names[day], " ", format(day_data$date, "%d %B"), "\n\n",
+        "*Helper: ", day_data$helper, "*\\\n",
+        "**Arrival**: ", day_data$arrive, "\\\n",
+        "**Sunrise**: ", day_data$sunrise, "\\\n",
+        "\n\n",
+        "**Point count times, coverboards, and nests to check**:\n\n",
+        as.character(pred_counts(.day = day)), "\n\n",
+        "\\vspace{0.1em}\n\n",
+        "**Nest searching**: ", nest_searching(.day = day), "\n\n"
+      )
+    }
+  ) %>% 
+  str_flatten() %>% 
+  cat()
+```
