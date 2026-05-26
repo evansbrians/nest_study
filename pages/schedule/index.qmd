@@ -358,7 +358,8 @@ for (i = 0; i < acc.length; i++) {
   });
 }
 
-// Expand the button for today's date by default
+// Expand the button for today's date by default:
+
 var today = new Date().toISOString().slice(0, 10);
 
 for (i = 0; i < acc.length; i++) {
