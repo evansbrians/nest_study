@@ -13,25 +13,47 @@ googlesheets4::gs4_auth()
 
 source("scripts/convert_gpx_geojson.R")
 
-# read and pre-process data -----------------------------------------------
+# download and pre-process field data -------------------------------------
 
 source("scripts/google_data_processing.R")
 
-# update google earth map -------------------------------------------------
+# update the nest-checking file -------------------------------------------
 
-source("scripts/update_google_earth.R")
+source("scripts/get_nests_to_check.R")
 
-# update leaflet map ------------------------------------------------------
-
-source("scripts/leaflet_map.R")
-
-# map print-outs ----------------------------------------------------------
+# update the scheduling app and document ----------------------------------
 
 # Update:
 
+source("pages/schedule/index.qmd")
+source("outputs/print-outs/schedule_pdf.qmd")
+
+# Render:
+
+quarto::quarto_render("pages/schedule/index.qmd")
+quarto::quarto_render("outputs/print-outs/schedule_pdf.qmd")
+
+# Push changes:
+
+autopush_updates()
+
+# update maps -------------------------------------------------------------
+
+# Google Earth:
+
+source("scripts/update_google_earth.R")
+
+# Leaflet (map app):
+
+source("scripts/leaflet_map.R")
+
+# PNG maps (printed maps):
+
 source("scripts/update_map_print-outs.R")
 
-# Print:
+# printing ----------------------------------------------------------------
+
+# Print maps:
 
 list.files(
   here("outputs/print-outs/patch_maps"),
@@ -39,10 +61,12 @@ list.files(
   full.names = TRUE
 ) %>% 
   walk(
-    ~ system(
-      glue("lp '{.x}'")
-    )
+    ~ glue("lp '{.x}'") %>% 
+      system()
   )
 
+# Print schedule:
 
-
+here("outputs/print-outs/schedule_pdf.pdf") %>% 
+  {glue("lp {.}")} %>% 
+  system()
