@@ -12,6 +12,15 @@ set_names_from_path <-
     )
   }
 
+push_daily_updates <-
+  function(.commit_message = "Daily update") {
+    system("git add .")
+    system(
+      glue("git commit -m {.commit_message}")
+    )
+    system("git push")
+  }
+
 # update map print-outs ---------------------------------------------------
 
 # Used in update_map_print-outs.R
