@@ -402,7 +402,10 @@ for (i = 0; i < acc.length; i++) {
 
 // Expand the button for today's date by default:
 
-var today = new Date().toISOString().slice(0, 10);
+var today = new Date().toLocaleDateString('en-GB', {
+ day: 'numeric',
+ month: 'long'
+})
 
 for (i = 0; i < acc.length; i++) {
   if (acc[i].textContent.includes(today)) {
