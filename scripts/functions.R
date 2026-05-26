@@ -12,12 +12,13 @@ set_names_from_path <-
     )
   }
 
-push_daily_updates <-
+# Autopush for updated files:
+
+autopush_updates <-
   function(.commit_message = "Daily update") {
     system("git add .")
-    system(
-      glue("git commit -m {.commit_message}")
-    )
+    glue("git commit -m '{.commit_message}'") %>% 
+    system()
     system("git push")
   }
 
