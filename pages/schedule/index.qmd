@@ -26,8 +26,10 @@ schedule <-
   unnest(patch_counts) %>% 
   unnest(boards) %>% 
   filter(
-    date >= today(),
-    date <= today() + 6
+    week ==
+        week(
+        today() + 1
+      ) - 18,
   ) %>% 
   summarize(
     boards = 
