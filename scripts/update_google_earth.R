@@ -10,9 +10,11 @@ library(tidyverse)
 
 source("scripts/functions.R")
 
-# Remove previous KMZ file:
+# Remove previous KMZ file, if present:
 
-file.remove("outputs/nest_study.kmz")
+if (exists("outputs/nest_study.kmz")) {
+  file.remove("outputs/nest_study.kmz")
+}
 
 # Get shapefiles:
 
@@ -62,7 +64,7 @@ cb_pts <-
 
 # Add points to the KML and style them:
 
-add_icon_styles(cb_folder, pts$cb_value)
+add_icon_styles(cb_folder, cb_pts$cb_value)
 add_point_placemarks(
   cb_folder,
   cb_pts,
@@ -253,7 +255,7 @@ local_icons %>%
 withr::with_dir(
   kmz_dir,
   zip::zip(
-    zipfile = "outputs/nest_study.kmz",
+    zipfile = here("outputs", "nest_study.kmz"),
     files = 
       c(
         "doc.kml", 
