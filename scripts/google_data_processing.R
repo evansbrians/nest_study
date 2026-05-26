@@ -127,7 +127,7 @@ nests_raw <-
     )
   )
 
-nests_proc <- 
+nests_proc <-
   left_join(
     nests_raw$nest_level,
     nests_raw$interval_level,
@@ -138,52 +138,63 @@ nests_proc <-
     names_to = "eggs_young",
     values_to = "count_eggs_young"
   ) %>% 
-  select(
-    
-    # Nest level
-    
-    nest_id,
-    patch_id,
-    species,
-    height,
-    substrate,
-    gps_point,
-    location_description,
-    discovery_date,
-    discovery_stage,
-    camera_or_control,
-    camera_deployment_date,
-    nest_fate,
-    nest_fate_description,
-    
-    # Interval-check level:
-    
-    time,
-    adult_present,
-    adult_activity,
-    nest_status,
-    young_status,
-    observer,
-    notes,
-    
-    # Interval-count level:
-    
-    eggs_young,
-    count_eggs_young
-    
-  ) %>% 
-  nest(
-    interval_count_data = eggs_young:count_eggs_young
-  ) %>% 
-  nest(
-    interval_check_data = time:interval_count_data
-  ) %>% 
-  
-  # Not sure if this one is necessary:
-  
-  nest(
-    nest_level_data = patch_id:interval_check_data
-  )
+    select(
+      
+      # Nest level:
+      
+      nest_id,
+      patch_id,
+      species,
+      
+      # Discovery level:
+      
+      discovery_date,
+      discovery_stage,
+      
+      # Nest fate level:
+      
+      nest_fate,
+      nest_fate_description,
+      
+      # Nest-site characteristics:
+      
+      height,
+      substrate,
+      gps_point,
+      location_description,
+      
+      # Interval-check level:
+      
+      date,
+      time,
+      adult_present,
+      adult_activity,
+      nest_status,
+      young_status,
+      observer,
+      notes,
+      
+      # Interval-count level:
+      
+      eggs_young,
+      count_eggs_young
+    ) %>% 
+    nest(
+      discovery_data = discovery_date:discovery_stage
+    ) %>% 
+    nest(
+      nest_fate_data = nest_fate:nest_fate_description
+    ) %>% 
+    nest(
+      nest_site_characteristics_data = height:location_description
+    ) %>% 
+    nest(
+      interval_count_data = eggs_young:count_eggs_young
+    ) %>% 
+    nest(
+      interval_data = 
+        c(date:notes, interval_count_data)
+    )
 
 # write to file -----------------------------------------------------------
 

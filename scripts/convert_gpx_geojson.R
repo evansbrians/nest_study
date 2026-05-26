@@ -6,6 +6,8 @@
 library(sf)
 library(tidyverse)
 
+source("scripts/functions.R")
+
 # Garmin file location:
 
 garmin_dir <- "/Volumes/GARMIN/Garmin/GPX"
@@ -63,6 +65,44 @@ names(categorized_points) %>%
         delete_dsn = TRUE
       )
   )
+
+# read and save tracks ----------------------------------------------------
+
+# Read archived tracks:
+
+tracks <- 
+  file.path(
+    garmin_dir,
+    "Archive"
+  ) %>% 
+  list.files(
+    full.names = TRUE,
+    pattern = "gpx$"
+  ) %>% 
+  map_df(
+    ~ st_read(
+      .x,
+      quiet = TRUE,
+      layer = "tracks"
+    ) %>% 
+      select(name)
+  ) %>% 
+  mutate(
+    name =
+      str_replace(
+        name,
+        "2026-05-25 08.12.19",
+        "witch_hazel_path_1"
+      )
+  )
+
+# Save to file:
+
+write_sf(
+  tracks, 
+  "data/spatial/tracks.geojson",
+  delete_dsn = TRUE
+)
 
 # clear global environment ------------------------------------------------
 
