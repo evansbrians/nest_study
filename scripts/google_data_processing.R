@@ -6,6 +6,8 @@
 library(googlesheets4)
 library(tidyverse)
 
+source("scripts/functions.R")
+
 # Create file path/url for each Google sheet:
 
 urls <-
