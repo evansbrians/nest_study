@@ -17,6 +17,9 @@ library(glue)
 library(here)
 library(tidyverse)
 
+here("scripts/functions.R") %>% 
+  source()
+
 next_nest_checks <-
   here("data", "temp_nest_checking.rds") %>% 
   read_rds()
