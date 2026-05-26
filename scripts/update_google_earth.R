@@ -262,8 +262,15 @@ withr::with_dir(
   )
 )
 
-# clear global environment ------------------------------------------------
+# end session -------------------------------------------------------------
+
+# Update git:
+
+autopush_updates()
+
+# Clear global environment:
 
 rm(
   list = ls()
 )
+

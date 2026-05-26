@@ -132,6 +132,14 @@ next_checks %>%
   ) %>% 
   write_rds("data/temp_nest_checking.rds")
 
+# end session -------------------------------------------------------------
+
+# Update git:
+
+autopush_updates()
+
+# Clear global environment:
+
 rm(
   list = ls()
 )

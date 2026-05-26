@@ -261,6 +261,14 @@ saveWidget(
   title = "Nest Study Field Map"
 )
 
+# end session -------------------------------------------------------------
+
+# Update git:
+
+autopush_updates()
+
+# Clear global environment:
+
 rm(
   list = ls()
 )

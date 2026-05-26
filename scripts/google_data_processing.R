@@ -206,7 +206,13 @@ list(
 ) %>% 
   write_rds("data/field_data.rds")
 
-# clear global environment ------------------------------------------------
+# end session -------------------------------------------------------------
+
+# Update git:
+
+autopush_updates()
+
+# Clear global environment:
 
 rm(
   list = ls()

@@ -104,7 +104,13 @@ write_sf(
   delete_dsn = TRUE
 )
 
-# clear global environment ------------------------------------------------
+# end session -------------------------------------------------------------
+
+# Update git:
+
+autopush_updates()
+
+# Clear global environment:
 
 rm(
   list = ls()
