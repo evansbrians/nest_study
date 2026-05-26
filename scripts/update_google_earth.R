@@ -214,7 +214,8 @@ kmz_dir <-
 
 dir.create(
   file.path(kmz_dir, "files"),
-  recursive = TRUE
+  recursive = TRUE,
+  showWarnings = FALSE
 )
 
 # Write the KML file that we built above to the staging directory. Note that 
