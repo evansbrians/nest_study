@@ -1,0 +1,276 @@
+---
+format: html
+editor: source
+editor_options: 
+  chunk_output_type: console
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+
+library(kableExtra)
+library(glue)
+library(here)
+library(tidyverse)
+
+next_nest_checks <-
+  here("data", "temp_nest_checking.rds") %>% 
+  read_rds()
+
+schedule <- 
+  here("data", "season_schedule.rds") %>% 
+  read_rds() %>% 
+  unnest(patch_counts) %>% 
+  unnest(boards) %>% 
+  filter(
+    date >= today(),
+    date <= today() + 6
+  ) %>% 
+  summarize(
+    boards = 
+      str_flatten(board_id, collapse = ", "),
+    .by = !board_id
+  ) %>% 
+  left_join(
+    next_nest_checks,
+    by = join_by(date == date, patch_count == patch)
+  ) %>% 
+  mutate(
+    check_nests = replace_na(check_nests, "-")
+  )
+
+schedule_list <-
+  schedule %>% 
+  split(schedule$day)
+
+# custom functions --------------------------------------------------------
+
+my_kable_style <-
+  function(.kable) {
+    .kable %>% 
+      kable_styling(
+        bootstrap_options = 
+          c(
+            "striped",
+            "hover",
+            "condensed"
+          ),
+        full_width = FALSE,
+        font_size = 28
+      )
+  }
+
+# Format point counts and coverboards for a given day:
+
+pred_counts <- 
+  function(.day) {
+      schedule_list %>% 
+        pluck(.day) %>% 
+        mutate(
+          Patch = patch_count,
+          Time = 
+            str_c(date, sunrise) %>% 
+            {
+              ymd_hm(.) + 
+                minutes(40 * (patch_order - 1))
+            } %>% 
+            format("%H:%M")
+        ) %>% 
+      select(
+        Time,
+        Patch = patch_count,
+        Coverboards = boards,
+        `Check nests` = check_nests
+      ) %>% 
+      kable(
+        align =
+          c(
+            "c",
+            "l",
+            "c",
+            "l"
+          )
+      ) %>% 
+      my_kable_style()
+  }
+
+# Nest searching order:
+
+nest_searching <- 
+  function(.day) {
+    schedule_list %>% 
+      pluck(.day) %>% 
+      arrange(
+        desc(patch_order)
+      ) %>% 
+      pull(patch_count) %>% 
+      str_flatten(collapse = " \u2192 ")
+  }
+```
+
+```{css}
+
+body {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 12px;
+}
+
+.summary_box {
+  margin-bottom: 1.5em;
+}
+
+.cell {
+  margin-top: 0em;
+  margin-bottom: 1em;
+}
+
+h1 {
+  font-size: 1.75rem;
+}
+
+h2 {
+  font-size: 1.25rem;
+}
+
+p {
+  margin-bottom: 0;
+}
+
+h1, h2 {
+  border-bottom: 1px solid #ccc;
+  padding-bottom: 0;
+  margin-bottom: 0.2em;
+}
+
+hr {
+  padding-top: 20px;
+  margin-top: 20px;
+}
+```
+
+# Weekly schedule: `r min(schedule$date)` - `r max(schedule$date)`
+
+We will arrive at dawn to have time for set-up and travel to the point count location. The first point count starts at sunrise. We will arrive at the point count location a few minutes before then to let the birds settle down before beginning.
+
+## Monday `r unique(schedule_list$Mon$date)`
+
+::: {.summary_box}
+
+*Helper: `r unique(schedule_list$Mon$helper)`*
+
+**Arrival**: `r unique(schedule_list$Mon$arrive)`
+
+**Sunrise**: `r unique(schedule_list$Mon$sunrise)`
+
+:::
+
+**Point count times, coverboards, and nests to check**:
+
+```{r}
+pred_counts(.day = "Mon")
+```
+
+**Nest searching**: `r nest_searching(.day = "Mon")`
+
+## Tuesday `r unique(schedule_list$Tue$date)`
+
+::: {.summary_box}
+
+*Helper: `r unique(schedule_list$Tue$helper)`*
+
+**Arrival**: `r unique(schedule_list$Tue$arrive)`
+
+**Sunrise**: `r unique(schedule_list$Tue$sunrise)`
+
+:::
+
+**Point count times, coverboards, and nests to check**:
+
+```{r}
+pred_counts(.day = "Tue")
+```
+
+**Nest searching**: `r nest_searching(.day = "Tue")`
+
+## Wednesday `r unique(schedule_list$Wed$date)`
+
+::: {.summary_box}
+
+*Helper: `r unique(schedule_list$Wed$helper)`*
+
+**Arrival**: `r unique(schedule_list$Wed$arrive)`
+
+**Sunrise**: `r unique(schedule_list$Wed$sunrise)`
+
+:::
+
+**Point count times, coverboards, and nests to check**:
+
+```{r}
+pred_counts(.day = "Wed")
+```
+
+**Nest searching**: `r nest_searching(.day = "Wed")`
+
+## Thursday `r unique(schedule_list$Thu$date)`
+
+::: {.summary_box}
+
+*Helper: `r unique(schedule_list$Thu$helper)`*
+
+**Arrival**: `r unique(schedule_list$Thu$arrive)`
+
+**Sunrise**: `r unique(schedule_list$Thu$sunrise)`
+
+:::
+
+**Point count times, coverboards, and nests to check**:
+
+```{r}
+pred_counts(.day = "Thu")
+```
+
+**Nest searching**: `r nest_searching(.day = "Thu")`
+
+## Friday `r unique(schedule_list$Fri$date)`
+
+::: {.summary_box}
+
+*Helper: `r unique(schedule_list$Fri$helper)`*
+
+**Arrival**: `r unique(schedule_list$Fri$arrive)`
+
+**Sunrise**: `r unique(schedule_list$Fri$sunrise)`
+
+:::
+
+**Point count times, coverboards, and nests to check**:
+
+```{r}
+pred_counts(.day = "Fri")
+```
+
+**Nest searching**: `r nest_searching(.day = "Fri")`
+
+## Saturday `r unique(schedule_list$Sat$date)`
+
+::: {.summary_box}
+
+*Helper: `r unique(schedule_list$Fri$helper)`*
+
+**Arrival**: `r unique(schedule_list$Sat$arrive)`
+
+**Sunrise**: `r unique(schedule_list$Sat$sunrise)`
+
+:::
+
+**Point count times, coverboards, and nests to check**:
+
+```{r}
+pred_counts(.day = "Sat")
+```
+
+**Nest searching**: `r nest_searching(.day = "Sat")`
