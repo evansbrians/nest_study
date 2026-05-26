@@ -3,14 +3,21 @@
 
 # setup -------------------------------------------------------------------
 
+# Start by assigning a location for the Garmin and checking if the device
+# exists (allows the script to error out before doing anything else):
+
+garmin_dir <- "/Volumes/GARMIN/Garmin/GPX"
+
+if (!dir.exists(garmin_dir)) {
+  stop("No Garmin device detected!")
+}
+
+# Libraries:
+
 library(sf)
 library(tidyverse)
 
 source("scripts/functions.R")
-
-# Garmin file location:
-
-garmin_dir <- "/Volumes/GARMIN/Garmin/GPX"
 
 # read and pre-process GPS files ------------------------------------------
 
