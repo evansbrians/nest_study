@@ -117,6 +117,12 @@ nests_coded <-
     by = "name"
   )
 
+# Simplify path lines
+
+paths <-
+  tracks %>% 
+  rmapshaper::ms_simplify(keep = 0.20)
+
 # build map ---------------------------------------------------------------
 
 map <-
@@ -139,7 +145,7 @@ map <-
   addPolygons(
     data = patches,
     fillColor = "#ffffff",
-    fillOpacity = 0.3,
+    fillOpacity = 0.2,
     color = "#0000ff",
     weight = 1.5,
     opacity = 0.5,
@@ -147,6 +153,14 @@ map <-
     label = ~ name,
     group = "Patches"
   ) %>%
+  
+  addPolylines(
+    data = paths,
+    weight = 3,
+    opacity = 0.7,
+    dashArray = "2, 5",
+    color = "#ffff00"
+  ) %>% 
   
   # Nests
   
