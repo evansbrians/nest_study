@@ -23,12 +23,9 @@ source("scripts/get_nests_to_check.R")
 
 # update the scheduling app and document ----------------------------------
 
-# Update:
+source("scripts/functions.R")
 
-source("pages/schedule/index.qmd")
-source("outputs/print-outs/schedule_pdf.qmd")
-
-# Render:
+# Update and render:
 
 quarto::quarto_render("pages/schedule/index.qmd")
 quarto::quarto_render("outputs/print-outs/schedule_pdf.qmd")
