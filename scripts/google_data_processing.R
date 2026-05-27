@@ -135,68 +135,20 @@ nests_proc <-
     nests_raw$interval_level,
     by = "nest_id"
   ) %>% 
-  pivot_longer(
-    host_eggs:bhco_dead_young,
-    names_to = "eggs_young",
-    values_to = "count_eggs_young"
+  select(
+    
+    # Nest level:
+    
+    nest_id:gps_point,
+    location_description:nest_fate_description,
+    
+    # Interval-check level:
+    
+    date:notes,
   ) %>% 
-    select(
-      
-      # Nest level:
-      
-      nest_id,
-      patch_id,
-      species,
-      
-      # Discovery level:
-      
-      discovery_date,
-      discovery_stage,
-      
-      # Nest fate level:
-      
-      nest_fate,
-      nest_fate_description,
-      
-      # Nest-site characteristics:
-      
-      height,
-      substrate,
-      gps_point,
-      location_description,
-      
-      # Interval-check level:
-      
-      date,
-      time,
-      adult_present,
-      adult_activity,
-      nest_status,
-      young_status,
-      observer,
-      notes,
-      
-      # Interval-count level:
-      
-      eggs_young,
-      count_eggs_young
-    ) %>% 
-    nest(
-      discovery_data = discovery_date:discovery_stage
-    ) %>% 
-    nest(
-      nest_fate_data = nest_fate:nest_fate_description
-    ) %>% 
-    nest(
-      nest_site_characteristics_data = height:location_description
-    ) %>% 
-    nest(
-      interval_count_data = eggs_young:count_eggs_young
-    ) %>% 
-    nest(
-      interval_data = 
-        c(date:notes, interval_count_data)
-    )
+  nest(
+    interval_data = date:notes
+  )
 
 # write to file -----------------------------------------------------------
 
