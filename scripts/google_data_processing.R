@@ -15,7 +15,8 @@ urls <-
     coverboards = "1XkozYdl1UfBVF9lMcP9ZjmTHflzF3q7l-NU6t2U11o4",
     point_counts = "10ZsdRqT-oS_C92CpD-RA79QO52DFSHKbT1mwxUZsEIo",
     visits = "1Pd4OYDbRkV3DMDlZU1kFfW2ci2izmtpq8eXY7MvYENY",
-    nests = "1iosPhbwDOVhIM4EkaeexnX0kRLsBqZKEuCbCsxFyMPs"
+    nests = "1iosPhbwDOVhIM4EkaeexnX0kRLsBqZKEuCbCsxFyMPs",
+    predator_cameras = "1exlfw40PfefcOLRxf7WUyCi9TOJ3yydKbAXcJNmABfc"
   ) %>% 
   map(
     ~ file.path(
@@ -150,13 +151,27 @@ nests_proc <-
     interval_data = date:notes
   )
 
+# camera_maintenance ------------------------------------------------------
+
+predator_cameras_raw <- 
+  urls$predator_cameras %>% 
+  read_sheet() %>% 
+  mutate(
+    date = as_date(date)
+  )
+
+predator_cameras_proc <- 
+  predator_cameras_raw %>% 
+  nest(maintenance_activities = date:notes)
+
 # write to file -----------------------------------------------------------
 
 list(
   "point_counts" = point_counts_proc,
   "coverboards" = coverboards_proc,
   "visits" = visits_proc,
-  "nests" = nests_proc
+  "nests" = nests_proc,
+  "predator_cameras" = predator_cameras_proc
 ) %>% 
   write_rds("data/field_data.rds")
 
