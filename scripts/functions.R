@@ -26,14 +26,13 @@ autopush_updates <-
 
 get_summary_stats <-
   function(
-    .data_frame,
+    .data,
     .var,
     ...
   ) {
-    .data_frame %>% 
+    .data %>% 
       group_by(...) %>% 
       summarize(
-        .data,
         n = n(),
         min = min({{ .var }}, na.rm = TRUE),
         max = max({{ .var }}, na.rm = TRUE),
@@ -43,6 +42,26 @@ get_summary_stats <-
         sd = sd({{ .var }}, na.rm = TRUE),
         se = sd/sqrt(n),
         .groups = "drop"
+      )
+  }
+
+get_summary_stats <-
+  function(
+    .data,
+    .var,
+    ...
+  ) {
+    .data %>% 
+      summarize(
+        n = n(),
+        min = min({{ .var }}, na.rm = TRUE),
+        max = max({{ .var }}, na.rm = TRUE),
+        range = max - min,
+        mean = mean({{ .var }}, na.rm = TRUE),
+        median = median({{ .var }}, na.rm = TRUE),
+        sd = sd({{ .var }}, na.rm = TRUE),
+        se = sd/sqrt(n),
+        ...
       )
   }
 
