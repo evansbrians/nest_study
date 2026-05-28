@@ -51,34 +51,6 @@ my_kable_style <-
       )
   }
 
-# Dates ranges that are easy to read:
-
-pretty_date_range <-
-  function(.schedule) {
-    first_day <- min(.schedule$date)
-    last_day <- max(.schedule$date)
-    
-    if (month(first_day) == month(last_day)) {
-      str_c(
-        mday(first_day),
-        "-",
-        mday(last_day),
-        " ",
-        month(
-          first_day,
-          label = TRUE,
-          abbr = FALSE
-        )
-      )
-    } else {
-      str_c(
-        format(first_day, "%d %B"),
-        " - ",
-        format(last_day, "%d %B")
-      )
-    }
-  }
-
 # Format point counts and coverboards for a given day:
 
 pred_counts <- 
@@ -194,7 +166,7 @@ days_ordered %>%
         distinct()
       
       str_c(
-        "\n## ", day_names[day], " ", format(day_data$date, "%d %B"), "\n\n",
+        "\n## ", day_names[day], " ", make_pretty_dates(day_data$date), "\n\n",
         "*Helper: ", day_data$helper, "*\\\n",
         "**Arrival**: ", day_data$arrive, "\\\n",
         "**Sunrise**: ", day_data$sunrise, "\\\n",

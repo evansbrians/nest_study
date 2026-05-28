@@ -69,7 +69,7 @@ day_level_data <-
         ) %>% 
         distinct() %>% 
       mutate(
-        date_pretty = format(date, "%d %B")
+        date_pretty = make_pretty_dates(date)
       )
   )
 
@@ -135,34 +135,6 @@ nest_searching <-
       ) %>% 
       pull(patch_count) %>% 
       str_flatten(collapse = " \u2192 ")
-  }
-
-# Dates ranges that are easy to read:
-
-pretty_date_range <-
-  function(.schedule) {
-    first_day <- min(.schedule$date)
-    last_day <- max(.schedule$date)
-    
-    if (month(first_day) == month(last_day)) {
-      str_c(
-        mday(first_day),
-        "-",
-        mday(last_day),
-        " ",
-        month(
-          first_day,
-          label = TRUE,
-          abbr = FALSE
-        )
-      )
-    } else {
-      str_c(
-        format(first_day, "%d %B"),
-        " - ",
-        format(last_day, "%d %B")
-      )
-    }
   }
 ```
 
