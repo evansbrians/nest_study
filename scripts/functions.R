@@ -8,7 +8,7 @@ set_names_from_path <-
     set_names(
       .path,
       basename(.path) %>% 
-      str_remove("\\.[^.]+$")
+        str_remove("\\.[^.]+$")
     )
   }
 
@@ -18,8 +18,93 @@ autopush_updates <-
   function(.commit_message = "Daily update") {
     system("git add .")
     glue("git commit -m '{.commit_message}'") %>% 
-    system()
+      system()
     system("git push")
+  }
+
+# Summary statistics for any dataset, variable, and grouping variable:
+
+get_summary_stats <-
+  function(
+    .data_frame,
+    .var,
+    ...
+  ) {
+    .data_frame %>% 
+      group_by(...) %>% 
+      summarize(
+        .data,
+        n = n(),
+        min = min({{ .var }}, na.rm = TRUE),
+        max = max({{ .var }}, na.rm = TRUE),
+        range = max - min,
+        mean = mean({{ .var }}, na.rm = TRUE),
+        median = median({{ .var }}, na.rm = TRUE),
+        sd = sd({{ .var }}, na.rm = TRUE),
+        se = sd/sqrt(n),
+        .groups = "drop"
+      )
+  }
+
+## time and dates ---------------------------------------------------------
+
+# Pretty date (as factor):
+
+make_pretty_dates <-
+  function(
+    .date,
+    .abbr = TRUE,
+    .out_factor = TRUE
+  ) {
+    
+    # Format dates based on abbreviated or spelled-out month
+    
+    date_labels <-
+      format(
+        as_date(.date),
+        if (.abbr) "%d %b" else "%d %B"
+      )
+    
+    # Return factor or character:
+    
+    if(.out_factor) {
+      factor(
+        .date, 
+        levels = unique(.date),
+        labels = unique(date_labels)
+      )
+    } else {
+      date_labels
+    }
+  }
+
+# Character time to time:
+
+char_time_to_time <-
+  function(.time) {
+    hm(.time) %>% 
+      period_to_seconds() %>% 
+      hms::as_hms()
+  }
+
+## visualization ----------------------------------------------------------
+
+# Plot theme:
+
+my_plot_theme <-
+  function() {
+    theme_bw(base_size = 14) +
+      theme(
+        text = element_text(family = "Times"),
+        plot.title =
+          element_text(face = "bold"),
+        plot.subtitle =
+          element_text(color = "grey40"),
+        strip.text =
+          element_text(face = "bold"),
+        plot.margin = 
+          margin(10, 14, 10, 10, "pt")
+      )
   }
 
 # update map print-outs ---------------------------------------------------
@@ -415,3 +500,36 @@ ring_to_coords <-
     ) %>%
       str_c(collapse = " ")
   }
+
+# scheduling output functions ---------------------------------------------
+
+# Used in schedule_pdf.R and the schedule app (pages/schedule/index.qmd).
+
+# Dates ranges that are easy to read:
+
+pretty_date_range <-
+  function(.schedule) {
+    first_day <- min(.schedule$date)
+    last_day <- max(.schedule$date)
+    
+    if (month(first_day) == month(last_day)) {
+      str_c(
+        mday(first_day),
+        "-",
+        mday(last_day),
+        " ",
+        month(
+          first_day,
+          label = TRUE,
+          abbr = FALSE
+        )
+      )
+    } else {
+      str_c(
+        format(first_day, "%d %B"),
+        " - ",
+        format(last_day, "%d %B")
+      )
+    }
+  }
+
