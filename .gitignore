@@ -50,3 +50,7 @@ rsconnect/
 
 # Annoying DS_Store
 .DS_Store
+
+# My temporary folder
+
+brian_temp/
