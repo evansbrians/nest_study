@@ -93,14 +93,6 @@ tracks <-
       layer = "tracks"
     ) %>% 
       select(name)
-  ) %>% 
-  mutate(
-    name =
-      str_replace(
-        name,
-        "2026-05-25 08.12.19",
-        "witch_hazel_path_1"
-      )
   )
 
 # Save to file:

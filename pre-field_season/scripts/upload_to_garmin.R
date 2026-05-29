@@ -63,3 +63,17 @@ names(spatial_files) %>%
       )
   )
 
+# trails ------------------------------------------------------------------
+
+spatial_files$tracks %>% 
+  st_write(
+    file.path(
+      garmin_dir,
+      "trails"
+    ) %>% 
+      str_c(".gpx"),
+    driver = "GPX",
+    dataset_options = "GPX_USE_EXTENSIONS=YES",
+    delete_dsn = TRUE
+  )
+
