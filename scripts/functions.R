@@ -234,8 +234,10 @@ create_map <-
       
       tm_shape(tracks) +
       tm_lines(
-        col = "#ece123",
-        lty = "dashed"
+        col = "#8f7f0f",
+        col_alpha = 0.5,
+        lty = "dashed",
+        lwd = 2
       )
   }
 
