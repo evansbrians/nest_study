@@ -228,6 +228,14 @@ create_map <-
         col = "black",
         size = 0.5,
         fill_alpha = 0.9
+      ) +
+      
+      # Trails:
+      
+      tm_shape(tracks) +
+      tm_lines(
+        col = "#ece123",
+        lty = "dashed"
       )
   }
 
