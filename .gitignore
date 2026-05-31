@@ -51,6 +51,7 @@ rsconnect/
 # Annoying DS_Store
 .DS_Store
 
-# My temporary folder
+# Sandbox folders
 
 brian_sandbox/
+tara_sandbox/
