@@ -563,3 +563,24 @@ pretty_date_range <-
     }
   }
 
+# print datasheets --------------------------------------------------------
+
+# Used in dashboard.R
+
+print_datasheets <- 
+  function(
+    .datasheet = "point_counts",
+    .copies = 2
+  ) {
+    1:.copies %>% 
+      walk(
+        ~ str_c(
+          "lp ",
+          here("outputs/print-outs/datasheets/"),
+          .datasheet,
+          ".pdf"
+        ) %>% 
+          system()
+      )
+  }
+

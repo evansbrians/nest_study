@@ -9,8 +9,6 @@ library(tidyverse)
 
 source("scripts/functions.R")
 
-sheets_url <- "https://docs.google.com/spreadsheets/d"
-
 # Spatial data:
 
 list.files(
@@ -62,41 +60,22 @@ icons <-
 
 # nest status -------------------------------------------------------------
 
-# Nest-level data:
+# Read and process nest data for map:
 
-nest_level <- 
-  file.path(sheets_url, "1iosPhbwDOVhIM4EkaeexnX0kRLsBqZKEuCbCsxFyMPs") %>% 
-  googlesheets4::read_sheet(
-    sheet = "nest_level",
-    col_types = "c"
-  ) %>% 
-  select(nest_id, patch_id, nest_fate)
-
-# Interval-level data:
-
-nest_intervals <- 
-  file.path(sheets_url, "1iosPhbwDOVhIM4EkaeexnX0kRLsBqZKEuCbCsxFyMPs") %>% 
-  googlesheets4::read_sheet(
-    sheet = "interval_level",
-    col_types = "c"
-  ) %>% 
+nests_coded <- 
+  read_rds("data/field_data.rds") %>% 
+  pluck("nests") %>% 
+  unnest(interval_data) %>% 
   mutate(
-    nest_id,
+    nest_id, 
+    patch_id, 
+    nest_fate, 
     date = as_date(date),
     across(
       host_eggs:host_young,
       ~ as.numeric(.x)
     ),
     .keep = "none"
-  )
-
-# Combine and process for map:
-
-nests_coded <- 
-  left_join(
-    nest_intervals,
-    nest_level,
-    by = "nest_id"
   ) %>% 
   slice_max(date, by = nest_id) %>% 
   mutate(

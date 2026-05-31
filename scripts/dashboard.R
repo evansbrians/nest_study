@@ -66,3 +66,15 @@ list.files(
 here("outputs/print-outs/schedule_pdf.pdf") %>% 
   {glue("lp {.}")} %>% 
   system()
+
+# Print datasheets:
+
+source("scripts/functions.R")
+
+print_datasheets(
+  # .datasheet = "coverboards",
+  .datasheet = "nest_monitoring",
+  # .datasheet = "nest_searching",
+  # .datasheet = "point_counts",
+  .copies = 1
+)

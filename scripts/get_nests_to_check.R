@@ -5,24 +5,16 @@ library(tidyverse)
 
 source("scripts/functions.R")
 
-sheets_url <- "https://docs.google.com/spreadsheets/d"
-
 # get and process schedule data -------------------------------------------
 
 schedule <-
-  file.path(sheets_url, "1b9GElqZ0-gTjd_LVyqab2STh7JOkG9knzkFy3aeHoeg") %>% 
-  googlesheets4::read_sheet(
-    sheet = "patch_counts",
-    col_types = "c"
-  ) %>% 
-  mutate(
-    date = as_date(date),
-    patch = patch_count
-  ) %>% 
+  read_rds("data/season_schedule.rds") %>% 
+  unnest(patch_counts) %>% 
   
-  # Subset to between today and within the next week:
+  # Remove Sundays and subset to between today and within the next week:
   
   filter(
+    day != "Sun",
     between(
       date,
       today(),
@@ -32,45 +24,28 @@ schedule <-
   
   # Subset to only relevant information:
   
-  distinct(date, patch)
+  mutate(
+    date,
+    patch = patch_count,
+    .keep = "none"
+  )
 
 # get and process nest data -----------------------------------------------
 
-# Nest-level data:
-
-nest_level <- 
-  file.path(sheets_url, "1iosPhbwDOVhIM4EkaeexnX0kRLsBqZKEuCbCsxFyMPs") %>% 
-  googlesheets4::read_sheet(
-    sheet = "nest_level",
-    col_types = "c"
-  ) %>% 
-  select(nest_id, patch_id, nest_fate)
-
-# Interval-level data:
-
-nest_intervals <- 
-  file.path(sheets_url, "1iosPhbwDOVhIM4EkaeexnX0kRLsBqZKEuCbCsxFyMPs") %>% 
-  googlesheets4::read_sheet(
-    sheet = "interval_level",
-    col_types = "c"
-  ) %>% 
+nests_proc <- 
+  read_rds("data/field_data.rds") %>% 
+  pluck("nests") %>% 
+  unnest(interval_data) %>% 
   mutate(
-    nest_id,
+    nest_id, 
+    patch_id, 
+    nest_fate, 
     date = as_date(date),
     across(
       host_eggs:host_young,
       ~ as.numeric(.x)
     ),
     .keep = "none"
-  )
-
-# combine and process nest data -------------------------------------------
-
-nests_proc <-
-  left_join(
-    nest_level,
-    nest_intervals,
-    by = "nest_id"
   ) %>% 
   
   # Grab the last observation for each nest:
@@ -101,7 +76,7 @@ nests_proc <-
 
 # determine the date of the next nest checks ------------------------------
 
-# Join with schedule and  subset to the checks that will occur in next round of
+# Join with schedule and subset to the checks that will occur in next round of
 # checks:
 
 next_checks <- 
