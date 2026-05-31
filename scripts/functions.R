@@ -16,6 +16,7 @@ set_names_from_path <-
 
 autopush_updates <-
   function(.commit_message = "Daily update") {
+    system("git pull")
     system("git add .")
     glue("git commit -m '{.commit_message}'") %>% 
       system()
