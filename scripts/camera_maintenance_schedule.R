@@ -23,14 +23,6 @@ pred_cams <-
 
 predator_camera_maintenance <- 
   pred_cams %>% 
-  mutate(
-    status = TRUE
-  ) %>% 
-  pivot_wider(
-    names_from = activities,
-    values_from = status,
-    values_fill = FALSE
-  ) %>% 
   select(
     camera_id, 
     date,
@@ -65,3 +57,21 @@ predator_camera_maintenance <-
   ) %>% 
   select(patch, camera_id, next_maintenance)
 
+# write to file -----------------------------------------------------------
+
+write_rds(
+  predator_camera_maintenance,
+  "data/predator_camera_maintenance.rds"
+)
+
+# end session -------------------------------------------------------------
+
+# Update git:
+
+autopush_updates()
+
+# Clear global environment:
+
+rm(
+  list = ls()
+)

@@ -21,6 +21,10 @@ source("scripts/google_data_processing.R")
 
 source("scripts/get_nests_to_check.R")
 
+# update the predator camera maintenance schedule -------------------------
+
+source("scripts/camera_maintenance_schedule.R")
+
 # update the scheduling app and document ----------------------------------
 
 # Update and render:

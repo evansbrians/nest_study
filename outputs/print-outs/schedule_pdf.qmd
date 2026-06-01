@@ -42,13 +42,31 @@ my_kable_style <-
       kable_styling(
         latex_options = 
           c(
-            "striped",
+            # "striped",
             "hold_position"
           ),
         full_width = FALSE,
         position = "left",
         font_size = 10
       )
+  }
+
+# Departure, arrival, and sunrise table:
+
+morning_times <- 
+  function(.day) {
+    schedule_list %>% 
+      pluck(.day) %>% 
+      distinct(
+        "Departure" = departure_time, 
+        "Arrival" = arrive, 
+        "Sunrise" = sunrise
+      ) %>% 
+      kable(
+        align = 
+          c("c", "c", "c")
+      ) %>% 
+      my_kable_style()
   }
 
 # Format point counts and coverboards for a given day:
@@ -87,10 +105,11 @@ pred_counts <-
 
 # Nest searching order:
 
-nest_searching <- 
+nest_searching_order <- 
   function(.day) {
     schedule_list %>% 
       pluck(.day) %>% 
+      filter(patch_order != 1) %>%
       arrange(
         desc(patch_order)
       ) %>% 
@@ -98,11 +117,109 @@ nest_searching <-
       str_flatten(collapse = " \u2192 ")
   }
 
+# Nest searching activity details:
+
+nest_searching <- 
+  function(
+    .day = "Tue",
+    .helper_patch_1 = "-",
+    .me_patch_1 = "-",
+    .helper_patch_2 = "-",
+    .me_patch_2 = "-"
+  ) {
+    start <- 
+      schedule_list %>% 
+      pluck(.day) %>% 
+      filter(patch_order != 1) %>% 
+      arrange(
+        desc(patch_order)
+      ) %>% 
+      select(helper, patch_count)
+    
+    crossing(
+      Patch = start$patch_count,
+      Person = 
+        c(
+          "TNS",
+          pull(start, unique(helper))
+        )
+    ) %>% 
+      mutate(
+        Activities = 
+          c(
+            .helper_patch_1,
+            .me_patch_1,
+            .helper_patch_2,
+            .me_patch_2
+          )
+      ) %>% 
+      filter(
+        Person != "-"
+      ) %>% 
+      kable() %>% 
+      my_kable_style() %>%
+      collapse_rows(
+        columns = 1
+      )
+  }
+
+# Each day
+
+day_schedule <- 
+function(
+    .wday = "Mon",
+    .me_patch_1  = "Continue path from trailcam_0 to the northwest passage",
+    .me_patch_2 = "Machete-search near coverboards 1 and 2"
+) {
+  wday_data <- 
+  day_data %>% 
+    pluck(.wday)
+  
+  str_c(
+    "\n## ", day_names[.wday], 
+    make_pretty_dates(wday_data$date), "\n\n",
+    "*Helper: ", wday_data$helper, "*",
+    "\\vspace{0em}",
+    as.character(morning_times(.day = .wday)),
+    "**Point count times, coverboards, and nests to check**:",
+    "\\vspace{0em}",
+    as.character(pred_counts(.day = .wday)),
+    "\\vspace{0em}",
+    "**Nest searching**: ", nest_searching_order(.day = .wday),
+    "\\vspace{0em}",
+    as.character(
+      nest_searching(
+        .day = .wday,
+        .me_patch_1,
+        .me_patch_2
+      )
+    )
+  ) %>% 
+    str_flatten() %>%
+    cat()
+}
+
 # get and process data ----------------------------------------------------
 
 next_nest_checks <-
   here("data", "temp_nest_checking.rds") %>% 
   read_rds()
+
+next_pred_cam_maintenance <-
+  here("data", "predator_camera_maintenance.rds") %>% 
+  read_rds() %>% 
+  mutate(
+    patch,
+    date = next_maintenance,
+    camera_id = 
+      str_extract_all(camera_id, "[0-2]$"),
+    .keep = "none"
+  ) %>% 
+    summarize(
+      predator_cameras = 
+        str_flatten(camera_id, collapse = ", "),
+      .by = !camera_id
+    )
 
 schedule <- 
   here("data", "season_schedule.rds") %>% 
@@ -122,21 +239,29 @@ schedule <-
     next_nest_checks,
     by = join_by(date == date, patch_count == patch)
   ) %>% 
+  left_join(
+    next_pred_cam_maintenance,
+    by = join_by(date, patch_count == patch)
+  ) %>% 
   mutate(
-    check_nests = replace_na(check_nests, "-")
+    departure_time = 
+      (
+        hm(arrive) - minutes(45)
+      ) %>% 
+      hms::hms() %>% 
+      as.character() %>% 
+      str_remove(":00$"),
+    across(
+      check_nests:predator_cameras,
+      ~ replace_na(.x, "-")
+    )
   )
 
 schedule_list <-
   schedule %>% 
   split(schedule$day)
 
-```
-
-# Weekly schedule: `r pretty_date_range(schedule)`
-
-We will arrive at dawn to have time for set-up and travel to the point count location. The first point count starts at sunrise. We will arrive at the point count location a few minutes before then to let the birds settle down before beginning.
-
-```{r, results = "asis"}
+# list set-up -------------------------------------------------------------
 
 day_names <- 
   c(
@@ -154,8 +279,10 @@ days_ordered <-
     names(schedule_list)
   )
 
-days_ordered %>% 
-  map_chr(
+day_data <- 
+  days_ordered %>% 
+  set_names() %>% 
+  map(
     \(day) {
       day_data <- 
         schedule_list[[day]] %>% 
@@ -164,20 +291,158 @@ days_ordered %>%
           arrive:helper
         ) %>% 
         distinct()
-      
-      str_c(
-        "\n## ", day_names[day], " ", make_pretty_dates(day_data$date), "\n\n",
-        "*Helper: ", day_data$helper, "*\\\n",
-        "**Arrival**: ", day_data$arrive, "\\\n",
-        "**Sunrise**: ", day_data$sunrise, "\\\n",
-        "\n\n",
-        "**Point count times, coverboards, and nests to check**:\n\n",
-        as.character(pred_counts(.day = day)), "\n\n",
-        "\\vspace{0.1em}\n\n",
-        "**Nest searching**: ", nest_searching(.day = day), "\n\n"
-      )
     }
-  ) %>% 
+  )
+
+```
+
+# Weekly schedule: `r pretty_date_range(schedule)`
+
+```{r, results = "asis"}
+day_schedule(
+  .wday = "Mon",
+  .me_patch_1  = "Continue path from trailcam_0 to the northwest passage",
+  .me_patch_2 = "Machete-search near coverboards 1 and 2"
+)
+```
+
+```{r, results = "asis"}
+
+str_c(
+  "\n## ", "Monday ", make_pretty_dates(day_data$Mon$date), "\n\n",
+  "*Helper: ", day_data$Mon$helper, "*",
+  "\\vspace{0em}",
+  as.character(morning_times(.day = "Mon")),
+  "**Point count times, coverboards, and nests to check**:",
+  "\\vspace{0em}",
+  as.character(pred_counts(.day = "Mon")),
+  "\\vspace{0em}",
+  "**Nest searching**: ", nest_searching_order(.day = "Mon"),
+  "\\vspace{0em}",
+  as.character(
+    nest_searching(
+      .day = "Mon",
+      .me_patch_1 = "Continue path from trailcam_0 to the northwest passage",
+      .me_patch_2 = "Machete-search near coverboards 1 and 2"
+    )
+  )
+) %>% 
   str_flatten() %>% 
   cat()
+
 ```
+
+```{r, results = "asis"}
+
+str_c(
+  "\n## ", "Tuesday ", make_pretty_dates(day_data$Tue$date), "\n\n",
+  "*Helper: ", day_data$Tue$helper, "*",
+  as.character(morning_times(.day = "Tue")),
+  "\n\n",
+  "**Point count times, coverboards, and nests to check**:\n\n",
+  as.character(pred_counts(.day = "Tue")), "\n\n",
+  "\\vspace{0.1em}\n\n",
+  "**Nest searching**: ", nest_searching_order(.day = "Tue"), "\n\n"
+) %>% 
+  str_flatten() %>% 
+  cat()
+
+```
+
+```{r, results = "asis"}
+
+str_c(
+  "\n## ", "Wednesday ", make_pretty_dates(day_data$Wed$date), "\n\n",
+  "*Helper: ", day_data$Wed$helper, "*\n\n",
+  as.character(morning_times(.day = "Wed")),
+  "\n\n",
+  "**Point count times, coverboards, and nests to check**:\n\n",
+  as.character(pred_counts(.day = "Wed")), "\n\n",
+  "\\vspace{0.1em}\n\n",
+  "**Nest searching**: ", nest_searching_order(.day = "Wed"), "\n\n"
+) %>% 
+  str_flatten() %>% 
+  cat()
+
+```
+
+```{r, results = "asis"}
+
+str_c(
+  "\n## ", "Thursday ", make_pretty_dates(day_data$Thu$date), "\n\n",
+  "*Helper: ", day_data$Thu$helper, "*\n\n",
+  as.character(morning_times(.day = "Thu")),
+  "\n\n",
+  "**Point count times, coverboards, and nests to check**:\n\n",
+  as.character(pred_counts(.day = "Thu")), "\n\n",
+  "\\vspace{0.1em}\n\n",
+  "**Nest searching**: ", nest_searching_order(.day = "Thu"), "\n\n"
+) %>% 
+  str_flatten() %>% 
+  cat()
+
+```
+
+```{r, results = "asis"}
+
+str_c(
+  "\n## ", "Friday ", make_pretty_dates(day_data$Fri$date), "\n\n",
+  "*Helper: ", day_data$Fri$helper, "*\n\n",
+  as.character(morning_times(.day = "Fri")),
+  "\n\n",
+  "**Point count times, coverboards, and nests to check**:\n\n",
+  as.character(pred_counts(.day = "Fri")), "\n\n",
+  "\\vspace{0.1em}\n\n",
+  "**Nest searching**: ", nest_searching_order(.day = "Fri"), "\n\n"
+) %>% 
+  str_flatten() %>% 
+  cat()
+
+```
+
+```{r, results = "asis"}
+
+str_c(
+  "\n## ", "Saturday ", make_pretty_dates(day_data$Sat$date), "\n\n",
+  "*Helper: ", day_data$Sat$helper, "*\n\n",
+  as.character(morning_times(.day = "Sat")),
+  "\n\n",
+  "**Point count times, coverboards, and nests to check**:\n\n",
+  as.character(pred_counts(.day = "Sat")), "\n\n",
+  "\\vspace{0.1em}\n\n",
+  "**Nest searching**: ", nest_searching_order(.day = "Sat"), "\n\n"
+) %>% 
+  str_flatten() %>% 
+  cat()
+
+```
+
+<!-- # ```{r, results = "asis"} -->
+<!-- #  -->
+<!-- # days_ordered %>%  -->
+<!-- #   map_chr( -->
+<!-- #     \(day) { -->
+<!-- #       day_data <-  -->
+<!-- #         schedule_list[[day]] %>%  -->
+<!-- #         select( -->
+<!-- #           date, -->
+<!-- #           arrive:helper -->
+<!-- #         ) %>%  -->
+<!-- #         distinct() -->
+<!-- #        -->
+<!-- #       str_c( -->
+<!-- #         "\n## ", day_names[day], " ", make_pretty_dates(day_data$date), "\n\n", -->
+<!-- #         "*Helper: ", day_data$helper, "*\\\n", -->
+<!-- #         "**Arrival**: ", day_data$arrive, "\\\n", -->
+<!-- #         "**Sunrise**: ", day_data$sunrise, "\\\n", -->
+<!-- #         "\n\n", -->
+<!-- #         "**Point count times, coverboards, and nests to check**:\n\n", -->
+<!-- #         as.character(pred_counts(.day = day)), "\n\n", -->
+<!-- #         "\\vspace{0.1em}\n\n", -->
+<!-- #         "**Nest searching**: ", nest_searching_order(.day = day), "\n\n" -->
+<!-- #       ) -->
+<!-- #     } -->
+<!-- #   ) %>%  -->
+<!-- #   str_flatten() %>%  -->
+<!-- #   cat() -->
+<!-- # ``` -->

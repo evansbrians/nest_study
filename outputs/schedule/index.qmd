@@ -24,6 +24,22 @@ next_nest_checks <-
   here("data", "temp_nest_checking.rds") %>% 
   read_rds()
 
+next_pred_cam_maintenance <-
+  here("data", "predator_camera_maintenance.rds") %>% 
+  read_rds() %>% 
+  mutate(
+    patch,
+    date = next_maintenance,
+    camera_id = 
+      str_extract_all(camera_id, "[0-2]$"),
+    .keep = "none"
+  ) %>% 
+    summarize(
+      predator_cameras = 
+        str_flatten(camera_id, collapse = ", "),
+      .by = !camera_id
+    )
+
 schedule <- 
   here("data", "season_schedule.rds") %>% 
   read_rds() %>% 
@@ -32,8 +48,8 @@ schedule <-
   filter(
     week ==
         week(
-        today() + 1
-      ) - 19,
+        today() + 2
+      ) - 18,
   ) %>% 
   summarize(
     boards = 
@@ -44,6 +60,10 @@ schedule <-
     next_nest_checks,
     by = join_by(date == date, patch_count == patch)
   ) %>% 
+  left_join(
+    next_pred_cam_maintenance,
+    by = join_by(date, patch_count == patch)
+  ) %>% 
   mutate(
     departure_time = 
       (
@@ -52,7 +72,10 @@ schedule <-
       hms::hms() %>% 
       as.character() %>% 
       str_remove(":00$"),
-    check_nests = replace_na(check_nests, "-")
+    across(
+      check_nests:predator_cameras,
+      ~ replace_na(.x, "-")
+    )
   )
 
 schedule_list <-
@@ -90,6 +113,24 @@ my_kable_style <-
       )
   }
 
+# Departure, arrival, and sunrise table:
+
+morning_times <- 
+  function(.day) {
+    schedule_list %>% 
+      pluck(.day) %>% 
+      distinct(
+        "Departure" = departure_time, 
+        "Arrival" = arrive, 
+        "Sunrise" = sunrise
+      ) %>% 
+      kable(
+        align = 
+          c("c", "c", "c")
+      ) %>% 
+      my_kable_style()
+  }
+
 # Format point counts and coverboards for a given day:
 
 pred_counts <- 
@@ -110,7 +151,8 @@ pred_counts <-
         Time,
         Patch = patch_count,
         Coverboards = boards,
-        `Check nests` = check_nests
+        `Check nests` = check_nests,
+        `Predator cameras` = predator_cameras
       ) %>% 
       kable(
         align =
@@ -126,15 +168,60 @@ pred_counts <-
 
 # Nest searching order:
 
-nest_searching <- 
+nest_searching_order <-
   function(.day) {
-    schedule_list %>% 
+    schedule_list %>%
+      pluck(.day) %>%
+      filter(patch_order != 1) %>%
+      arrange(
+        desc(patch_order)
+      ) %>%
+      pull(patch_count) %>%
+      str_flatten(collapse = " \u2192 ")
+  }
+
+nest_searching <- 
+  function(
+    .day = "Tue",
+    .helper_patch_1 = "-",
+    .me_patch_1 = "-",
+    .helper_patch_2 = "-",
+    .me_patch_2 = "-"
+  ) {
+    start <- 
+      schedule_list %>% 
       pluck(.day) %>% 
+      filter(patch_order != 1) %>% 
       arrange(
         desc(patch_order)
       ) %>% 
-      pull(patch_count) %>% 
-      str_flatten(collapse = " \u2192 ")
+      select(helper, patch_count)
+    
+    crossing(
+      Patch = start$patch_count,
+      Person = 
+        c(
+          "TNS",
+          pull(start, unique(helper))
+        )
+    ) %>% 
+      mutate(
+        Activities = 
+          c(
+            .helper_patch_1,
+            .me_patch_1,
+            .helper_patch_2,
+            .me_patch_2
+          )
+      ) %>% 
+      filter(
+        Person != "-"
+      ) %>% 
+      kable() %>% 
+      # my_kable_style() %>% 
+      collapse_rows(
+        columns = 1
+      )
   }
 ```
 
@@ -217,12 +304,6 @@ hr {
 
 # Weekly schedule: `r pretty_date_range(schedule)`
 
-::: summary_box
-
-We will arrive at dawn to have time for set-up and travel to the point count location. The first point count starts at sunrise. We will arrive at the point count location a few minutes before then to let the birds settle down before beginning.
-
-:::
-
 <button class="accordion">Monday `r day_level_data$Mon$date_pretty`</button>
 
 ::: panel
@@ -231,11 +312,9 @@ We will arrive at dawn to have time for set-up and travel to the point count loc
 
 *Helper: `r unique(schedule_list$Mon$helper)`*
 
-**Departure**: `r unique(schedule_list$Mon$departure_time)`
-
-**Arrival**: `r unique(schedule_list$Mon$arrive)`
-
-**Sunrise**: `r unique(schedule_list$Mon$sunrise)`
+```{r}
+morning_times(.day = "Mon")
+```
 
 :::
 
@@ -245,7 +324,15 @@ We will arrive at dawn to have time for set-up and travel to the point count loc
 pred_counts(.day = "Mon")
 ```
 
-**Nest searching**: `r nest_searching(.day = "Mon")`
+**Nest searching**: `r nest_searching_order(.day = "Mon")`
+
+```{r}
+nest_searching(
+  .day = "Mon",
+  .me_patch_1 = "Continue path from trailcam_0 to the northwest passage",
+  .me_patch_2 = "Machete-search near coverboards 1 and 2"
+)
+```
 
 :::
 
@@ -257,11 +344,9 @@ pred_counts(.day = "Mon")
 
 *Helper: `r unique(schedule_list$Tue$helper)`*
 
-**Departure**: `r unique(schedule_list$Tue$departure_time)`
-
-**Arrival**: `r unique(schedule_list$Tue$arrive)`
-
-**Sunrise**: `r unique(schedule_list$Tue$sunrise)`
+```{r}
+morning_times(.day = "Tue")
+```
 
 :::
 
@@ -271,7 +356,17 @@ pred_counts(.day = "Mon")
 pred_counts(.day = "Tue")
 ```
 
-**Nest searching**: `r nest_searching(.day = "Tue")`
+**Nest searching**: `r nest_searching_order(.day = "Tue")`
+
+```{r}
+nest_searching(
+  .day = "Tue",
+  # .me_patch_1,
+  # .helper_patch_1,
+  # .me_patch_2,
+  # .helper_patch_2
+)
+```
 
 :::
 
@@ -283,11 +378,9 @@ pred_counts(.day = "Tue")
 
 *Helper: `r unique(schedule_list$Wed$helper)`*
 
-**Departure**: `r unique(schedule_list$Wed$departure_time)`
-
-**Arrival**: `r unique(schedule_list$Wed$arrive)`
-
-**Sunrise**: `r unique(schedule_list$Wed$sunrise)`
+```{r}
+morning_times(.day = "Wed")
+```
 
 :::
 
@@ -297,7 +390,15 @@ pred_counts(.day = "Tue")
 pred_counts(.day = "Wed")
 ```
 
-**Nest searching**: `r nest_searching(.day = "Wed")`
+**Nest searching**: `r nest_searching_order(.day = "Wed")`
+
+```{r}
+nest_searching(
+  .day = "Wed",
+  # .me_patch_1,
+  # .me_patch_2
+)
+```
 
 :::
 
@@ -309,11 +410,9 @@ pred_counts(.day = "Wed")
 
 *Helper: `r unique(schedule_list$Thu$helper)`*
 
-**Departure**: `r unique(schedule_list$Thu$departure_time)`
-
-**Arrival**: `r unique(schedule_list$Thu$arrive)`
-
-**Sunrise**: `r unique(schedule_list$Thu$sunrise)`
+```{r}
+morning_times(.day = "Thu")
+```
 
 :::
 
@@ -323,7 +422,17 @@ pred_counts(.day = "Wed")
 pred_counts(.day = "Thu")
 ```
 
-**Nest searching**: `r nest_searching(.day = "Thu")`
+**Nest searching**: `r nest_searching_order(.day = "Thu")`
+
+```{r}
+nest_searching(
+  .day = "Thu",
+  # .me_patch_1,
+  # .helper_patch_1,
+  # .me_patch_2,
+  # .helper_patch_2
+)
+```
 
 :::
 
@@ -335,11 +444,9 @@ pred_counts(.day = "Thu")
 
 *Helper: `r unique(schedule_list$Fri$helper)`*
 
-**Departure**: `r unique(schedule_list$Fri$departure_time)`
-
-**Arrival**: `r unique(schedule_list$Fri$arrive)`
-
-**Sunrise**: `r unique(schedule_list$Fri$sunrise)`
+```{r}
+morning_times(.day = "Fri")
+```
 
 :::
 
@@ -349,7 +456,15 @@ pred_counts(.day = "Thu")
 pred_counts(.day = "Fri")
 ```
 
-**Nest searching**: `r nest_searching(.day = "Fri")`
+**Nest searching**: `r nest_searching_order(.day = "Fri")`
+
+```{r}
+nest_searching(
+  .day = "Fri",
+  # .me_patch_1,
+  # .me_patch_2
+)
+```
 
 :::
 
@@ -359,13 +474,11 @@ pred_counts(.day = "Fri")
 
 ::: summary_box
 
-*Helper: `r unique(schedule_list$Fri$helper)`*
+*Helper: `r unique(schedule_list$Sat$helper)`*
 
-**Departure**: `r unique(schedule_list$Sat$departure_time)`
-
-**Arrival**: `r unique(schedule_list$Sat$arrive)`
-
-**Sunrise**: `r unique(schedule_list$Sat$sunrise)`
+```{r}
+morning_times(.day = "Sat")
+```
 
 :::
 
@@ -375,7 +488,17 @@ pred_counts(.day = "Fri")
 pred_counts(.day = "Sat")
 ```
 
-**Nest searching**: `r nest_searching(.day = "Sat")`
+**Nest searching**: `r nest_searching_order(.day = "Sat")`
+
+```{r}
+nest_searching(
+  .day = "Sat",
+  # .me_patch_1,
+  # .helper_patch_1,
+  # .me_patch_2,
+  # .helper_patch_2
+)
+```
 
 :::
 
