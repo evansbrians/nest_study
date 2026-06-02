@@ -29,7 +29,7 @@ source("scripts/camera_maintenance_schedule.R")
 
 # Update and render:
 
-quarto::quarto_render("pages/schedule/index.qmd")
+quarto::quarto_render("outputs/schedule/index.qmd")
 quarto::quarto_render("outputs/print-outs/schedule_pdf.qmd")
 
 # Push changes:

@@ -48,7 +48,7 @@ schedule <-
   filter(
     week ==
         week(
-        today() + 2
+        today() + 1
       ) - 18,
   ) %>% 
   summarize(
@@ -394,18 +394,40 @@ morning_times(.day = "Wed")
 
 **Point count times, coverboards, and nests to check**:
 
+*BSE: Machete a trail at firehouse that connects trailcam_1 and the northwest passage. There is a fence near trailcam_1 that can be navigated around, but bring boltcutters just in case.*
+
 ```{r}
 pred_counts(.day = "Wed")
 ```
 
-**Nest searching**: `r nest_searching_order(.day = "Wed")`
+**Nest searching**: forest_a \u2192 grassland_b
+<!-- `r nest_searching_order(.day = "Wed")` -->
 
 ```{r}
-nest_searching(
-  .day = "Wed",
+# nest_searching(
+#   .day = "Wed",
   # .me_patch_1,
   # .me_patch_2
-)
+# )
+
+crossing(
+  Patch = c("forest_a", "grassland_b"),
+  Person = c("BSE", "TNS")
+) %>% 
+  mutate(
+    Activities = 
+      c(
+        "Hunt down the catbirds and cardinals in the central island; Hunt the towhee near coverboard 6; Scan the stretch from coverboard 5 to 4",
+        "Poison ivy island of coverboard 1; Scan the stretch from coverboard 4 to 5",
+        "Install additional trailcams; Scan the stretch from trailcam_1 to coverboard 2 (macheteing along the way)",
+        "Install additional trailcams; Scan the stretch from coverboard 5 to 2 (macheteing along the way); Hunt the towhee near coverboard 3"
+      )
+  ) %>% 
+  kable() %>% 
+  # my_kable_style() %>% 
+  collapse_rows(
+    columns = 1
+  )
 ```
 
 :::
@@ -435,10 +457,10 @@ pred_counts(.day = "Thu")
 ```{r}
 nest_searching(
   .day = "Thu",
-  .helper_patch_1 = "Search the Eastern portion of the patch (near boards 1 and 2; machete optional)",
+  .helper_patch_1 = "Search the Western portion of the patch (near boards 1 and 2; machete optional)",
   .me_patch_1  = "-",
-  .helper_patch_2 = "-",
-  .me_patch_2 = "Create a trail from the northwest passage to trailcam_1"
+  .helper_patch_2 = "Search the Northern half of the patch",
+  .me_patch_2 = "Rough chop along the Western edge; Create distributaries of the path from trailcam_1 to the northwest passage"
 )
 ```
 

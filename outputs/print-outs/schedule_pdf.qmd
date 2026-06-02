@@ -340,12 +340,43 @@ day_schedule(
   .helper_patch_2 = "-",
   .me_patch_2 = "-"
 )
+
+# str_c(
+#   "\n## ", day_names["Wed"], " ",
+#   make_pretty_dates(day_data$Wed$date), "\n\n",
+#   "*Helper: ", day_data$Wed$helper, "*", "\\\n",
+#   "\\vspace{0em}",
+#   as.character(morning_times(.day = "Wed")), "\\\n",
+#   "**Point count times, coverboards, and nests to check**:", "\\\n",
+#   "\\vspace{0em}",
+#   as.character(pred_counts(.day = "Wed")), "\\\n",
+#   "\\vspace{0em}",
+#   "*BSE: Machete a trail at firehouse that connects trailcam_1 and the northwest passage. There is a fence near trailcam_1 that can be navigated around, but bring boltcutters just in case.*", "\\\n",
+#   "\\vspace{0em}",
+#   "**Nest searching**: forest_a \u2192 grassland_b", "\\\n",
+#   # "\\vspace{0em}",
+#   crossing(
+#     Patch = c("forest_a", "grassland_b"),
+#     Person = c("BSE", "TNS")
+#   ) %>% 
+#     mutate(
+#       Activities = 
+#         c(
+#           "Hunt down the catbirds and cardinals in the central island; Hunt the towhee near coverboard 6; Scan the stretch from coverboard 5 to 4",
+#           "Poison ivy island of coverboard 1; Scan the stretch from coverboard 4 to 5",
+#           "Install additional trailcams; Scan the stretch from trailcam_1 to coverboard 2 (macheteing along the way)",
+#           "Install additional trailcams; Scan the stretch from coverboard 5 to 2 (macheteing along the way); Hunt the towhee near coverboard 3"
+#         )
+#     ) %>% 
+#     as.character()
+# ) %>% 
+#   cat()
 ```
 
 ```{r, results = "asis"}
 day_schedule(
   .wday = "Thu",
-  .helper_patch_1 = "Search the Eastern portion of the patch (near boards 1 and 2; machete optional)",
+  .helper_patch_1 = "Search the Western portion of the patch (near boards 1 and 2; machete optional)",
   .me_patch_1  = "-",
   .helper_patch_2 = "-",
   .me_patch_2 = "Create a trail from the northwest passage to trailcam_1"

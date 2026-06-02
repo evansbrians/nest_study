@@ -25,6 +25,12 @@
 { "type": "Feature", "properties": { "name": "N020", "elevation": 267.644226, "datetime": "2026-05-30T15:40:46Z" }, "geometry": { "type": "Point", "coordinates": [ -78.149961, 38.896689 ] } },
 { "type": "Feature", "properties": { "name": "N021", "elevation": 264.706543, "datetime": "2026-05-30T18:03:55Z" }, "geometry": { "type": "Point", "coordinates": [ -78.149893, 38.898481 ] } },
 { "type": "Feature", "properties": { "name": "N022", "elevation": 282.228699, "datetime": "2026-05-30T18:33:35Z" }, "geometry": { "type": "Point", "coordinates": [ -78.150764, 38.897837 ] } },
-{ "type": "Feature", "properties": { "name": "N023", "elevation": 312.102173, "datetime": "2026-06-01T14:37:47Z" }, "geometry": { "type": "Point", "coordinates": [ -78.163931, 38.889596 ] } }
+{ "type": "Feature", "properties": { "name": "N023", "elevation": 312.102173, "datetime": "2026-06-01T14:37:47Z" }, "geometry": { "type": "Point", "coordinates": [ -78.163931, 38.889596 ] } },
+{ "type": "Feature", "properties": { "name": "N024", "elevation": 302.463074, "datetime": "2026-06-02T16:44:01Z" }, "geometry": { "type": "Point", "coordinates": [ -78.156662, 38.892746 ] } },
+{ "type": "Feature", "properties": { "name": "N025", "elevation": 311.464722, "datetime": "2026-06-02T16:58:20Z" }, "geometry": { "type": "Point", "coordinates": [ -78.156683, 38.892984 ] } },
+{ "type": "Feature", "properties": { "name": "N026", "elevation": 311.630493, "datetime": "2026-06-02T17:22:15Z" }, "geometry": { "type": "Point", "coordinates": [ -78.157056, 38.892978 ] } },
+{ "type": "Feature", "properties": { "name": "N027", "elevation": 308.629272, "datetime": "2026-06-02T17:38:28Z" }, "geometry": { "type": "Point", "coordinates": [ -78.157316, 38.893775 ] } },
+{ "type": "Feature", "properties": { "name": "N028", "elevation": 312.414642, "datetime": "2026-06-02T17:50:10Z" }, "geometry": { "type": "Point", "coordinates": [ -78.157641, 38.893967 ] } },
+{ "type": "Feature", "properties": { "name": "N029", "elevation": 317.472717, "datetime": "2026-06-02T18:08:35Z" }, "geometry": { "type": "Point", "coordinates": [ -78.157977, 38.894025 ] } }
 ]
 }
