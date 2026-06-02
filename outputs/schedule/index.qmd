@@ -195,7 +195,15 @@ nest_searching <-
       arrange(
         desc(patch_order)
       ) %>% 
-      select(helper, patch_count)
+      select(helper, patch_count) %>% 
+      mutate(
+        patch_count =
+          factor(
+            patch_count,
+            levels = 
+              patch_count
+          )
+      )
     
     crossing(
       Patch = start$patch_count,
@@ -361,10 +369,10 @@ pred_counts(.day = "Tue")
 ```{r}
 nest_searching(
   .day = "Tue",
-  # .me_patch_1,
-  # .helper_patch_1,
-  # .me_patch_2,
-  # .helper_patch_2
+  .helper_patch_1 = "Search from board 5 to trailcam_1",
+  .me_patch_1  = "Machete-search from board 2 to 3",
+  .helper_patch_2 = "Search the Eastern half of the patch (machete optional)",
+  .me_patch_2 = "Machete-search the Western half of the patch"
 )
 ```
 
@@ -427,12 +435,14 @@ pred_counts(.day = "Thu")
 ```{r}
 nest_searching(
   .day = "Thu",
-  # .me_patch_1,
-  # .helper_patch_1,
-  # .me_patch_2,
-  # .helper_patch_2
+  .helper_patch_1 = "Search the Eastern portion of the patch (near boards 1 and 2; machete optional)",
+  .me_patch_1  = "-",
+  .helper_patch_2 = "-",
+  .me_patch_2 = "Create a trail from the northwest passage to trailcam_1"
 )
 ```
+
+*Note: There is an active nest right along the power line alley walkway at firehouse... be very careful when traversing through that area!*
 
 :::
 

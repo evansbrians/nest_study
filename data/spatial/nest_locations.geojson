@@ -24,6 +24,7 @@
 { "type": "Feature", "properties": { "name": "N018", "elevation": 267.098572, "datetime": "2026-05-30T10:26:18Z" }, "geometry": { "type": "Point", "coordinates": [ -78.171709, 38.892737 ] } },
 { "type": "Feature", "properties": { "name": "N020", "elevation": 267.644226, "datetime": "2026-05-30T15:40:46Z" }, "geometry": { "type": "Point", "coordinates": [ -78.149961, 38.896689 ] } },
 { "type": "Feature", "properties": { "name": "N021", "elevation": 264.706543, "datetime": "2026-05-30T18:03:55Z" }, "geometry": { "type": "Point", "coordinates": [ -78.149893, 38.898481 ] } },
-{ "type": "Feature", "properties": { "name": "N022", "elevation": 282.228699, "datetime": "2026-05-30T18:33:35Z" }, "geometry": { "type": "Point", "coordinates": [ -78.150764, 38.897837 ] } }
+{ "type": "Feature", "properties": { "name": "N022", "elevation": 282.228699, "datetime": "2026-05-30T18:33:35Z" }, "geometry": { "type": "Point", "coordinates": [ -78.150764, 38.897837 ] } },
+{ "type": "Feature", "properties": { "name": "N023", "elevation": 312.102173, "datetime": "2026-06-01T14:37:47Z" }, "geometry": { "type": "Point", "coordinates": [ -78.163931, 38.889596 ] } }
 ]
 }

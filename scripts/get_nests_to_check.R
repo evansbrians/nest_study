@@ -32,7 +32,9 @@ schedule <-
 
 # get and process nest data -----------------------------------------------
 
-nests_proc <- 
+# Read in nest data and subset to variables of interest:
+
+nests_raw <- 
   read_rds("data/field_data.rds") %>% 
   pluck("nests") %>% 
   unnest(interval_data) %>% 
@@ -46,6 +48,40 @@ nests_proc <-
       ~ as.numeric(.x)
     ),
     .keep = "none"
+  ) 
+
+# Process data and determine the earliest next nest check:
+
+nests_proc <- 
+  nests_raw %>% 
+  drop_na(host_eggs) %>% 
+
+  # Assign "post-fate" as the nest_fate for nests that have had 0 eggs and 0 young
+  # for 3 or more checks:
+  
+  mutate(
+    empty = 
+      if_else(
+        host_eggs == 0 & host_young == 0,
+        1,
+        0
+      ),
+    empty_checks = 
+      cumsum(
+        lag(
+          empty, 
+          default = first(empty)
+        )
+      ),
+    empty_checks = 
+      max(empty_checks),
+    nest_fate =
+      if_else(
+        empty_checks >= 3,
+        "post_fate",
+        nest_fate
+      ),
+    .by = nest_id
   ) %>% 
   
   # Grab the last observation for each nest:
@@ -55,7 +91,7 @@ nests_proc <-
   # Do not check if the nest fate is "Success" or "Failure":
   
   filter_out(
-    nest_fate %in% c("Success", "Failure")
+    nest_fate %in% c("Success", "Failure", "post_fate")
   ) %>% 
   
   # Earliest nest check is 3 days if there are eggs or young and 6 days if
