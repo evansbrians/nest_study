@@ -5,6 +5,8 @@
 
 library(tidyverse)
 
+source("scripts/functions.R")
+
 # Read in data:
 
 season_schedule <- 
