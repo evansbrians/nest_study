@@ -235,7 +235,7 @@ map_tracking <-
 
 saveWidget(
   map_tracking,
-  file = "field_map/index.html",
+  file = "outputs/field_map/index.html",
   selfcontained = FALSE,
   title = "Nest Study Field Map"
 )
