@@ -56,7 +56,7 @@ nests_proc <-
   nests_raw %>% 
   drop_na(host_eggs) %>% 
 
-  # Assign "post-fate" as the nest_fate for nests that have had 0 eggs and 0 young
+  # Assign "Unknown" as the nest_fate for nests that have had 0 eggs and 0 young
   # for 3 or more checks:
   
   mutate(
@@ -78,7 +78,7 @@ nests_proc <-
     nest_fate =
       if_else(
         empty_checks >= 3,
-        "post_fate",
+        "Unknown",
         nest_fate
       ),
     .by = nest_id
@@ -91,7 +91,7 @@ nests_proc <-
   # Do not check if the nest fate is "Success" or "Failure":
   
   filter_out(
-    nest_fate %in% c("Success", "Failure", "post_fate")
+    nest_fate %in% c("Success", "Failure", "Unknown")
   ) %>% 
   
   # Earliest nest check is 3 days if there are eggs or young and 6 days if

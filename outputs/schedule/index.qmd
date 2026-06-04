@@ -49,7 +49,7 @@ schedule <-
     week ==
         week(
         today() + 1
-      ) - 18,
+      ) - 19,
   ) %>% 
   summarize(
     boards = 
@@ -400,7 +400,7 @@ morning_times(.day = "Wed")
 pred_counts(.day = "Wed")
 ```
 
-**Nest searching**: forest_a \u2192 grassland_b
+**Nest searching**: forest_a &#8594; grassland_b
 <!-- `r nest_searching_order(.day = "Wed")` -->
 
 ```{r}
@@ -419,8 +419,8 @@ crossing(
       c(
         "Hunt down the catbirds and cardinals in the central island; Hunt the towhee near coverboard 6; Scan the stretch from coverboard 5 to 4",
         "Poison ivy island of coverboard 1; Scan the stretch from coverboard 4 to 5",
-        "Install additional trailcams; Scan the stretch from trailcam_1 to coverboard 2 (macheteing along the way)",
-        "Install additional trailcams; Scan the stretch from coverboard 5 to 2 (macheteing along the way); Hunt the towhee near coverboard 3"
+        "Install additional trailcams; Scan the stretch from coverboard 5 to 2 (macheteing along the way); Hunt the towhee near coverboard 3",
+        "Install additional trailcams; Scan the stretch from trailcam_1 to coverboard 2 (macheteing along the way)"
       )
   ) %>% 
   kable() %>% 
@@ -452,16 +452,38 @@ morning_times(.day = "Thu")
 pred_counts(.day = "Thu")
 ```
 
-**Nest searching**: `r nest_searching_order(.day = "Thu")`
+*Note: Install trailcam_2 at witch_hazel.*
+
+**Nest searching**: firehouse &#8594; coyote
+<!-- `r nest_searching_order(.day = "Thu")` -->
 
 ```{r}
-nest_searching(
-  .day = "Thu",
-  .helper_patch_1 = "Search the Western portion of the patch (near boards 1 and 2; machete optional)",
-  .me_patch_1  = "-",
-  .helper_patch_2 = "Search the Northern half of the patch",
-  .me_patch_2 = "Rough chop along the Western edge; Create distributaries of the path from trailcam_1 to the northwest passage"
-)
+# nest_searching(
+#   .day = "Thu",
+#   .helper_patch_1 = "Search the Western portion of the patch (near boards 1 and 2; machete optional)",
+#   .me_patch_1  = "Install trailcam_2; Search the Western portion of the patch",
+#   .helper_patch_2 = "Search the Northern half of the patch",
+#   .me_patch_2 = "Rough chop along the Western edge; Create distributaries of the path from trailcam_1 to the northwest passage"
+# )
+
+crossing(
+  Patch = c("firehouse", "coyote"),
+  Person = c("CMS", "TNS")
+) %>% 
+  mutate(
+    Activities = 
+      c(
+        "Search the Northern section of the patch (the area near trailcam_1 is thorny *gold*)",
+        "Rough chop along the Western edge; Create distributaries of the path from trailcam_1 to the northwest passage",
+        "SD card and batteries in trailcam 2; Explore areas around the machete network (machete optional)",
+        "SD card and batteries in trailcam 2; Re-GPS path from CB 4 to CB 5; Continue machete network"
+      )
+  ) %>% 
+  kable() %>% 
+  # my_kable_style() %>% 
+  collapse_rows(
+    columns = 1
+  )
 ```
 
 *Note: There is an active nest right along the power line alley walkway at firehouse... be very careful when traversing through that area!*
@@ -493,8 +515,8 @@ pred_counts(.day = "Fri")
 ```{r}
 nest_searching(
   .day = "Fri",
-  # .me_patch_1,
-  # .me_patch_2
+  .me_patch_1 = "Continue path down the patch; investigate NOCA and EATO pairs seen between CB 1 and CB 2; Change batteries and SD cards in cams 1 and 2",
+  .me_patch_2 = "Continue path from CB 3 to CB 2; investigate NOCA activity between CB 4 and CB 5"
 )
 ```
 
