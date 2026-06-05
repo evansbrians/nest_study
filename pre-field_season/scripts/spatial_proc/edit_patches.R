@@ -25,7 +25,8 @@ source("pre-field_season/scripts/spatial_proc/source_script_spatial.R")
 c(
   patches_start = "data/spatial/patches.geojson",
   coverboards = "data/spatial/coverboard_locations.geojson",
-  coyote_line = "pre-field_season/data/spatial/proc/coyote_line.geojson"
+  coyote_line = "pre-field_season/data/spatial/proc/coyote_line.geojson",
+  tracks = "data/spatial/tracks.geojson"
 ) %>% 
   map(
     ~ st_read(.x, quiet = TRUE)
@@ -41,7 +42,10 @@ patches_edited <-
 
 # A first look:
 
-make_map(patches_edited[[1]])
+make_map(
+  patches_edited[[1]],
+  .grassland_b_line = TRUE
+)
 
 # Steps for patch editing:
 
@@ -74,11 +78,9 @@ make_map(patches_edited[[2]])
 
 patches_edited[[2]] %>% 
   st_write(
-    file.path(
-      "pre-field_season/data/spatial/proc",
-      "patches_edited_10_coyote_new.geojson"
-    ),
-    append = FALSE
+    "data/spatial/patches.geojson",
+    append = FALSE,
+    delete_dsn = TRUE
   )
 
 # final version -----------------------------------------------------------

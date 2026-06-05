@@ -8,7 +8,7 @@
 { "type": "Feature", "properties": { "name": "firehouse_trailcam_1", "elevation": null, "datetime": null }, "geometry": { "type": "Point", "coordinates": [ -78.162895672277685, 38.891217447957473 ] } },
 { "type": "Feature", "properties": { "name": "firehouse_trailcam_2", "elevation": null, "datetime": null }, "geometry": { "type": "Point", "coordinates": [ -78.163341795868533, 38.889180466066726 ] } },
 { "type": "Feature", "properties": { "name": "forest_geo_trailcam_2", "elevation": 4.9999997810117631e+24, "datetime": "2026-05-22T16:58:27Z" }, "geometry": { "type": "Point", "coordinates": [ -78.157941, 38.893995 ] } },
-{ "type": "Feature", "properties": { "name": "witch_hazel_trailcam_2", "elevation": null, "datetime": null }, "geometry": { "type": "Point", "coordinates": [ -78.157507741973546, 38.895639719483164 ] } },
+{ "type": "Feature", "properties": { "name": "witch_hazel_trailcam_2", "elevation": 4.9999997810117631e+24, "datetime": "2026-06-04T12:00:08Z" }, "geometry": { "type": "Point", "coordinates": [ -78.157497, 38.895655 ] } },
 { "type": "Feature", "properties": { "name": "grassland_b_fence_trailcam_1", "elevation": 4.9999997810117631e+24, "datetime": "2026-05-22T15:50:46Z" }, "geometry": { "type": "Point", "coordinates": [ -78.16825, 38.895537 ] } },
 { "type": "Feature", "properties": { "name": "grassland_b_fence_trailcam_2", "elevation": 3.3333332834179675e+24, "datetime": "2026-05-22T13:31:02Z" }, "geometry": { "type": "Point", "coordinates": [ -78.164886, 38.896843 ] } },
 { "type": "Feature", "properties": { "name": "leech_trailcam_1", "elevation": null, "datetime": null }, "geometry": { "type": "Point", "coordinates": [ -78.152673218378482, 38.897755471774879 ] } },

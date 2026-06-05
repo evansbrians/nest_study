@@ -510,6 +510,8 @@ morning_times(.day = "Fri")
 pred_counts(.day = "Fri")
 ```
 
+*Note: GPS the fence line at forest_geo*
+
 **Nest searching**: `r nest_searching_order(.day = "Fri")`
 
 ```{r}
@@ -538,21 +540,43 @@ morning_times(.day = "Sat")
 
 **Point count times, coverboards, and nests to check**:
 
+*BSE: Machete a path from CB 1 to CB 2 in grassland_a. If there is extra time, explore (and machete) around the previously created trailcam_2 path*
+
 ```{r}
 pred_counts(.day = "Sat")
 ```
 
-**Nest searching**: `r nest_searching_order(.day = "Sat")`
+**Nest searching**: grassland_b
+<!-- `r nest_searching_order(.day = "Sat")` -->
 
 ```{r}
-nest_searching(
-  .day = "Sat",
-  # .me_patch_1,
-  # .helper_patch_1,
-  # .me_patch_2,
-  # .helper_patch_2
-)
+# nest_searching(
+#   .day = "Sat",
+#   # .me_patch_1,
+#   # .helper_patch_1,
+#   .me_patch_2 = "Machete a path down the patch, starting from CB 1",
+#   .helper_patch_2 = "Machete a path up the patch, starting from the Southern patch boundary."
+# )
+
+crossing(
+  Patch = "grassland_b",
+  Person = c("BSE", "TNS")
+) %>% 
+  mutate(
+    Activities = 
+      c(
+        "Machete a path up the patch, starting from the Southern patch boundary.",
+        "Machete a path down the patch, starting from CB 1"
+      )
+  ) %>% 
+  kable() %>% 
+  # my_kable_style() %>% 
+  collapse_rows(
+    columns = 1
+  )
 ```
+
+*Note: There is an active nest in the Southern portion of grassland_b... be very careful when traversing (or macheteing) through that area!*
 
 :::
 

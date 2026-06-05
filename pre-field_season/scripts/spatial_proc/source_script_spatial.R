@@ -56,7 +56,8 @@ make_map <-
   function(
     .patch_layer = patches,
     .coverboards = TRUE,
-    .coyote_line = FALSE
+    .coyote_line = FALSE,
+    .grassland_b_line = TRUE
   ) {
     out_map <-
       leaflet() %>% 
@@ -107,6 +108,24 @@ make_map <-
           fillOpacity = 1,
           fillColor = "#ff0",
           color = "#000"
+        )
+    }
+    
+    # Add the track for the grassland_b_line:
+    
+    if(.grassland_b_line) {
+      out_map <-
+        out_map %>% 
+        leaflet::addPolylines(
+          data = 
+            tracks %>% 
+            filter(name == "grassland_b_line"),
+          # radius = 3,
+          weight = 2,
+          opacity = 1,
+          # fillOpacity = 1,
+          # fillColor = "#ff0",
+          # color = "#000"
         )
     }
     out_map
