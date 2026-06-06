@@ -540,11 +540,13 @@ morning_times(.day = "Sat")
 
 **Point count times, coverboards, and nests to check**:
 
-*BSE: Machete a path from CB 1 to CB 2 in grassland_a. If there is extra time, explore (and machete) around the previously created trailcam_2 path*
+*BSE: Machete a path from trailcam_1 to the trailcam_0 path in grassland_b_fence. A Brown thrasher and several NOCAs (one seen carrying nesting material on the trailcam images) hang around there a lot, so be on the lookout for nests!*
 
 ```{r}
 pred_counts(.day = "Sat")
 ```
+
+*Note: Before leaving for Catbird hunting, clear the area in front of trailcam_2 at grassland_b_fence.*
 
 **Nest searching**: grassland_b
 <!-- `r nest_searching_order(.day = "Sat")` -->
@@ -559,12 +561,14 @@ pred_counts(.day = "Sat")
 # )
 
 crossing(
-  Patch = "grassland_b",
+  Patch = c("forest_geo", "grassland_b"),
   Person = c("BSE", "TNS")
 ) %>% 
   mutate(
     Activities = 
       c(
+        "Catbird hunting! (Also clear the area in front of trailcam_1)",
+        "Catbird hunting! (Also clear the area in front of trailcam_1)",
         "Machete a path up the patch, starting from the Southern patch boundary.",
         "Machete a path down the patch, starting from CB 1"
       )
