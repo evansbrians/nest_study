@@ -57,7 +57,8 @@ make_map <-
     .patch_layer = patches,
     .coverboards = TRUE,
     .coyote_line = FALSE,
-    .grassland_b_line = TRUE
+    .grassland_b_line = TRUE,
+    .forest_geo_fence = TRUE
   ) {
     out_map <-
       leaflet() %>% 
@@ -128,6 +129,25 @@ make_map <-
           # color = "#000"
         )
     }
+    
+    # Add the track for the forest_geo fence boundary:
+    
+    if(.forest_geo_fence) {
+      out_map <-
+        out_map %>% 
+        leaflet::addPolylines(
+          data = 
+            tracks %>% 
+            filter(name == "forest_geo_fence_line"),
+          # radius = 3,
+          weight = 2,
+          opacity = 1,
+          # fillOpacity = 1,
+          # fillColor = "#ff0",
+          # color = "#000"
+        )
+    }
+    
     out_map
   }
 

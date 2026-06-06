@@ -16,7 +16,7 @@ garmin_dir <- "/Volumes/GARMIN/Garmin/GPX"
 
 spatial_files <- 
   list.files(
-    "data/spatial",
+    "data/spatial/",
     pattern = "geojson$",
     full.names = TRUE
   ) %>% 
