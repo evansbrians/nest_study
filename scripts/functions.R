@@ -32,27 +32,6 @@ get_summary_stats <-
     ...
   ) {
     .data %>% 
-      group_by(...) %>% 
-      summarize(
-        n = n(),
-        min = min({{ .var }}, na.rm = TRUE),
-        max = max({{ .var }}, na.rm = TRUE),
-        range = max - min,
-        mean = mean({{ .var }}, na.rm = TRUE),
-        median = median({{ .var }}, na.rm = TRUE),
-        sd = sd({{ .var }}, na.rm = TRUE),
-        se = sd/sqrt(n),
-        .groups = "drop"
-      )
-  }
-
-get_summary_stats <-
-  function(
-    .data,
-    .var,
-    ...
-  ) {
-    .data %>% 
       summarize(
         n = n(),
         min = min({{ .var }}, na.rm = TRUE),
@@ -105,6 +84,171 @@ char_time_to_time <-
     hm(.time) %>% 
       period_to_seconds() %>% 
       hms::as_hms()
+  }
+
+## spatial functions ------------------------------------------------------
+
+# Because I get annoyed with constantly having to convert the output of
+# `st_distance()` to numeric and setting `by_element = TRUE`:
+
+st_distance_m <-
+  function(
+    .x, 
+    .y,
+    .by_element = TRUE
+  ) {
+    st_distance(
+      .x,
+      .y,
+      by_element = .by_element
+    ) %>% 
+      units::set_units("m") %>% 
+      units::drop_units()
+  }
+
+# Convert a data frame with a longitude and latitude column to points, if
+# possible.
+
+convert_df_to_pts <-
+  function(
+    .data,
+    .lon = "lon",
+    .lat = "lat",
+    .crs = 4326,
+    .crs_out = .crs
+  ) {
+    
+    # Rename longitude and latitude columns:
+    
+    data_lonlat <-
+      .data %>% 
+      rename(
+        longitude = matches({{ .lon }}),
+        latitude = matches({{ .lat }})
+      )
+    
+    # Stop and send an error message if the longitude and latitude columns could
+    # not be determined:
+    
+    if (
+      !all(
+        c("longitude", "latitude") %in% colnames(data_lonlat)
+      )
+    ) {
+      cli::cli_abort(
+        "Could not detect coordinate columns.
+        Please supply {.arg .lon} and {.arg .lat} explicitly.")
+    } 
+    
+    # Convert to sf:
+    
+    data_lonlat %>% 
+      st_as_sf(
+        coords = c("longitude", "latitude"),
+        crs = .crs
+      ) %>% 
+      
+      # Transform the CRS if necessary:
+      
+      {
+        if(.crs != .crs_out) {
+          st_transform(., .crs_out)
+        } else {
+          .
+        }
+      }
+  }
+
+# Convert lines to points:
+
+convert_line_to_points <-
+  function(.linestring, .density = NULL) {
+    
+    # Don't do anything if it's already points (just return the points):
+    
+    if (
+      all(
+        st_geometry_type(.linestring) == "POINT")
+    ) {
+      return(.linestring)
+    }
+    
+    # If it *is* a linestring and `.density` is numeric, additional points will
+    # be added to the line (with distance between vertices defined by .density
+    # in meters:
+    
+    if (is.numeric(.density)) {
+      st_segmentize(.linestring, dfMaxLength = .density) %>%
+        st_cast("POINT", warn = FALSE) %>%
+        st_sf()
+    } else {
+      
+      # If `.density` is NULL, the original vertices are converted to points:
+      
+      st_cast(
+        .linestring,
+        "POINT",
+        warn = FALSE
+      )
+    }
+  }
+
+# Convert points to lines:
+
+convert_points_to_lines <-
+  function(.points, .by = NULL) {
+    
+    # Don't do anything if it's already a line (just return the points):
+    
+    if (
+      all(
+        st_geometry_type(.points) %in% c("LINESTRING", "MULTILINESTRING")
+      )
+    ) {
+      return(.points)
+    }
+    
+    # If there is no column to group by, just make a single linestring of the
+    # whole thing:
+    
+    if (missing(.by)) {
+      .points %>% 
+        st_combine() %>% 
+        st_cast("LINESTRING") %>% 
+        st_as_sf() %>% 
+        rename()
+    } else {
+      
+      # If there *is* a column to group by, define a separate line for each
+      # group:
+      
+      .points %>% 
+        group_by({{ .by }}) %>% 
+        summarize(
+          do_union = FALSE,
+          .groups = "drop"
+        ) %>% 
+        st_cast("LINESTRING") %>% 
+        st_as_sf()
+    }
+  }
+
+# Function that returns the nearest geometry between two sf objects, returning
+# the geometry of the reference object as an sf file:
+
+get_nearest_geometry <-
+  function(
+    .target,
+    .reference,
+    .max_distance = Inf
+  ) {
+    slice(
+      .reference,
+      st_nearest_feature(
+        .target,
+        .reference
+      )
+    )
   }
 
 ## visualization ----------------------------------------------------------
@@ -582,5 +726,421 @@ print_datasheets <-
         ) %>% 
           system()
       )
+  }
+
+# Functions for path processing -------------------------------------------
+
+## average path (point-averaging) -----------------------------------------
+
+# Calculate the average vertices between two paths:
+
+average_paths <-
+  function(
+    .paths,
+    .target_name, 
+    .modifier_name,
+    .distance_threshold = 5,
+    .as_lines = TRUE
+  ) {
+    
+    if (st_is_longlat(.paths)) {
+      cli::cli_abort(
+        "Unprojected data detected: 
+        please transform your data to a projected CRS with {.fn st_transform}" 
+      )
+    }
+    
+    averaged_path <-
+      .paths %>% 
+      filter(name == .target_name) %>% 
+      convert_line_to_points() %>% 
+      mutate(
+        
+        # Get the nearest vertex in the modifier path fir each vertex in the
+        # target path:
+        
+        nearest_geom = 
+          get_nearest_geometry(
+            ., 
+            convert_line_to_points(
+              filter(.paths, name == .modifier_name)
+            )
+          ) %>% 
+          st_geometry(),
+        
+        # Calculate the distance between the target and modifier vertices:
+        
+        dist = st_distance_m(geometry, nearest_geom),
+        
+        # If the distance (`..3`) between the target (`..1`) and modifier
+        # (`.002`) vertex is greater than some threshold, just return the target
+        # vertex, otherwise, average their locations:
+        
+        geometry = 
+          list(
+            geometry, 
+            nearest_geom, 
+            dist
+          ) %>% 
+          pmap(
+            ~ if (..3 > .distance_threshold) {
+              ..1 
+            } else {
+              (..1 + ..2) / 2
+            }
+          ) %>% 
+          st_sfc(
+            crs = st_crs(.target_path)
+          )
+      ) %>%
+      select(name) %>% 
+      convert_points_to_lines(., .by = name)
+    
+    .paths %>% 
+      filter(name != .target_name) %>% 
+      bind_rows(averaged_path) %>% 
+      arrange(name)
+  }
+
+## detect a turnaround ----------------------------------------------------
+
+# If you turn around while continuing to collect path data, this function will
+# detect that and split the data (it also accounts for GPS noise that might
+# generate false turnaround points):
+
+split_path_at_turnaround <- 
+  function(
+    .paths, 
+    .density = 1
+  ) {
+    
+    if (st_is_longlat(.paths)) {
+      cli::cli_abort(
+        "Unprojected data detected: 
+        please transform your data to a projected CRS with {.fn st_transform}" 
+      )
+    }
+    
+    # Detect a turnaround as a point in which the distance from the
+    # previous point is less than the distance between the previous point
+    # and the next point:
+    
+    .paths %>% 
+      convert_line_to_points(.density = .density) %>%
+      mutate(
+        
+        # Distance between the current and previous point:
+        
+        dist_to_previous = 
+          st_distance_m(
+            geometry,
+            lag(geometry)
+          ),
+        
+        # Distance between the previous point and the next point:
+        
+        dist_lag_lead = 
+          st_distance_m(
+            lag(geometry), 
+            lead(geometry)
+          ),
+        across(
+          dist_to_previous:dist_lag_lead,
+          ~ replace_na(.x, 0)
+        ),
+        
+        # Turnaround detection:
+        
+        turnaround = dist_lag_lead < dist_to_previous,
+        
+        # Assign individual paths based on the turnaround:
+        
+        path_id = cumsum(turnaround) + 1,
+        .by = name
+      ) %>% 
+      
+      # Subset columns:
+      
+      select(name, path_id)
+  }
+
+## average self overlapping paths -----------------------------------------
+
+# If a turnaround is detected on a smoothed path (smoothing first is
+# important!), this will split the path into segments and calculate the average
+# path location using the forward moving path as the baseline:
+
+average_self_overlapping_paths <- 
+  function(
+    .paths,
+    .distance_threshold = 5,
+    .density = 1
+  ) {
+    
+    if (st_is_longlat(.paths)) {
+      cli::cli_abort(
+        "Unprojected data detected: 
+        please transform your data to a projected CRS with {.fn st_transform}" 
+      )
+    }
+    
+    # Segmented path based on turnarounds:
+    
+    segmented_paths <-
+      split_path_at_turnaround(.paths) %>% 
+      mutate(
+        direction =
+          if_else(
+            path_id %% 2 == 1,
+            "forward",
+            "backward"
+          ),
+        .after = path_id
+      )
+    
+    # Process each path and average if a turnaround exists:
+    
+    segmented_paths %>% 
+      pull(name) %>% 
+      unique() %>% 
+      map(
+        \(.path_name) {
+          
+          path_segments <-
+            segmented_paths %>%
+            filter(name == .path_name)
+          
+          # Stop if only one segment is detected:
+          
+          if (n_distinct(path_segments$path_id) == 1) {
+            message("Only a single path was detected for", .path_name)
+            return(
+              path_segments %>% 
+                convert_points_to_lines(.by = name)
+            )
+          }
+          
+          # Forward and backward segments:
+          
+          forward <- filter(path_segments, direction == "forward")
+          
+          # Using the forward line as a reference, calculate the average between
+          # the forward path and backward paths:
+          
+          path_segments %>% 
+            filter(direction == "backward") %>% 
+            split(.$path_id) %>% 
+            reduce(
+              ~ average_paths(
+                .target_path = .x,
+                .modifier_path = .y,
+                .distance_threshold = .distance_threshold,
+                .as_lines = FALSE
+              ),
+              .init = 
+                path_segments %>% 
+                filter(direction == "forward")
+            )
+        }
+      )
+  }
+
+## average two different paths --------------------------------------------
+
+average_different_paths <-
+  function(
+    .paths,
+    .target_name, 
+    .modifier_name,
+    .distance_threshold = 5
+  ) {
+    
+    if (st_is_longlat(.paths)) {
+      cli::cli_abort(
+        "Unprojected data detected: 
+        please transform your data to a projected CRS with {.fn st_transform}" 
+      )
+    }
+    
+    .paths %>%
+      filter(name != .target_name) %>%
+      bind_rows(
+        average_paths(
+          .target_path =
+            .paths %>% 
+            filter(name == .target_name) %>% 
+            convert_line_to_points(), 
+          .modifier_path =
+            .paths %>% 
+            filter(name == .modifier_name) %>% 
+            convert_line_to_points(),
+          .distance_threshold = 5,
+          .as_lines = .as_lines
+        ) %>% 
+          convert_points_to_lines(.by = name)
+      ) %>% 
+      arrange(name)
+  }
+
+## paths to branches ------------------------------------------------------
+
+# Make separate paths from potential branches:
+
+get_branches <-
+  function(
+    .target_line,
+    .reference_line,
+    .branch_distance = 2,
+    .n_vertices = 10
+  ) {
+    
+    target_line_pts <- convert_line_to_points(.target_line)
+    reference_line_pts <- convert_line_to_points(.reference_line)
+    
+    branched_path <-
+      target_line_pts %>%
+      mutate(
+        
+        # Get the nearest point from the reference path and its distance:
+        
+        nearest_geom = 
+          get_nearest_geometry(., reference_line_pts) %>% 
+          st_geometry(),
+        dist = st_distance_m(geometry, nearest_geom),
+        
+        # Define a point as a potential branch if it is .branch_distance meters
+        # from the reference path:
+        
+        branch_pt = dist > .branch_distance,
+        
+        # Define groups based on state change
+        
+        new_branch = 
+          if_else(
+            branch_pt &
+              !lag(
+                branch_pt, 
+                default = first(branch_pt)
+              ),
+            1,
+            0
+          ),
+        
+        # Add potential branch ids based on consecutive branch points:
+        
+        branch_id = 
+          str_c(
+            "branch_", 
+            cumsum(new_branch) + 1
+          )
+      ) %>% 
+      
+      # Subset to branches:
+      
+      filter(branch_pt) %>% 
+      
+      # To be defined as a branch, there must be at least .n_vertices
+      # consecutive branch vertices (doesn't apply here, but it could in the
+      # future):
+      
+      filter(
+        n() > .n_vertices,
+        .by = branch_id
+      ) %>% 
+      
+      # Remove unnecessary columns:
+      
+      select(branch_id)
+    
+    if (nrow(branched_path) == 0){
+      cli::cli_inform("No branches found!")
+    } else {
+      
+      cli::cli_inform(
+        "Path divided into {length(unique(branched_path$branch_id))} branches!"
+      )
+      
+      # Split into a list of branches:
+      
+      branched_path %>% 
+        rename(name = branch_id) %>% 
+        split(.$name) %>% 
+        
+        # And make into a line:
+        
+        map(
+          ~ .x %>% 
+            summarize(
+              do_union = FALSE,
+              .by = name
+            ) %>% 
+            st_cast("LINESTRING") %>% 
+            st_as_sf()
+        )
+    }
+  } 
+
+## snap path vertices -----------------------------------------------------
+
+# Snap the beginning and end of a path to another path:
+
+snap_paths <-
+  function(
+    .target_line,
+    .reference_line,
+    .tolerance = 5,
+    .first = FALSE,
+    .last = FALSE
+  ) {
+    
+    # Convert the target and reference lines to points, if necessary:
+    
+    target_line <- convert_line_to_points(.target_line)
+    reference_line <- convert_line_to_points(.reference_line)
+    
+    # Define the start and end points of the lines:
+    
+    line_start <- slice_head(target_line)
+    line_end <- slice_tail(target_line)
+    
+    # Connect the starting point if the start is the connection:
+    
+    if(.first) {
+      nearest_geom <- get_nearest_geometry(line_start, reference_line)
+      if (
+        st_distance_m(line_start, nearest_geom) > .tolerance
+      ) {
+        cli::cli_inform(
+          "No points in {.arg .reference_line} were within 
+          {.arg .tolerance = {(.tolerance)}} meters of the first point in the
+          line, you may want to increase {.arg .tolerance}")
+      } else {
+        target_line <- 
+          nearest_geom %>% 
+          bind_rows(nearest_geom, target_line)
+      }
+    }
+    
+    # Connect the ending point if the end is the connection:
+    
+    if(.last) {
+      nearest_geom <- get_nearest_geometry(line_end, reference_line)
+      if (
+        st_distance_m(line_end, nearest_geom) > .tolerance
+      ) {
+        cli::cli_inform(
+          "No points in {.arg .reference_line} were within 
+          {.arg .tolerance = {(.tolerance)}} meters of the last point in the
+          line, you may want to adjust {.arg .tolerance}")
+      } else {
+        target_line <- bind_rows(target_line, nearest_geom)
+      }
+    }
+    
+    # Make into a LINESTRING:
+    
+    target_line %>% 
+      mutate(name = line_start$name) %>% 
+      convert_points_to_lines(.by = name)
   }
 
