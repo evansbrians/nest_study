@@ -736,36 +736,24 @@ print_datasheets <-
 
 average_paths <-
   function(
-    .paths,
-    .target_name, 
-    .modifier_name,
-    .distance_threshold = 5,
-    .as_lines = TRUE
+    .target_path,
+    .modifier_path,
+    .distance_threshold = 5
   ) {
-    
-    if (st_is_longlat(.paths)) {
-      cli::cli_abort(
-        "Unprojected data detected: 
-        please transform your data to a projected CRS with {.fn st_transform}" 
-      )
-    }
-    
-    averaged_path <-
-      .paths %>% 
-      filter(name == .target_name) %>% 
-      convert_line_to_points() %>% 
+    .target_path %>%
+      convert_line_to_points() %>%
       mutate(
         
         # Get the nearest vertex in the modifier path fir each vertex in the
         # target path:
         
-        nearest_geom = 
+        nearest_geom =
           get_nearest_geometry(
-            ., 
+            .,
             convert_line_to_points(
-              filter(.paths, name == .modifier_name)
+              filter(.modifier_path)
             )
-          ) %>% 
+          ) %>%
           st_geometry(),
         
         # Calculate the distance between the target and modifier vertices:
@@ -776,30 +764,24 @@ average_paths <-
         # (`.002`) vertex is greater than some threshold, just return the target
         # vertex, otherwise, average their locations:
         
-        geometry = 
+        geometry =
           list(
-            geometry, 
-            nearest_geom, 
+            geometry,
+            nearest_geom,
             dist
-          ) %>% 
+          ) %>%
           pmap(
             ~ if (..3 > .distance_threshold) {
-              ..1 
+              ..1
             } else {
               (..1 + ..2) / 2
             }
-          ) %>% 
+          ) %>%
           st_sfc(
             crs = st_crs(.target_path)
           )
       ) %>%
-      select(name) %>% 
-      convert_points_to_lines(., .by = name)
-    
-    .paths %>% 
-      filter(name != .target_name) %>% 
-      bind_rows(averaged_path) %>% 
-      arrange(name)
+      select(name)
   }
 
 ## detect a turnaround ----------------------------------------------------
@@ -808,60 +790,57 @@ average_paths <-
 # detect that and split the data (it also accounts for GPS noise that might
 # generate false turnaround points):
 
-split_path_at_turnaround <- 
+split_paths_at_turnaround <-
   function(
-    .paths, 
+    .paths,
     .density = 1
   ) {
-    
-    if (st_is_longlat(.paths)) {
-      cli::cli_abort(
-        "Unprojected data detected: 
-        please transform your data to a projected CRS with {.fn st_transform}" 
-      )
-    }
     
     # Detect a turnaround as a point in which the distance from the
     # previous point is less than the distance between the previous point
     # and the next point:
     
-    .paths %>% 
+    .paths %>%
       convert_line_to_points(.density = .density) %>%
-      mutate(
-        
-        # Distance between the current and previous point:
-        
-        dist_to_previous = 
-          st_distance_m(
-            geometry,
-            lag(geometry)
-          ),
-        
-        # Distance between the previous point and the next point:
-        
-        dist_lag_lead = 
-          st_distance_m(
-            lag(geometry), 
-            lead(geometry)
-          ),
-        across(
-          dist_to_previous:dist_lag_lead,
-          ~ replace_na(.x, 0)
-        ),
-        
-        # Turnaround detection:
-        
-        turnaround = dist_lag_lead < dist_to_previous,
-        
-        # Assign individual paths based on the turnaround:
-        
-        path_id = cumsum(turnaround) + 1,
-        .by = name
-      ) %>% 
-      
-      # Subset columns:
-      
-      select(name, path_id)
+      split(.$name) %>%
+      map(
+        ~ .x %>%
+          mutate(
+            
+            # Distance between the current and previous point:
+            
+            dist_to_previous =
+              st_distance_m(
+                geometry,
+                lag(geometry)
+              ),
+            
+            # Distance between the previous point and the next point:
+            
+            dist_lag_lead =
+              st_distance_m(
+                lag(geometry),
+                lead(geometry)
+              ),
+            across(
+              dist_to_previous:dist_lag_lead,
+              ~ replace_na(.x, 0)
+            ),
+            
+            # Turnaround detection:
+            
+            turnaround = dist_lag_lead < dist_to_previous,
+            
+            # Assign individual paths based on the turnaround:
+            
+            path_id = cumsum(turnaround) + 1
+          ) %>%
+          
+          # Subset columns:
+          
+          select(name, path_id)
+      ) %>%
+      bind_rows()
   }
 
 ## average self overlapping paths -----------------------------------------
@@ -870,24 +849,23 @@ split_path_at_turnaround <-
 # important!), this will split the path into segments and calculate the average
 # path location using the forward moving path as the baseline:
 
-average_self_overlapping_paths <- 
+average_self_overlapping_paths <-
   function(
     .paths,
     .distance_threshold = 5,
     .density = 1
   ) {
-    
     if (st_is_longlat(.paths)) {
       cli::cli_abort(
-        "Unprojected data detected: 
-        please transform your data to a projected CRS with {.fn st_transform}" 
+        "Unprojected data detected: please transform your data to a projected 
+        CRS with {.fn st_transform}"
       )
     }
     
     # Segmented path based on turnarounds:
     
     segmented_paths <-
-      split_path_at_turnaround(.paths) %>% 
+      split_path_at_turnaround(.paths) %>%
       mutate(
         direction =
           if_else(
@@ -900,12 +878,11 @@ average_self_overlapping_paths <-
     
     # Process each path and average if a turnaround exists:
     
-    segmented_paths %>% 
-      pull(name) %>% 
-      unique() %>% 
+    segmented_paths %>%
+      pull(name) %>%
+      unique() %>%
       map(
         \(.path_name) {
-          
           path_segments <-
             segmented_paths %>%
             filter(name == .path_name)
@@ -913,10 +890,17 @@ average_self_overlapping_paths <-
           # Stop if only one segment is detected:
           
           if (n_distinct(path_segments$path_id) == 1) {
-            message("Only a single path was detected for", .path_name)
+            cli::cli_inform(
+              "Only a single path was detected for {(.path_name)}"
+            )
             return(
-              path_segments %>% 
+              path_segments %>%
                 convert_points_to_lines(.by = name)
+            )
+          } else {
+            cli::cli_inform(
+              "{n_distinct(path_segments$path_id)} segments averaged
+              for {(.path_name)}!"
             )
           }
           
@@ -927,9 +911,9 @@ average_self_overlapping_paths <-
           # Using the forward line as a reference, calculate the average between
           # the forward path and backward paths:
           
-          path_segments %>% 
-            filter(direction == "backward") %>% 
-            split(.$path_id) %>% 
+          path_segments %>%
+            filter(direction == "backward") %>%
+            split(.$path_id) %>%
             reduce(
               ~ average_paths(
                 .target_path = .x,
@@ -937,12 +921,14 @@ average_self_overlapping_paths <-
                 .distance_threshold = .distance_threshold,
                 .as_lines = FALSE
               ),
-              .init = 
-                path_segments %>% 
+              .init =
+                path_segments %>%
                 filter(direction == "forward")
             )
         }
-      )
+      ) %>% 
+      bind_rows() %>% 
+      convert_points_to_lines(.by = name)
   }
 
 ## average two different paths --------------------------------------------
@@ -950,35 +936,33 @@ average_self_overlapping_paths <-
 average_different_paths <-
   function(
     .paths,
-    .target_name, 
+    .target_name,
     .modifier_name,
     .distance_threshold = 5
   ) {
-    
     if (st_is_longlat(.paths)) {
       cli::cli_abort(
-        "Unprojected data detected: 
-        please transform your data to a projected CRS with {.fn st_transform}" 
+        "Unprojected data detected: please transform your data to a projected
+        CRS with {.fn st_transform}"
       )
     }
-    
     .paths %>%
       filter(name != .target_name) %>%
       bind_rows(
         average_paths(
           .target_path =
-            .paths %>% 
-            filter(name == .target_name) %>% 
-            convert_line_to_points(), 
+            .paths %>%
+            filter(name == .target_name) %>%
+            convert_line_to_points(),
           .modifier_path =
-            .paths %>% 
-            filter(name == .modifier_name) %>% 
+            .paths %>%
+            filter(name == .modifier_name) %>%
             convert_line_to_points(),
           .distance_threshold = 5,
           .as_lines = .as_lines
-        ) %>% 
+        ) %>%
           convert_points_to_lines(.by = name)
-      ) %>% 
+      ) %>%
       arrange(name)
   }
 
