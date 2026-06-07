@@ -123,7 +123,8 @@ basemap %>%
 
 paths_repaired <-
   paths_smooth %>% 
-  average_self_overlapping_paths()
+  average_self_overlapping_paths() %>% 
+  bind_rows()
 
 # Have a look:
 
@@ -178,7 +179,9 @@ basemap %>%
 
 coyote_path_3_branches <-
   get_branches(
-    .target_line = coyote_path_3,
+    .target_line =
+      paths_averaged %>% 
+      filter(name == "coyote_path_3"),
     .reference_line = 
       paths_averaged %>% 
       filter(name == "coyote_path_1"), 
@@ -239,9 +242,11 @@ coyote_branch_2 <-
   )
 
 coyote_branch_3 <-
-  coyote_path_2 %>% 
   snap_paths(
-    filter(paths_averaged, name != "coyote_path_2"),
+    .target_line = 
+      filter(paths_averaged, name == "coyote_path_2"),
+    .reference_line =
+      filter(paths_averaged, name != "coyote_path_2"),
     .first = TRUE,
     .last = TRUE,
     .tolerance = 20
@@ -282,7 +287,8 @@ basemap %>%
   ) %>% 
   addPolylines(
     data =
-      coyote_path_1_new %>%
+      paths_averaged %>%
+      filter(name == "coyote_path_1") %>% 
       st_transform(4326),
     weight = 3,
     opacity = 0.7,
