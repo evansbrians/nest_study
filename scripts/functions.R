@@ -865,7 +865,7 @@ average_self_overlapping_paths <-
     # Segmented path based on turnarounds:
     
     segmented_paths <-
-      split_path_at_turnaround(.paths) %>%
+      split_paths_at_turnaround(.paths) %>%
       mutate(
         direction =
           if_else(
@@ -918,8 +918,7 @@ average_self_overlapping_paths <-
               ~ average_paths(
                 .target_path = .x,
                 .modifier_path = .y,
-                .distance_threshold = .distance_threshold,
-                .as_lines = FALSE
+                .distance_threshold = .distance_threshold
               ),
               .init =
                 path_segments %>%
@@ -958,8 +957,7 @@ average_different_paths <-
             .paths %>%
             filter(name == .modifier_name) %>%
             convert_line_to_points(),
-          .distance_threshold = 5,
-          .as_lines = .as_lines
+          .distance_threshold = 5
         ) %>%
           convert_points_to_lines(.by = name)
       ) %>%
