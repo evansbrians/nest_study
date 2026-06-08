@@ -115,5 +115,50 @@ body:has(.field-map-container) main.content {
   display: block;
 }
 
+/* For the nest page, you can toggle between a view of all nests or a view of
+the nests associated with a given patch */
+
+.patch-accordion {
+  background-color: #d9ead3;
+  font-size: 1.2em;
+}
+
+.patch-accordion.active,
+.patch-accordion:hover {
+  background-color: #93c47d;
+  color: #ffffff;
+}
+
+.nest-accordion-group {
+  margin-left: 1em;
+  margin-top: 0.5em;
+}
+
+.patch-panel {
+  padding: 0.5em 0.75em;
+}
+
+.nest-view-toggle {
+  display: flex;
+  gap: 0.5em;
+  margin-bottom: 1em;
+}
+
+.nest-view-button {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 1.1em;
+  padding: 0.6em 1em;
+  border: 2px solid #80b3ff;
+  background-color: #ffffff;
+  color: #000000;
+  cursor: pointer;
+}
+
+.nest-view-button.active,
+.nest-view-button:hover {
+  background-color: #80b3ff;
+  color: #ffffff;
+  font-weight: bold;
+}
 
 

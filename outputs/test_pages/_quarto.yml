@@ -5,6 +5,7 @@ project:
   resources:
     - scripts/accordion.js
     - scripts/map_tracking.js
+    - scripts/nest_view_toggle.js
 
 website:
   title: "**Snedgen Nest Study**"

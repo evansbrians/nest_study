@@ -1,75 +1,22 @@
-// I've extended and made our accordion more flexible to account for our two 
-// different use cases -- all closed by default, or open to today for the daily
-// scheduling app.
-
-// Event listener ensures that all content has been loaded onto the webpage 
-// before initiating a search for accordion buttons or panels:
+// Flexible accordion script.
+// Supports:
+// 1) all panels closed by default
+// 2) optional opening of today's panel for schedule accordions
 
 document.addEventListener("DOMContentLoaded", function() {
   
-  // Find each accordion group on the page. A page can have one or more
-  // accordion group:
+  // Find each accordion group on the page.
+  // A page can have one or more accordion groups.
 
   var groups = document.querySelectorAll(".accordion-group");
   
-  // Looping through each accordion group separately allows each group to have
-  // different behaviors:
-  
+  // Set up each accordion group separately.
+
   groups.forEach(function(group) {
-    
-    // Get all of the accordion buttons in a group:
-    
-    var acc = group.getElementsByClassName("accordion");
-    
-    // Define each accordion button:
+    setupAccordionGroup(group);
 
-    for (var i = 0; i < acc.length; i++) {
-      
-      // A button can be active or inactive. Make sure all buttons are inactive
-      // by default:
-      
-      acc[i].classList.remove("active");
-      
-      // Find the panel associated with the accordion button. This assumes that
-      // the panel is the next element after the button:
-
-      var panel = acc[i].nextElementSibling;
-      
-      // Panels are closed by default:
-
-      if (panel && panel.classList.contains("panel")) {
-        panel.style.display = "none";
-      }
-      
-      // Listen for inputs, such as mouse clicks or finger taps, to activate a
-      // panel:
-
-      acc[i].addEventListener("click", function() {
-        this.classList.toggle("active");
-        
-        // Find the panel after the clicked button:
-
-        var panel = this.nextElementSibling;
-        
-        // Stop if there is no panel after the accordion button:
-
-        if (!panel || !panel.classList.contains("panel")) return;
-        
-        // Clicking a button for an open panel closes it:
-
-        if (panel.style.display === "block") {
-          panel.style.display = "none";
-          
-        // Clicking a button for a closed panel opens it:
-          
-        } else {
-          panel.style.display = "block";
-        }
-      });
-    }
-    
-    // Optional behavior for an accordion associated with a daily schedule:
-    // open today's date by default.
+    // Optional behavior:
+    // If the group has data-open-today="true", open today's panel.
 
     if (group.dataset.openToday === "true") {
       openTodayPanel(group);
@@ -77,56 +24,92 @@ document.addEventListener("DOMContentLoaded", function() {
   });
 });
 
-// Get the local date in ISO 8601 format, while accounting for local time zone.
-// This returns a string like "2026-06-08".
+
+function setupAccordionGroup(group) {
+  
+  // Get only the direct accordion buttons in this group.
+  // This is important for nested accordions, because it prevents
+  // nested nest-level accordions from being initialized as if they
+  // were top-level patch accordions.
+
+  var acc = group.querySelectorAll(":scope > .accordion");
+
+  // Set up each accordion button.
+
+  for (var i = 0; i < acc.length; i++) {
+    
+    // Make sure the button starts inactive.
+
+    acc[i].classList.remove("active");
+    
+    // Find the panel immediately after the button.
+
+    var panel = acc[i].nextElementSibling;
+    
+    // Close panels by default.
+
+    if (panel && panel.classList.contains("panel")) {
+      panel.style.display = "none";
+    }
+    
+    // Add click/tap behavior.
+
+    acc[i].addEventListener("click", function() {
+      this.classList.toggle("active");
+      
+      // Find the panel after the clicked button.
+
+      var panel = this.nextElementSibling;
+      
+      // Stop if the expected panel is not present.
+
+      if (!panel || !panel.classList.contains("panel")) return;
+      
+      // Toggle open/closed.
+
+      if (panel.style.display === "block") {
+        panel.style.display = "none";
+      } else {
+        panel.style.display = "block";
+      }
+    });
+  }
+}
+
+
+// Get the local date in ISO 8601 format.
+// Example: "2026-06-08"
 
 function getLocalDateString() {
-  
-  // Get date information:
-  
   var today = new Date();
   var year = today.getFullYear();
   var month = String(today.getMonth() + 1).padStart(2, "0");
   var day = String(today.getDate()).padStart(2, "0");
-  
-  // Combine year, month, and day:
-  
+
   return year + "-" + month + "-" + day;
 }
 
-// Open the panel associated with today's date.
 
-function openTodayPanel(container) {
+// Open the panel associated with today's date.
+// This requires accordion buttons to have data-date="YYYY-MM-DD".
+
+function openTodayPanel(group) {
   
-  // Variable definitions:
-  
-  var acc = container.getElementsByClassName("accordion");
+  // Again, use only direct accordion children of this group.
+
+  var acc = group.querySelectorAll(":scope > .accordion");
   var today = getLocalDateString();
   
-  // Loop through the accordion buttons in this group and find the first one
-  // whose data-date attribute matches today's date:
-
   for (var i = 0; i < acc.length; i++) {
     
-    // If the button date is today:
-    
     if (acc[i].dataset.date === today) {
-      
-      // Define the button as active:
-      
       acc[i].classList.add("active");
       
-      // Define the panel for today:
-      
       var panel = acc[i].nextElementSibling;
-      
-      // Open the panel:
 
       if (panel && panel.classList.contains("panel")) {
         panel.style.display = "block";
       }
-      
-      // Stop after the first matching panel:
 
       break;
     }

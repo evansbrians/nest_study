@@ -1,21 +1,60 @@
 ---
 title: "Nest info"
+format:
+  html:
+    include-after-body:
+      text: |
+        <script src="scripts/accordion.js"></script>
+        <script src="scripts/nest_view_toggle.js"></script>
 ---
 
 ```{r setup}
+#| message: false
+#| include: false
 
 library(glue)
+library(leaflet)
+library(sf)
 library(tidyverse)
 
-# Nest data ---------------------------------------------------------------
+source(
+  here::here("scripts/functions.R")
+)
+
+# custom functions --------------------------------------------------------
+
+# Helper function for a nest accordian:
+
+make_nest_accordion <-
+  function(.x) {
+    glue_data(
+      .x,
+      "
+<button class='accordion'><strong>Nest ID: {nest_id}</strong> (Species : {species})
+</button>
+
+<div class='panel'>
+
+* **Patch**: {patch_id}
+* **Plant species**: {substrate}
+* **Height**: {height}
+* **Location description**: {location_description}
+* **Discovered on**: {discovery_date}
+* **Last checked on**: {last_check}
+* **Current status**: {last_status}
+
+</div>
+
+"
+    )
+  }
+
+# nest data ---------------------------------------------------------------
 
 nests_start <-
   here::here("data/field_data.rds") %>% 
   read_rds() %>% 
-  pluck("nests")
-
-nest_list <-
-  nests_start %>% 
+  pluck("nests") %>% 
   unnest(interval_data) %>% 
   summarize(
     last_check = last(date), 
@@ -34,9 +73,121 @@ nest_list <-
       where(is.character),
       ~ replace_na(.x, "Unknown")
     )
-  ) %>% 
+  ) 
+
+nest_list <-
+  nests_start %>% 
   split(.$nest_id) %>% 
+  
+  # I figured you would want to see it in the order of most recent to earliest:
+  
   rev()
+
+patch_list <-
+  nests_start %>% 
+  split(.$patch_id)
+
+# spatial data ---------------------------------------------------------------
+
+# I haven't added any spatial features yet, but it's for the future ...
+
+list.files(
+  here::here("data/spatial"),
+  pattern = "geojson",
+  full.names = TRUE
+) %>%
+  set_names_from_path() %>%
+  set_names(
+    names(.) %>% 
+      str_remove("_locations") %>% 
+      str_replace("(?<!s)$", "s")
+  ) %>% 
+  map(
+    ~ st_read(.x, quiet = TRUE) %>%
+      st_transform(4326) %>% 
+      
+      # Add icon ids:
+      
+      mutate(
+        icon_id = 
+          case_when(
+            str_detect(name, "cb|cam") ~ 
+              str_extract(name, "(cb|cam)_[0-6]$"),
+            str_detect(name, "^N") ~ "nest",
+            str_detect(name, "^point") ~ "pc",
+            .default = "patch"
+          ),
+        .after = name
+      )
+  ) %>% 
+  list2env(.GlobalEnv)
+
+# Icons:
+
+icons <-
+  list.files(
+    here::here("icons/map_icons"), 
+    full.names = TRUE
+  ) %>% 
+  set_names_from_path() %>% 
+  map(
+    ~ makeIcon(
+      iconUrl = base64enc::dataURI(file = .x, mime = "image/png"),
+      iconWidth = 26,
+      iconHeight = 26,
+      iconAnchorX = 13,
+      iconAnchorY = 26
+    )
+  ) %>% 
+  do.call(iconList, .)
+
+# nest status -------------------------------------------------------------
+
+# Read and process nest data for map:
+
+nests_coded <- 
+  read_rds(
+    here::here("data/field_data.rds")
+  ) %>% 
+  pluck("nests") %>% 
+  unnest(interval_data) %>% 
+  mutate(
+    nest_id, 
+    patch_id, 
+    nest_fate, 
+    date = as_date(date),
+    across(
+      host_eggs:host_young,
+      ~ as.numeric(.x)
+    ),
+    .keep = "none"
+  ) %>% 
+  slice_max(date, by = nest_id) %>% 
+  mutate(
+    name = nest_id,
+    icon_id = 
+      case_when(
+        nest_fate %in% c("Success", "Failure") ~ "nest_old",
+        host_eggs == 0 & 
+          host_young == 0 ~  "nest_building",
+        is.na(host_eggs) & is.na(host_young) ~ "nest_unknown",
+        .default = "nest_active"
+      ),
+    .keep = "none"
+  ) %>% 
+  left_join(
+    select(nests, !icon_id),
+    .,
+    by = "name"
+  ) %>% 
+  filter(name != "N031")
+
+# Simplify path lines
+
+paths <-
+  tracks %>% 
+  rmapshaper::ms_simplify(keep = 0.20)
+
 ```
 
 ```{r mapping, eval = FALSE}
@@ -88,36 +239,70 @@ map <-
   ) 
 ```
 
-<div class="accordion-group" data-open-today="true">
+
+<div class="nest-view-toggle">
+  <button class="nest-view-button active" data-view="all">All nests</button>
+  <button class="nest-view-button" data-view="patch">By patch</button>
+</div>
+
 
 ```{r output}
 #| output: asis
 
+# all-nests view ----------------------------------------------------------
+
+cat('<div id="nest-view-all" class="nest-view">\n')
+cat('<div class="accordion-group">\n')
+
 nest_list %>% 
   walk(
-    ~ glue_data(
-    .x,
-    "
-<button class='accordion'><strong>Nest ID: {nest_id}</strong> (Species : {species})
-</button>
-
-<div class='panel'>
-
-* **Patch**: {patch_id}
-* **Plant species**: {substrate}
-* **Height**: {height}
-* **Location description**: {location_description}
-* **Discovered on**: {discovery_date}
-* **Last checked on**: {last_check}
-* **Current status**: {last_status}
-
-</div>
-
-"
-) %>% 
-  cat()
+    ~ make_nest_accordion(.x) %>% 
+      cat()
   )
 
-```
+cat('</div>\n')
+cat('</div>\n')
 
+# by-patch view (accordion of accordions) ---------------------------------
+
+cat('<div id="nest-view-patch" class="nest-view" style="display: none;">\n')
+cat('<div class="accordion-group patch-accordion-group">\n')
+
+patch_list %>% 
+  iwalk(
+    ~ {
+      patch_name <- .y
+      patch_nests <- .x
+
+      cat(
+        glue(
+          "
+<button class='accordion patch-accordion'>
+  <strong>Patch: {patch_name}</strong> ({nrow(patch_nests)} nests)
+</button>
+
+<div class='panel patch-panel'>
+
+<div class='accordion-group nest-accordion-group'>
+"
+        )
+      )
+
+      patch_nests %>% 
+        split(.$nest_id) %>% 
+        walk(
+          ~ make_nest_accordion(.x) %>% 
+            cat()
+        )
+
+      cat("
 </div>
+</div>
+")
+    }
+  )
+
+cat('</div>\n')
+cat('</div>\n')
+
+```
