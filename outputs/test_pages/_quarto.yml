@@ -17,6 +17,7 @@ website:
         contents:
           - schedule.qmd
           - species_info.qmd
+          - field_map.qmd
 
 format:
   html:

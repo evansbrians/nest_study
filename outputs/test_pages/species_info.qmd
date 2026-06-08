@@ -1,5 +1,5 @@
 ---
-title: species_info
+title: Species info
 ---
 
 ```{r}
