@@ -1,0 +1,29 @@
+project:
+  type: website
+  output-dir: docs
+
+website:
+  title: "Snedgen Nest Research"
+  navbar:
+    left:
+      - text: "Home"
+        file: index.qmd
+  sidebar:
+    style: docked
+    search: true
+    contents:
+      - index.qmd
+      - section: "Main pages"
+        contents:
+          - schedule.qmd
+          - species_info.qmd
+
+format:
+  html:
+    theme: cosmo
+    toc: false
+    
+execute:
+  echo: false
+  warning: false
+  message: false
