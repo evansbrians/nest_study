@@ -2,9 +2,13 @@ project:
   type: website
   output-dir: docs
   post-render: scripts/make_field_map.R
+  resources:
+    - scripts/accordion.js
+    - scripts/map_tracking.js
 
 website:
-  title: "Snedgen Nest Study"
+  title: "**Snedgen Nest Study**"
+  search: false
   navbar:
     left:
       - text: "Schedule"
@@ -21,6 +25,9 @@ format:
     theme: cosmo
     toc: false
     css: my_style.css
+    include-after-body:
+      text: |
+        <script src="scripts/accordion.js"></script>
 
 execute:
   echo: false

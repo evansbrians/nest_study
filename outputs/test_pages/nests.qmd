@@ -1,6 +1,5 @@
 ---
 title: "Nest info"
-toc: false
 ---
 
 ```{r setup}
@@ -36,7 +35,8 @@ nest_list <-
       ~ replace_na(.x, "Unknown")
     )
   ) %>% 
-  split(.$nest_id)
+  split(.$nest_id) %>% 
+  rev()
 ```
 
 ```{r mapping, eval = FALSE}
@@ -88,6 +88,8 @@ map <-
   ) 
 ```
 
+<div class="accordion-group" data-open-today="true">
+
 ```{r output}
 #| output: asis
 
@@ -118,20 +120,4 @@ nest_list %>%
 
 ```
 
-<script>
-var acc = document.getElementsByClassName("accordion");
-var i;
-
-for (i = 0; i < acc.length; i++) {
-  acc[i].addEventListener("click", function() {
-  this.classList.toggle("active");
-  var panel = this.nextElementSibling;
-  if (panel.style.display === "block") {
-    panel.style.display = "none";
-  } else {
-    panel.style.display = "block";
-  }
-  });
-}
-
-</script>
+</div>

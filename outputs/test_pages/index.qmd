@@ -1,9 +1,5 @@
 ---
 title: Schedule
-execute:
-  echo: false
-  warning: false
-  message: false
 ---
 
 ```{r}
@@ -262,7 +258,13 @@ nest_searching <-
 
 # Weekly schedule: `r pretty_date_range(schedule)`
 
-<button class="accordion">Monday `r day_level_data$Mon$date_pretty`</button>
+<div class="accordion-group" data-open-today="true">
+
+<button 
+  class="accordion"
+  data-date="`r day_level_data$Mon$date`">
+  Monday `r day_level_data$Mon$date_pretty`
+</button>
 
 ::: panel
 
@@ -307,7 +309,11 @@ Other to-dos:
 
 :::
 
-<button class="accordion">Tuesday `r day_level_data$Tue$date_pretty`</button>
+<button 
+  class="accordion"
+  data-date="`r day_level_data$Tue$date`">
+  Tuesday `r day_level_data$Tue$date_pretty`
+</button>
 
 ::: panel
 
@@ -347,7 +353,11 @@ nest_searching(
 
 :::
 
-<button class="accordion">Wednesday `r day_level_data$Wed$date_pretty`</button>
+<button 
+  class="accordion"
+  data-date="`r day_level_data$Wed$date`">
+  Wednesday `r day_level_data$Wed$date_pretty`
+</button>
 
 ::: panel
 
@@ -389,7 +399,11 @@ nest_searching(
 
 :::
 
-<button class="accordion">Thursday `r day_level_data$Thu$date_pretty`</button>
+<button 
+  class="accordion"
+  data-date="`r day_level_data$Thu$date`">
+  Thursday `r day_level_data$Thu$date_pretty`
+</button>
 
 ::: panel
 
@@ -433,7 +447,11 @@ nest_searching(
 
 :::
 
-<button class="accordion">Friday `r day_level_data$Fri$date_pretty`</button>
+<button 
+  class="accordion"
+  data-date="`r day_level_data$Fri$date`">
+  Friday `r day_level_data$Fri$date_pretty`
+</button>
 
 ::: panel
 
@@ -473,7 +491,11 @@ nest_searching(
 
 :::
 
-<button class="accordion">Saturday `r day_level_data$Sat$date_pretty`</button>
+<button 
+  class="accordion"
+  data-date="`r day_level_data$Sat$date`">
+  Saturday `r day_level_data$Sat$date_pretty`
+</button>
 
 ::: panel
 
@@ -515,35 +537,4 @@ nest_searching(
 
 :::
 
-<script>
-var acc = document.getElementsByClassName("accordion");
-var i;
-
-for (i = 0; i < acc.length; i++) {
-  acc[i].addEventListener("click", function() {
-  this.classList.toggle("active");
-  var panel = this.nextElementSibling;
-  if (panel.style.display === "block") {
-    panel.style.display = "none";
-  } else {
-    panel.style.display = "block";
-  }
-  });
-}
-
-// Expand the button for today's date by default:
-
-var today = new Date().toLocaleDateString('en-GB', {
- day: 'numeric',
- month: 'long'
-})
-
-for (i = 0; i < acc.length; i++) {
-  if (acc[i].textContent.includes(today)) {
-    acc[i].classList.add("active");
-    acc[i].nextElementSibling.style.display = "block";
-    break;
-  }
-}
-
-</script>
+</div>

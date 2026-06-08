@@ -36,6 +36,8 @@ my_kable_style <-
 
 # Species information
 
+<div class="accordion-group" data-open-today="true">
+
 <button class="accordion"> `r species_info$AGOL$common_name` (*`r species_info$AGOL$scientific_name`*)</button>
 
 ::: panel
@@ -83,23 +85,7 @@ species_info$AGOL %>%
 
 :::
 
-<script>
-var acc = document.getElementsByClassName("accordion");
-var i;
-
-for (i = 0; i < acc.length; i++) {
-  acc[i].addEventListener("click", function() {
-  this.classList.toggle("active");
-  var panel = this.nextElementSibling;
-  if (panel.style.display === "block") {
-    panel.style.display = "none";
-  } else {
-    panel.style.display = "block";
-  }
-  });
-}
-
-</script>
+</div>
 
 <!-- # For each species -->
 

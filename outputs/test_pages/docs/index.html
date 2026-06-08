@@ -26,10 +26,6 @@ ul.task-list li input[type="checkbox"] {
 <script src="site_libs/quarto-nav/quarto-nav.js"></script>
 <script src="site_libs/quarto-nav/headroom.min.js"></script>
 <script src="site_libs/clipboard/clipboard.min.js"></script>
-<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
-<script src="site_libs/quarto-search/fuse.min.js"></script>
-<script src="site_libs/quarto-search/quarto-search.js"></script>
-<meta name="quarto:offset" content="./">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
@@ -41,18 +37,6 @@ ul.task-list li input[type="checkbox"] {
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap-c1fac2584b48ed01fb6e278e36375074.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
-  "location": "navbar",
-  "copy-button": false,
-  "collapse-after": 3,
-  "panel-placement": "end",
-  "type": "overlay",
-  "limit": 50,
-  "keyboard-shortcut": [
-    "f",
-    "/",
-    "s"
-  ],
-  "show-item-context": false,
   "language": {
     "search-no-results-text": "No results",
     "search-matching-documents-text": "matching documents",
@@ -82,10 +66,9 @@ ul.task-list li input[type="checkbox"] {
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
     <a class="navbar-brand" href="./index.html">
-    <span class="navbar-title">Snedgen Nest Study</span>
+    <span class="navbar-title"><strong>Snedgen Nest Study</strong></span>
     </a>
   </div>
-            <div id="quarto-search" class="" title="Search"></div>
           <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
   <span class="navbar-toggler-icon"></span>
 </button>
@@ -143,7 +126,8 @@ ul.task-list li input[type="checkbox"] {
 
 <section id="weekly-schedule-8-13-june" class="level1">
 <h1>Weekly schedule: 8-13 June</h1>
-<button class="accordion">
+<div class="accordion-group" data-open-today="true">
+<button class="accordion" data-date="2026-06-08">
 Monday 08 Jun
 </button>
 <div class="panel">
@@ -241,7 +225,7 @@ Monday 08 Jun
 <li>Grab extra poles from grassland_a and the old forest_b.</li>
 </ul>
 </div>
-<button class="accordion">
+<button class="accordion" data-date="2026-06-09">
 Tuesday 09 Jun
 </button>
 <div class="panel">
@@ -342,7 +326,7 @@ Tuesday 09 Jun
 </div>
 </div>
 </div>
-<button class="accordion">
+<button class="accordion" data-date="2026-06-10">
 Wednesday 10 Jun
 </button>
 <div class="panel">
@@ -436,7 +420,7 @@ Wednesday 10 Jun
 </div>
 </div>
 </div>
-<button class="accordion">
+<button class="accordion" data-date="2026-06-11">
 Thursday 11 Jun
 </button>
 <div class="panel">
@@ -539,7 +523,7 @@ Thursday 11 Jun
 </div>
 <p><em>Note: There is an active nest right along the power line alley walkway at firehouse… be very careful when traversing through that area!</em></p>
 </div>
-<button class="accordion">
+<button class="accordion" data-date="2026-06-12">
 Friday 12 Jun
 </button>
 <div class="panel">
@@ -632,7 +616,7 @@ Friday 12 Jun
 </div>
 </div>
 </div>
-<button class="accordion">
+<button class="accordion" data-date="2026-06-13">
 Saturday 13 Jun
 </button>
 <div class="panel">
@@ -734,38 +718,7 @@ Saturday 13 Jun
 </div>
 <p><em>Note: There is an active nest in the Southern portion of grassland_b… be very careful when traversing (or macheteing) through that area!</em></p>
 </div>
-<script>
-var acc = document.getElementsByClassName("accordion");
-var i;
-
-for (i = 0; i < acc.length; i++) {
-  acc[i].addEventListener("click", function() {
-  this.classList.toggle("active");
-  var panel = this.nextElementSibling;
-  if (panel.style.display === "block") {
-    panel.style.display = "none";
-  } else {
-    panel.style.display = "block";
-  }
-  });
-}
-
-// Expand the button for today's date by default:
-
-var today = new Date().toLocaleDateString('en-GB', {
- day: 'numeric',
- month: 'long'
-})
-
-for (i = 0; i < acc.length; i++) {
-  if (acc[i].textContent.includes(today)) {
-    acc[i].classList.add("active");
-    acc[i].nextElementSibling.style.display = "block";
-    break;
-  }
-}
-
-</script>
+</div>
 
 
 </section>
@@ -1171,6 +1124,7 @@ for (i = 0; i < acc.length; i++) {
   });
   </script>
 </div> <!-- /content -->
+<script src="scripts/accordion.js"></script>
 
 
 
