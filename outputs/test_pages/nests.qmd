@@ -1,0 +1,137 @@
+---
+title: "Nest info"
+toc: false
+---
+
+```{r setup}
+
+library(glue)
+library(tidyverse)
+
+# Nest data ---------------------------------------------------------------
+
+nests_start <-
+  here::here("data/field_data.rds") %>% 
+  read_rds() %>% 
+  pluck("nests")
+
+nest_list <-
+  nests_start %>% 
+  unnest(interval_data) %>% 
+  summarize(
+    last_check = last(date), 
+    last_status = last(nest_status),
+    .by = 
+      c(
+        nest_id:patch_id, 
+        height,
+        substrate, 
+        location_description,
+        discovery_date
+      )
+  ) %>% 
+  mutate(
+    across(
+      where(is.character),
+      ~ replace_na(.x, "Unknown")
+    )
+  ) %>% 
+  split(.$nest_id)
+```
+
+```{r mapping, eval = FALSE}
+map <-
+  leaflet() %>%
+  
+  # Base tile layers:
+  
+  addProviderTiles(
+    providers$Esri.WorldImagery,
+    group = "Satellite",
+    options = tileOptions(maxZoom = 21)
+  ) %>%
+  addProviderTiles(
+    providers$OpenStreetMap,
+    group = "Street Map"
+  ) %>%
+  
+  # Patches drawn first so point layers render on top:
+  
+  addPolygons(
+    data = patches,
+    fillColor = "#ffffff",
+    fillOpacity = 0.2,
+    color = "#0000ff",
+    weight = 1.5,
+    opacity = 0.5,
+    popup = ~ name,
+    label = ~ name,
+    group = "Patches"
+  ) %>%
+  
+  addPolylines(
+    data = paths,
+    weight = 3,
+    opacity = 0.7,
+    dashArray = "2, 5",
+    color = "#ffff00"
+  ) %>% 
+  
+  # Nests
+  
+  addMarkers(
+    data = nests,
+    icon = ~ icons[icon_id],
+    popup = ~ name,
+    label = ~ name,
+    group = "Nests"
+  ) 
+```
+
+```{r output}
+#| output: asis
+
+nest_list %>% 
+  walk(
+    ~ glue_data(
+    .x,
+    "
+<button class='accordion'><strong>Nest ID: {nest_id}</strong> (Species : {species})
+</button>
+
+<div class='panel'>
+
+* **Patch**: {patch_id}
+* **Plant species**: {substrate}
+* **Height**: {height}
+* **Location description**: {location_description}
+* **Discovered on**: {discovery_date}
+* **Last checked on**: {last_check}
+* **Current status**: {last_status}
+
+</div>
+
+"
+) %>% 
+  cat()
+  )
+
+```
+
+<script>
+var acc = document.getElementsByClassName("accordion");
+var i;
+
+for (i = 0; i < acc.length; i++) {
+  acc[i].addEventListener("click", function() {
+  this.classList.toggle("active");
+  var panel = this.nextElementSibling;
+  if (panel.style.display === "block") {
+    panel.style.display = "none";
+  } else {
+    panel.style.display = "block";
+  }
+  });
+}
+
+</script>

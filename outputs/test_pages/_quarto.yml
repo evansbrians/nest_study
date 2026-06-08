@@ -13,6 +13,8 @@ website:
         file: species_info.qmd
       - text: "Field map"
         file: field_map.qmd
+      - text: "Nests"
+        file: nests.qmd
 
 format:
   html:
