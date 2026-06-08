@@ -42,6 +42,9 @@ vignettes/*.pdf
 # pkgdown site
 docs/
 
+!outputs/test_pages/docs/
+!outputs/test_pages/docs/**
+
 # translation temp files
 po/*~
 
