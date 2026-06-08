@@ -6,6 +6,7 @@ function(el, x) {
   var accuracyCircle = null;
   var headingMarker = null;
   var firstFix = true;
+  var maxAllowedAccuracy = 100;
 
   // location tracking ----------------------------------------------------
 
