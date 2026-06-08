@@ -1,28 +1,31 @@
 project:
   type: website
   output-dir: docs
+  post-render: scripts/make_field_map.R
 
 website:
   title: "Snedgen Nest Research"
-  navbar:
-    left:
-      - text: "Home"
-        file: index.qmd
+  # navbar:
+    #left:
+     # - text: "Schedule"
+      #  file: index.qmd
+      #- text: "Species info"
+       # file: species_info.qmd
+      #- text: "Field map"
+      #- file: field_map.qmd
   sidebar:
     style: docked
-    search: true
+    search: false
     contents:
       - index.qmd
-      - section: "Main pages"
-        contents:
-          - schedule.qmd
-          - species_info.qmd
-          - field_map.qmd
+      - species_info.qmd
+      - field_map.qmd
 
 format:
   html:
     theme: cosmo
     toc: false
+    css: my_style.css
     
 execute:
   echo: false

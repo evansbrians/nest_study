@@ -9,10 +9,12 @@ library(tidyverse)
 
 source("scripts/functions.R")
 
+root <-  here::here()
+
 # Spatial data:
 
 list.files(
-  "data/spatial",
+  here::here("data/spatial"),
   pattern = "geojson",
   full.names = TRUE
 ) %>%
@@ -45,7 +47,10 @@ list.files(
 # Icons:
 
 icons <-
-  list.files("icons/map_icons", full.names = TRUE) %>% 
+  list.files(
+    here::here("icons/map_icons"), 
+    full.names = TRUE
+  ) %>% 
   set_names_from_path() %>% 
   map(
     ~ makeIcon(
@@ -63,7 +68,9 @@ icons <-
 # Read and process nest data for map:
 
 nests_coded <- 
-  read_rds("data/field_data.rds") %>% 
+  read_rds(
+    here::here("data/field_data.rds")
+  ) %>% 
   pluck("nests") %>% 
   unnest(interval_data) %>% 
   mutate(
@@ -94,7 +101,8 @@ nests_coded <-
     select(nests, !icon_id),
     .,
     by = "name"
-  )
+  ) %>% 
+  filter(name != "N031")
 
 # Simplify path lines
 
@@ -233,21 +241,23 @@ map_tracking <-
 
 # save to HTML ------------------------------------------------------------
 
-saveWidget(
-  map_tracking,
-  file = "outputs/test_pages/docs/field_map/index.html",
-  selfcontained = FALSE,
-  title = "Nest Study Field Map"
+# Define output location:
+
+map_out <-
+  Sys.getenv("QUARTO_PROJECT_OUTPUT_DIR", unset = "docs") %>% 
+  file.path("field_map", "index.html")
+
+# Create the directory:
+
+dir.create(
+  dirname(map_out),
+  recursive = TRUE,
+  showWarnings = FALSE
 )
 
-# end session -------------------------------------------------------------
-
-# Update git:
-
-autopush_updates()
-
-# Clear global environment:
-
-rm(
-  list = ls()
+saveWidget(
+  map_tracking,
+  file = map_out,
+  selfcontained = FALSE,
+  title = "Nest Study Field Map"
 )

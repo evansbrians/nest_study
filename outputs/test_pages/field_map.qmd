@@ -1,13 +1,13 @@
 ---
 title: "Field map"
 toc: false
+page-layout: full
 ---
 
 ```{=html}
 <iframe 
-  src="field_map/" 
-  width="100%" 
-  height="850" 
+  src="field_map/index.html" 
+  class="field-map-frame" 
   style="border: none;"
   title="Nest Study Field Map">
 </iframe>
