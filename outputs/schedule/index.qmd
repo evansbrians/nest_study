@@ -413,10 +413,10 @@ pred_counts(.day = "Tue")
 ```{r}
 nest_searching(
   .day = "Tue",
-  .helper_patch_1 = "-",
-  .me_patch_1 = "-",
-  .helper_patch_2 = "-",
-  .me_patch_2 = "-",
+  .helper_patch_1 = "Search the Western section of the patch",
+  .me_patch_1 = "GPS the rest of the shrub line",
+  .helper_patch_2 = "Search the Northern section of the patch (near CB 2-3)",
+  .me_patch_2 = "Continue path from trailcam_1 to trailcam_0",
   
   # If schedule changes:
   
@@ -444,8 +444,6 @@ morning_times(.day = "Wed")
 
 **Point count times, coverboards, and nests to check**:
 
-*BSE: Machete a trail at firehouse that connects trailcam_1 and the northwest passage. There is a fence near trailcam_1 that can be navigated around, but bring boltcutters just in case.*
-
 ```{r}
 pred_counts(.day = "Wed")
 ```
@@ -455,7 +453,7 @@ pred_counts(.day = "Wed")
 ```{r}
 nest_searching(
   .day = "Wed",
-  .me_patch_1 = "-",
+  .me_patch_1 = "Machete-search from CB 5 to 4",
   .me_patch_2 = "-",
   
   # If schedule changes:
@@ -489,8 +487,6 @@ morning_times(.day = "Thu")
 ```{r}
 pred_counts(.day = "Thu")
 ```
-
-*Note: Install trailcam_2 at witch_hazel.*
 
 **Nest searching**: `r nest_searching_order(.day = "Thu")`
 
