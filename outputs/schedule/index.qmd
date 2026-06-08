@@ -49,7 +49,7 @@ schedule <-
     week ==
         week(
         today() + 1
-      ) - 19,
+      ) - 18,
   ) %>% 
   summarize(
     boards = 
@@ -128,7 +128,8 @@ morning_times <-
         align = 
           c("c", "c", "c")
       ) %>% 
-      my_kable_style()
+      my_kable_style() %>% 
+      column_spec(1:3, width = "14.5em")
   }
 
 # Format point counts and coverboards for a given day:
@@ -169,41 +170,71 @@ pred_counts <-
 # Nest searching order:
 
 nest_searching_order <-
-  function(.day) {
-    schedule_list %>%
-      pluck(.day) %>%
-      filter(patch_order != 1) %>%
-      arrange(
-        desc(patch_order)
-      ) %>%
-      pull(patch_count) %>%
-      str_flatten(collapse = " \u2192 ")
+  function(
+    .day,
+    .ordered = TRUE,
+    .patches
+  ) {
+    if(.ordered) {
+      schedule_list %>%
+        pluck(.day) %>%
+        filter(patch_order != 1) %>%
+        arrange(
+          desc(patch_order)
+        ) %>%
+        pull(patch_count) %>%
+        str_flatten(collapse = " \u2192 ")
+    } else {
+      .patches %>% 
+        str_flatten(collapse = " \u2192 ")
+    }
   }
+
+# Nest searching activity details:
 
 nest_searching <- 
   function(
     .day = "Tue",
+    .ordered = TRUE,
+    .helper,
+    .patches,
     .helper_patch_1 = "-",
     .me_patch_1 = "-",
     .helper_patch_2 = "-",
     .me_patch_2 = "-"
   ) {
-    start <- 
-      schedule_list %>% 
-      pluck(.day) %>% 
-      filter(patch_order != 1) %>% 
-      arrange(
-        desc(patch_order)
-      ) %>% 
-      select(helper, patch_count) %>% 
-      mutate(
-        patch_count =
-          factor(
-            patch_count,
-            levels = 
-              patch_count
-          )
-      )
+    if(.ordered) {
+      start <- 
+        schedule_list %>% 
+        pluck(.day) %>% 
+        filter(patch_order != 1) %>% 
+        arrange(
+          desc(patch_order)
+        ) %>% 
+        select(helper, patch_count) %>% 
+        mutate(
+          patch_count =
+            factor(
+              patch_count,
+              levels = 
+                patch_count
+            )
+        )
+    } else {
+      start <- 
+        tibble(
+          helper = .helper,
+          patch_count = .patches
+        ) %>% 
+        mutate(
+          patch_count =
+            factor(
+              patch_count,
+              levels = 
+                patch_count
+            )
+        )
+    }
     
     crossing(
       Patch = start$patch_count,
@@ -337,10 +368,23 @@ pred_counts(.day = "Mon")
 ```{r}
 nest_searching(
   .day = "Mon",
-  .me_patch_1 = "Continue path from trailcam_0 to the northwest passage",
-  .me_patch_2 = "Machete-search near coverboards 1 and 2"
+  .me_patch_1 = "Continue path down the Western edge; Create distributaries from the central N-S path",
+  .me_patch_2 = "Search near CB 1 and 2 -- carve paths where necessary",
+  
+  # If schedule changes:
+  
+  # .ordered = FALSE,
+  # .patches = c("", ""),
+  # .helper = "",
+  # .helper_patch_1 = "-",
+  # .helper_patch_2 = "-"
 )
 ```
+
+Other to-dos:
+
+* GPS the path at coyote from CB 4 to CB 5. 
+* Grab extra poles from grassland_a and the old forest_b.
 
 :::
 
@@ -369,10 +413,16 @@ pred_counts(.day = "Tue")
 ```{r}
 nest_searching(
   .day = "Tue",
-  .helper_patch_1 = "Search from board 5 to trailcam_1",
-  .me_patch_1  = "Machete-search from board 2 to 3",
-  .helper_patch_2 = "Search the Eastern half of the patch (machete optional)",
-  .me_patch_2 = "Machete-search the Western half of the patch"
+  .helper_patch_1 = "-",
+  .me_patch_1 = "-",
+  .helper_patch_2 = "-",
+  .me_patch_2 = "-",
+  
+  # If schedule changes:
+  
+  # .ordered = FALSE,
+  # .helper = "",
+  # .patches = c("", "")
 )
 ```
 
@@ -400,34 +450,22 @@ morning_times(.day = "Wed")
 pred_counts(.day = "Wed")
 ```
 
-**Nest searching**: forest_a &#8594; grassland_b
-<!-- `r nest_searching_order(.day = "Wed")` -->
+**Nest searching**: `r nest_searching_order(.day = "Wed")`
 
 ```{r}
-# nest_searching(
-#   .day = "Wed",
-  # .me_patch_1,
-  # .me_patch_2
-# )
-
-crossing(
-  Patch = c("forest_a", "grassland_b"),
-  Person = c("BSE", "TNS")
-) %>% 
-  mutate(
-    Activities = 
-      c(
-        "Hunt down the catbirds and cardinals in the central island; Hunt the towhee near coverboard 6; Scan the stretch from coverboard 5 to 4",
-        "Poison ivy island of coverboard 1; Scan the stretch from coverboard 4 to 5",
-        "Install additional trailcams; Scan the stretch from coverboard 5 to 2 (macheteing along the way); Hunt the towhee near coverboard 3",
-        "Install additional trailcams; Scan the stretch from trailcam_1 to coverboard 2 (macheteing along the way)"
-      )
-  ) %>% 
-  kable() %>% 
-  # my_kable_style() %>% 
-  collapse_rows(
-    columns = 1
-  )
+nest_searching(
+  .day = "Wed",
+  .me_patch_1 = "-",
+  .me_patch_2 = "-",
+  
+  # If schedule changes:
+  
+  # .ordered = FALSE,
+  # .patches = c("", ""),
+  # .helper = "",
+  # .helper_patch_1 = "-",
+  # .helper_patch_2 = "-"
+)
 ```
 
 :::
@@ -454,36 +492,22 @@ pred_counts(.day = "Thu")
 
 *Note: Install trailcam_2 at witch_hazel.*
 
-**Nest searching**: firehouse &#8594; coyote
-<!-- `r nest_searching_order(.day = "Thu")` -->
+**Nest searching**: `r nest_searching_order(.day = "Thu")`
 
 ```{r}
-# nest_searching(
-#   .day = "Thu",
-#   .helper_patch_1 = "Search the Western portion of the patch (near boards 1 and 2; machete optional)",
-#   .me_patch_1  = "Install trailcam_2; Search the Western portion of the patch",
-#   .helper_patch_2 = "Search the Northern half of the patch",
-#   .me_patch_2 = "Rough chop along the Western edge; Create distributaries of the path from trailcam_1 to the northwest passage"
-# )
-
-crossing(
-  Patch = c("firehouse", "coyote"),
-  Person = c("CMS", "TNS")
-) %>% 
-  mutate(
-    Activities = 
-      c(
-        "Search the Northern section of the patch (the area near trailcam_1 is thorny *gold*)",
-        "Rough chop along the Western edge; Create distributaries of the path from trailcam_1 to the northwest passage",
-        "SD card and batteries in trailcam 2; Explore areas around the machete network (machete optional)",
-        "SD card and batteries in trailcam 2; Re-GPS path from CB 4 to CB 5; Continue machete network"
-      )
-  ) %>% 
-  kable() %>% 
-  # my_kable_style() %>% 
-  collapse_rows(
-    columns = 1
-  )
+nest_searching(
+  .day = "Thu",
+  .helper_patch_1 = "-",
+  .me_patch_1 = "-",
+  .helper_patch_2 = "-",
+  .me_patch_2 = "-",
+  
+  # If schedule changes:
+  
+  # .ordered = FALSE,
+  # .helper = "",
+  # .patches = c("", "")
+)
 ```
 
 *Note: There is an active nest right along the power line alley walkway at firehouse... be very careful when traversing through that area!*
@@ -510,15 +534,21 @@ morning_times(.day = "Fri")
 pred_counts(.day = "Fri")
 ```
 
-*Note: GPS the fence line at forest_geo*
-
 **Nest searching**: `r nest_searching_order(.day = "Fri")`
 
 ```{r}
 nest_searching(
   .day = "Fri",
-  .me_patch_1 = "Continue path down the patch; investigate NOCA and EATO pairs seen between CB 1 and CB 2; Change batteries and SD cards in cams 1 and 2",
-  .me_patch_2 = "Continue path from CB 3 to CB 2; investigate NOCA activity between CB 4 and CB 5"
+  .me_patch_1 = "-",
+  .me_patch_2 = "-",
+  
+  # If schedule changes:
+  
+  # .ordered = FALSE,
+  # .patches = c("", ""),
+  # .helper = "",
+  # .helper_patch_1 = "-",
+  # .helper_patch_2 = "-"
 )
 ```
 
@@ -540,44 +570,26 @@ morning_times(.day = "Sat")
 
 **Point count times, coverboards, and nests to check**:
 
-*BSE: Machete a path from trailcam_1 to the trailcam_0 path in grassland_b_fence. A Brown thrasher and several NOCAs (one seen carrying nesting material on the trailcam images) hang around there a lot, so be on the lookout for nests!*
-
 ```{r}
 pred_counts(.day = "Sat")
 ```
 
-*Note: Before leaving for Catbird hunting, clear the area in front of trailcam_2 at grassland_b_fence.*
-
-**Nest searching**: grassland_b
-<!-- `r nest_searching_order(.day = "Sat")` -->
+**Nest searching**: `r nest_searching_order(.day = "Sat")`
 
 ```{r}
-# nest_searching(
-#   .day = "Sat",
-#   # .me_patch_1,
-#   # .helper_patch_1,
-#   .me_patch_2 = "Machete a path down the patch, starting from CB 1",
-#   .helper_patch_2 = "Machete a path up the patch, starting from the Southern patch boundary."
-# )
-
-crossing(
-  Patch = c("forest_geo", "grassland_b"),
-  Person = c("BSE", "TNS")
-) %>% 
-  mutate(
-    Activities = 
-      c(
-        "Catbird hunting! (Also clear the area in front of trailcam_1)",
-        "Catbird hunting! (Also clear the area in front of trailcam_1)",
-        "Machete a path up the patch, starting from the Southern patch boundary.",
-        "Machete a path down the patch, starting from CB 1"
-      )
-  ) %>% 
-  kable() %>% 
-  # my_kable_style() %>% 
-  collapse_rows(
-    columns = 1
-  )
+nest_searching(
+  .day = "Sat",
+  .helper_patch_1 = "-",
+  .me_patch_1 = "-",
+  .helper_patch_2 = "-",
+  .me_patch_2 = "-",
+  
+  # If schedule changes:
+  
+  # .ordered = FALSE,
+  # .helper = "",
+  # .patches = c("", "")
+)
 ```
 
 *Note: There is an active nest in the Southern portion of grassland_b... be very careful when traversing (or macheteing) through that area!*
