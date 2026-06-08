@@ -1,0 +1,85 @@
+
+/* Basic bread-and-butter */
+
+body {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 16px;
+}
+
+.summary_box {
+  margin-bottom: 1.5em;
+}
+
+.cell {
+  margin-top: 0em;
+  margin-bottom: 1em;
+}
+
+h1 {
+  font-size: 1.5rem;
+}
+
+h2 {
+  font-size: 1.15rem;
+}
+
+p {
+  margin-bottom: 0;
+}
+
+h1, h2 {
+  border-bottom: 1px solid #ccc;
+  padding-bottom: 0;
+  margin-bottom: 0.2em;
+}
+
+hr {
+  padding-top: 20px;
+  margin-top: 20px;
+}
+
+/* Accordion style */
+
+.accordion {
+  margin-top: 4px;
+  background-color: #e6f0ff;
+  color: #000000;
+  cursor: pointer;
+  padding: 18px;
+  width: 100%;
+  border-style: solid;
+  border-width: 2px;
+  border-color: #ffffff;
+  text-align: left;
+  outline: none;
+  font-size: 1.15em;
+  transition: 0.4s;
+}
+
+/* When you hover your mouse over the accordion button, it changes color. */
+
+.active, .accordion:hover {
+  background-color: #80b3ff; 
+  color: #ffffff;
+  font-weight: bold;
+}
+
+/* This is where the content of the accordion is placed. */
+
+.panel {
+  padding: 4px 4px;
+  margin-top: 1em;
+  margin-bottom: 1em;
+  display: none;
+  background-color: #fff;
+  overflow: hidden;
+}
+
+/* Field map style -- fill frame */
+
+.field-map-frame {
+  width: 100vw;
+  height: calc(100vh - 60px);
+  border: none;
+  display: block;
+}
