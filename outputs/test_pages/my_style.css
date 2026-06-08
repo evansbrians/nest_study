@@ -83,3 +83,10 @@ hr {
   border: none;
   display: block;
 }
+
+.leaflet-control-zoom a {
+  width: 33px;
+  height: 33px;
+  line-height: 33px;
+  font-size: 23px;
+}

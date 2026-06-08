@@ -43,7 +43,7 @@ function(el, x) {
       headingMarker = L.marker(e.latlng, {
         icon: L.divIcon({
           html: '<svg class="heading-arrow" viewBox="0 0 40 40"' +
-            ' width="80" height="80" xmlns="http://www.w3.org/2000/svg">' +
+            ' width="60" height="60" xmlns="http://www.w3.org/2000/svg">' +
             '<g class="heading-group">' +
               '<polygon points="20,4 34,36 20,27 6,36"' +
                 ' fill="#136aec" stroke="white"' +
@@ -51,8 +51,8 @@ function(el, x) {
             '</g>' +
           '</svg>',
           className: '',
-          iconSize: [80, 80],
-          iconAnchor: [40, 40]
+          iconSize: [60, 60],
+          iconAnchor: [30, 30]
         }),
         interactive: false,
         zIndexOffset: 1000
