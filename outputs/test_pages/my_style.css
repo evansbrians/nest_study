@@ -68,7 +68,7 @@ hr {
 
 /* When you hover your mouse over the accordion button, it changes color. */
 
-.active, .accordion:hover {
+accordian.active, .accordion:hover {
   background-color: #80b3ff; 
   color: #ffffff;
   font-weight: bold;
