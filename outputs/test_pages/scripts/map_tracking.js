@@ -6,21 +6,31 @@ function(el, x) {
   var accuracyCircle = null;
   var headingMarker = null;
   var firstFix = true;
-  var maxAllowedAccuracy = 100;
+  // var maxAllowedAccuracy = 100;
 
   // location tracking ----------------------------------------------------
 
+  
+  
   map.locate({
     watch: true,
     enableHighAccuracy: true,
+    
+    /* Haven't gotten this to work yet:
+    
     maximumAge: 0,
     timeout: 15000
+    
+      */
   });
+
 
   map.on('locationfound', function(e) {
     
     // If the browser reports a low accuracy fix, don't move the marker -- this
     // should ensure that the marker will not be placed far away:
+    
+    /* Haven't gotten this to work yet:
     
     if (e.accuracy > maxAllowedAccuracy) {
       console.warn(
@@ -30,6 +40,8 @@ function(el, x) {
 
     return;
     }
+    
+    */
     
     if (firstFix) {
       map.setView(e.latlng, map.getZoom());
