@@ -1,6 +1,10 @@
 
 /* Basic bread-and-butter */
 
+.quarto-title-block {
+  display: none;
+}
+
 body {
   font-family: "Times New Roman", Times, serif;
   font-size: 16px;
@@ -36,6 +40,12 @@ h1, h2 {
 hr {
   padding-top: 20px;
   margin-top: 20px;
+}
+
+/* navbar */
+
+.navbar .navbar-nav .nav-link {
+  font-size: 1.5em;
 }
 
 /* Accordion style */
@@ -75,18 +85,35 @@ hr {
   overflow: hidden;
 }
 
-/* Field map style -- fill frame */
+/* Reduce default Quarto spacing on the field-map page */
+
+body:has(.field-map-container) #quarto-content {
+  padding: 0;
+}
+
+body:has(.field-map-container) main.content {
+  margin: 0;
+  padding: 0.25rem;
+  max-width: none;
+}
+
+/* Container around the iframe */
+
+.field-map-container {
+  width: 100%;
+  height: calc(100dvh - 0.5rem);
+  margin: 0;
+  padding: 0;
+}
+
+/* The map iframe itself */
 
 .field-map-frame {
-  width: 100vw;
-  height: calc(100vh - 60px);
+  width: 100%;
+  height: 100%;
   border: none;
   display: block;
 }
 
-.leaflet-control-zoom a {
-  width: 33px;
-  height: 33px;
-  line-height: 33px;
-  font-size: 23px;
-}
+
+

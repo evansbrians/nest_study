@@ -201,13 +201,16 @@ map <-
         "Point Counts",
         "Nests"
       ),
-    position = "bottomleft",
+    position = "topright",
     options = layersControlOptions(collapsed = TRUE)
   ) %>%
   
   # Scale bar for distance reference:
   
-  addScaleBar(position = "bottomright") %>% 
+  addScaleBar(
+    position = "bottomleft",
+    options = scaleBarOptions(imperial = FALSE)
+  ) %>% 
   
   # Hide points unless selected otherwise:
   

@@ -41,3 +41,18 @@
   padding: 4px 10px;
   border-width: 2px;
 }
+
+/* Bigger zoom button for my old-man fingers */
+
+.leaflet-touch .leaflet-control-zoom a {
+  width: 40px;
+  height: 40px;
+  line-height: 40px;
+  font-size: 35px;
+}
+
+/* Because you like Times */
+
+.leaflet-container {
+  font-family: "Times New Roman", Times, serif;
+}

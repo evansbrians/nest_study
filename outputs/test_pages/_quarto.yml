@@ -4,29 +4,22 @@ project:
   post-render: scripts/make_field_map.R
 
 website:
-  title: "Snedgen Nest Research"
-  # navbar:
-    #left:
-     # - text: "Schedule"
-      #  file: index.qmd
-      #- text: "Species info"
-       # file: species_info.qmd
-      #- text: "Field map"
-      #- file: field_map.qmd
-  sidebar:
-    style: docked
-    search: false
-    contents:
-      - index.qmd
-      - species_info.qmd
-      - field_map.qmd
+  title: "Snedgen Nest Study"
+  navbar:
+    left:
+      - text: "Schedule"
+        file: index.qmd
+      - text: "Species info"
+        file: species_info.qmd
+      - text: "Field map"
+        file: field_map.qmd
 
 format:
   html:
     theme: cosmo
     toc: false
     css: my_style.css
-    
+
 execute:
   echo: false
   warning: false
