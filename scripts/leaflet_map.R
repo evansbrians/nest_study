@@ -93,10 +93,13 @@ icons <-
   ) %>% 
   do.call(iconList, .)
 
-# Simplify path lines
+# Simplify path lines:
 
 paths <-
   tracks %>% 
+  filter(
+    !str_detect(name, "line")
+  ) %>% 
   rmapshaper::ms_simplify(keep = 0.20)
 
 # nest status -------------------------------------------------------------
