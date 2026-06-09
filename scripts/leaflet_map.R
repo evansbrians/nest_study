@@ -2,12 +2,39 @@
 
 # setup -------------------------------------------------------------------
 
+library(glue)
 library(leaflet)
 library(sf)
 library(htmlwidgets)
+library(htmltools)
 library(tidyverse)
 
 source("scripts/functions.R")
+
+# Function to make popup:
+
+make_nest_popup <-
+  function(.x) {
+    glue_data(
+      .x,
+      "
+      <div style='font-family: Times;'>
+      <h3><strong>{nest_id}</strong>. Species: {species}</h3>
+      <ul>
+      <li><strong>Patch</strong>: {patch_id}</li>
+      <li><strong>Plant species</strong>: {substrate}</li>
+      <li><strong>Height</strong>: {height}</li>
+      <li><strong>Location description</strong>: {location_description}</li>
+      <li><strong>Discovered on</strong>: {discovery_date}</li>
+      <li><strong>Last checked on</strong>: {last_check}</li>
+      <li><strong>Current status</strong>: {last_status}</li>
+      </ul>
+      </div>
+      "
+    )
+  }
+
+# data gathering and pre-processing ---------------------------------------
 
 # Spatial data:
 
@@ -42,6 +69,14 @@ list.files(
   ) %>% 
   list2env(.GlobalEnv)
 
+# Nest data:
+
+nests_start <-
+  here::here("data/field_data.rds") %>% 
+  read_rds() %>% 
+  pluck("nests") %>% 
+  unnest(interval_data)
+
 # Icons:
 
 icons <-
@@ -58,14 +93,54 @@ icons <-
   ) %>% 
   do.call(iconList, .)
 
+# Simplify path lines
+
+paths <-
+  tracks %>% 
+  rmapshaper::ms_simplify(keep = 0.20)
+
 # nest status -------------------------------------------------------------
 
 # Read and process nest data for map:
 
+# Nest popup:
+
+nest_popup <- 
+  nests_start %>% 
+  summarize(
+    last_check = last(date), 
+    last_status = last(nest_status),
+    .by = 
+      c(
+        nest_id:patch_id, 
+        height,
+        substrate, 
+        location_description,
+        discovery_date
+      )
+  ) %>% 
+  mutate(
+    across(
+      where(is.character),
+      ~ replace_na(.x, "Unknown")
+    )
+  ) %>% 
+  split(.$nest_id) %>% 
+  imap(
+    \(.x, .y) {
+      tibble(
+        nest_id = .y,
+        nest_popup = 
+          make_nest_popup(.x) %>% 
+          as.character() %>% 
+          htmltools::HTML()
+      )
+    }
+  ) %>% 
+  bind_rows()
+
 nests_coded <- 
-  read_rds("data/field_data.rds") %>% 
-  pluck("nests") %>% 
-  unnest(interval_data) %>% 
+  nests_start %>% 
   mutate(
     nest_id, 
     patch_id, 
@@ -94,13 +169,15 @@ nests_coded <-
     select(nests, !icon_id),
     .,
     by = "name"
+  ) %>% 
+  filter(name != "N031") %>% 
+  
+  # Add nest popup:
+  
+  left_join(
+    nest_popup,
+    by = join_by(name == nest_id)
   )
-
-# Simplify path lines
-
-paths <-
-  tracks %>% 
-  rmapshaper::ms_simplify(keep = 0.20)
 
 # build map ---------------------------------------------------------------
 
@@ -146,8 +223,7 @@ map <-
   addMarkers(
     data = nests_coded,
     icon = ~ icons[icon_id],
-    popup = ~ name,
-    label = ~ name,
+    popup = ~ nest_popup,
     group = "Nests"
   ) %>% 
   
