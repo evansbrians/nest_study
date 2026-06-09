@@ -1098,7 +1098,6 @@ snap_paths <-
           line, you may want to increase {.arg .tolerance}")
       } else {
         target_line <- 
-          nearest_geom %>% 
           bind_rows(nearest_geom, target_line)
       }
     }
