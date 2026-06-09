@@ -9,8 +9,10 @@ project:
 
 website:
   title: "**Snedgen Nest Study**"
+  favicon: images/nest_favicon.png
   search: false
   navbar:
+    logo: images/nest_navbar.png
     left:
       - text: "Schedule"
         file: index.qmd
