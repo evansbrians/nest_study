@@ -19,7 +19,7 @@ document.addEventListener("DOMContentLoaded", function() {
     
     // Get all of the accordion buttons in a group:
     
-    var acc = group.getElementsByClassName("accordion");
+    var acc = group.querySelectorAll(":scope > .accordion");
     
     // Define each accordion button:
 
@@ -100,7 +100,7 @@ function openTodayPanel(container) {
   
   // Variable definitions:
   
-  var acc = container.getElementsByClassName("accordion");
+  var acc = container.querySelectorAll(":scope > .accordion");
   var today = getLocalDateString();
   
   // Loop through the accordion buttons in this group and find the first one
