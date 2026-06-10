@@ -13,7 +13,7 @@ here("scripts/functions.R") %>%
   source()
 
 next_nest_checks <-
-  here("data", "temp_nest_checking.rds") %>% 
+  here("../", "data", "temp_nest_checking.rds") %>% 
   read_rds()
 
 next_pred_cam_maintenance <-
@@ -391,9 +391,9 @@ nest_searching(
   
   # .ordered = FALSE,
   # .patches = c("", ""),
-  # .helper = "",
-  # .helper_patch_1 = "-",
-  # .helper_patch_2 = "-"
+  .helper = "BSE",
+  .helper_patch_1 = "-",
+  .helper_patch_2 = "-"
 )
 ```
 

@@ -149,7 +149,7 @@ make_map <-
         )
     }
     
-    # Add the track for the forest_geo boundary line:
+    # Add the track for the forest_geo boundary line(s):
     
     if(.forest_geo_line) {
       out_map <-
@@ -157,7 +157,9 @@ make_map <-
         leaflet::addPolylines(
           data = 
             tracks %>% 
-            filter(name == "forest_geo_boundary_line"),
+            filter(
+              str_detect(name, "forest_geo.*(boundary|line)")
+            ),
           # radius = 3,
           weight = 2,
           opacity = 1,

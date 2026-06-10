@@ -434,7 +434,12 @@ nest_searching(
 
 ::: summary_box
 
-*Helper: `r unique(schedule_list$Wed$helper)`*
+*Helper: BSE*
+<!-- `r unique(schedule_list$Wed$helper)`* -->
+
+*Note: Transfer predator camera files during the commute*
+
+*BSE: Machete from CB 2 to CB 1 at grassland_a during morning sampling.*
 
 ```{r}
 morning_times(.day = "Wed")
@@ -453,16 +458,16 @@ pred_counts(.day = "Wed")
 ```{r}
 nest_searching(
   .day = "Wed",
-  .me_patch_1 = "Machete-search from CB 5 to 4",
-  .me_patch_2 = "-",
+  .me_patch_1 = "Machete-search from CB 5 towards CB 4; Concealment photo trial run",
+  .me_patch_2 = "Machete search near CB 6; Machete path from CB 6 to the Northern tip",
   
   # If schedule changes:
   
-  # .ordered = FALSE,
-  # .patches = c("", ""),
-  # .helper = "",
-  # .helper_patch_1 = "-",
-  # .helper_patch_2 = "-"
+  .ordered = FALSE,
+  .patches = c("forest_a", "leech"),
+  .helper = "BSE",
+  .helper_patch_1 = "Machete-search from CB 4 (and surrounding area) towards CB 5; Concealment photo trial run",
+  .helper_patch_2 = "Machete path down the entrance trail (from entrance to CB 4)"
 )
 ```
 
