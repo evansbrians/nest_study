@@ -471,6 +471,8 @@ nest_searching(
 )
 ```
 
+*Also install metal boxes on the Bushnell trailcams!*
+
 :::
 
 <button class="accordion">Thursday `r day_level_data$Thu$date_pretty`</button>
