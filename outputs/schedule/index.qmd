@@ -501,9 +501,9 @@ pred_counts(.day = "Thu")
 nest_searching(
   .day = "Thu",
   .helper_patch_1 = "-",
-  .me_patch_1 = "-",
-  .helper_patch_2 = "-",
-  .me_patch_2 = "-",
+  .me_patch_1 = "Finish path from the Northern section to CB 3; Create distributaries from the central N-S path",
+  .helper_patch_2 = "Explore new trail network, working your way towards the Western section of the patch",
+  .me_patch_2 = "Explore dense stuff along the Northern edge; Machete inlets",
   
   # If schedule changes:
   
@@ -513,7 +513,11 @@ nest_searching(
 )
 ```
 
-*Note: There is an active nest right along the power line alley walkway at firehouse... be very careful when traversing through that area!*
+*Notes: 
+
+* There is an active nest right along the power line alley walkway at firehouse... be very careful when traversing through that area!
+* At each nest, take a picture from further away and jot down a brief description of where the picture was taken and how to find the nest.
+* Install metal boxes at trailcam_0 in each patch
 
 :::
 
