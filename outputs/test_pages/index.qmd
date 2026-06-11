@@ -12,9 +12,31 @@ library(tidyverse)
 here("scripts/functions.R") %>% 
   source()
 
+# For indicating which nests require a selfie stick:
+
+high_nests <-
+  here("data", "field_data.rds") %>% 
+  read_rds() %>% 
+  pluck("nests") %>% 
+  filter(height > 2) %>% 
+  pull(nest_id) %>% 
+  str_c(collapse = "|") %>% 
+  str_c("(", ., ")")
+
 next_nest_checks <-
   here("data", "temp_nest_checking.rds") %>% 
-  read_rds()
+  read_rds() %>% 
+  
+  # Add emoji for selfie-stick nests:
+  
+  mutate(
+    check_nests = 
+      str_replace_all(
+        check_nests,
+        high_nests,
+        "\\1 \U1F992"
+      )
+  )
 
 next_pred_cam_maintenance <-
   here("data", "predator_camera_maintenance.rds") %>% 
@@ -41,7 +63,7 @@ schedule <-
     week ==
         week(
         today() + 1
-      ) - 18,
+      ) - 19,
   ) %>% 
   summarize(
     boards = 
@@ -117,6 +139,7 @@ morning_times <-
         "Sunrise" = sunrise
       ) %>% 
       kable(
+        format = "html",
         align = 
           c("c", "c", "c")
       ) %>% 
@@ -148,6 +171,7 @@ pred_counts <-
         `Predator cameras` = predator_cameras
       ) %>% 
       kable(
+        format = "html",
         align =
           c(
             "c",
@@ -248,7 +272,7 @@ nest_searching <-
       filter(
         Person != "-"
       ) %>% 
-      kable() %>% 
+      kable(format = "html") %>% 
       # my_kable_style() %>% 
       collapse_rows(
         columns = 1
