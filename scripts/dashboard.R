@@ -37,6 +37,16 @@ quarto::quarto_render("outputs/print-outs/schedule_pdf.qmd")
 source("scripts/functions.R")
 autopush_updates()
 
+
+# update the combined app (currently test_pages) --------------------------
+
+quarto::quarto_render(
+  input = "outputs/test_pages",
+  execute_dir = "outputs/test_pages"
+)
+
+autopush_updates()
+
 # update maps -------------------------------------------------------------
 
 # Google Earth:
