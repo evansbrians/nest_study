@@ -49,7 +49,7 @@ schedule <-
     week ==
         week(
         today() + 1
-      ) - 18,
+      ) - 19,
   ) %>% 
   summarize(
     boards = 
