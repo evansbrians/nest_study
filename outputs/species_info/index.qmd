@@ -80,6 +80,17 @@ my_kable_style <-
   background-color: #fff;
   overflow: hidden;
 }
+
+/* Image formatting */
+
+.image {
+  float: right; 
+  padding-left: 2em; 
+  padding-bottom: 2em; 
+  padding-right: 0em; 
+  width: 40%; 
+  height: auto;
+}
 ```
 
 # Species information
@@ -103,9 +114,9 @@ species_info$AGOL %>%
 
 ### Nest description
 
-`r species_info$AGOL$nest_description`
+![](images/agol_nest.jpg){.image}
 
-![](images/agol_nest.jpg){.intro_image}
+`r species_info$AGOL$nest_description`
 
 ### Egg description
 

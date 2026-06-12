@@ -481,7 +481,8 @@ nest_searching(
 
 ::: summary_box
 
-*Helper: `r unique(schedule_list$Fri$helper)`*
+*Helper: BSE*
+<!-- `r unique(schedule_list$Fri$helper)`* -->
 
 ```{r}
 morning_times(.day = "Fri")
@@ -495,23 +496,30 @@ morning_times(.day = "Fri")
 pred_counts(.day = "Fri")
 ```
 
+*BSE: Complete the circle at grassland_b during morning sampling. Then extend a path from the circle to the Southern end of the patch.*
+
 **Nest searching**: `r nest_searching_order(.day = "Fri")`
 
 ```{r}
 nest_searching(
   .day = "Fri",
-  .me_patch_1 = "-",
-  .me_patch_2 = "-",
+  .me_patch_1 = "Search the CB 6 end of the patch and create distributaries from the main path",
+  .me_patch_2 = "Continue path from the South end of the patch to the trailcam_0 trail; Create distributaries along the main paths",
   
   # If schedule changes:
   
-  # .ordered = FALSE,
-  # .patches = c("", ""),
-  # .helper = "",
-  # .helper_patch_1 = "-",
-  # .helper_patch_2 = "-"
+  .ordered = FALSE,
+  .patches = c("grassland_a", "grassland_b_fence"),
+  .helper = "BSE",
+  .helper_patch_1 = "Connector trail from CB 1 to the trailcam_1 path",
+  .helper_patch_2 = "Extend the main cross-path patch further NE (starting at the path that begins between CB 4 and 5)"
 )
 ```
+
+Notes:
+
+* At each nest, take a picture from further away and jot down a brief description of where the picture was taken and how to find the nest.
+* Install metal boxes at trailcam_0 in each patch
 
 :::
 
@@ -525,7 +533,8 @@ nest_searching(
 
 ::: summary_box
 
-*Helper: `r unique(schedule_list$Sat$helper)`*
+*Helper: -*
+<!-- `r unique(schedule_list$Sat$helper)`* -->
 
 ```{r}
 morning_times(.day = "Sat")
@@ -544,20 +553,20 @@ pred_counts(.day = "Sat")
 ```{r}
 nest_searching(
   .day = "Sat",
-  .helper_patch_1 = "-",
+  # .helper_patch_1 = "-",
   .me_patch_1 = "-",
-  .helper_patch_2 = "-",
+  # .helper_patch_2 = "-",
   .me_patch_2 = "-",
   
   # If schedule changes:
   
-  # .ordered = FALSE,
-  # .helper = "",
-  # .patches = c("", "")
+  .ordered = FALSE,
+  .helper = "-",
+  .patches = c("forest_a", "grassland_b")
 )
 ```
 
-*Note: There is an active nest in the Southern portion of grassland_b... be very careful when traversing (or macheteing) through that area!*
+*Note: There are two active nest in the Southern portion of grassland_b... be very careful when traversing (or macheteing) through that area!*
 
 :::
 
