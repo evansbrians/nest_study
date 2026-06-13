@@ -554,15 +554,15 @@ pred_counts(.day = "Sat")
 nest_searching(
   .day = "Sat",
   # .helper_patch_1 = "-",
-  .me_patch_1 = "-",
+  .me_patch_1 = "Pocket along entrace path",
   # .helper_patch_2 = "-",
-  .me_patch_2 = "-",
+  .me_patch_2 = "Line of trees at the Southern end of the patch",
   
   # If schedule changes:
   
   .ordered = FALSE,
   .helper = "-",
-  .patches = c("forest_a", "grassland_b")
+  .patches = c("leech", "grassland_b")
 )
 ```
 
