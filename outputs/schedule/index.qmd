@@ -20,6 +20,21 @@ library(tidyverse)
 here("scripts/functions.R") %>% 
   source()
 
+weather <- 
+  here("data/weather.rds") %>% 
+  read_rds() %>% 
+  mutate(
+    day = wday(start_time, label = TRUE),
+    .before = start_time
+  ) %>% 
+  select(
+    day,
+    temperature:hourly
+  ) %>% 
+  split(
+    pull(., day)
+  )
+
 high_nests <-
   here("data", "field_data.rds") %>% 
   read_rds() %>% 
@@ -57,7 +72,7 @@ next_pred_cam_maintenance <-
     .by = !camera_id
   )
 
-schedule <- 
+schedule <-
   here("data", "season_schedule.rds") %>% 
   read_rds() %>% 
   unnest(patch_counts) %>% 
@@ -66,7 +81,7 @@ schedule <-
     week ==
       week(
         today() + 1
-      ) - 19,
+      ) - 18,
   ) %>% 
   summarize(
     boards = 
@@ -82,11 +97,19 @@ schedule <-
     by = join_by(date, patch_count == patch)
   ) %>% 
   mutate(
-    departure_time = 
+    home_departure_time = 
       (
         hm(arrive) - minutes(45)
       ) %>% 
       hms::hms() %>% 
+      as.character() %>% 
+      str_remove(":00$"),
+    scbi_departure_time =
+      (
+        hm(arrive) + hours(9)
+      ) %>% 
+      period_to_seconds() %>% 
+      hms::as_hms() %>% 
       as.character() %>% 
       str_remove(":00$"),
     across(
@@ -137,9 +160,10 @@ morning_times <-
     schedule_list %>% 
       pluck(.day) %>% 
       distinct(
-        "Departure" = departure_time, 
+        "Home departure" = home_departure_time, 
         "Arrival" = arrive, 
-        "Sunrise" = sunrise
+        "Sunrise" = sunrise,
+        "SCBI departure" = scbi_departure_time
       ) %>% 
       kable(
         format = "html",
@@ -366,9 +390,9 @@ overflow: hidden;
 
 ::: panel
 
-::: summary_box
-
 *Helper: `r unique(schedule_list$Mon$helper)`*
+
+::: summary_box
 
 ```{r}
 morning_times(.day = "Mon")
@@ -387,7 +411,7 @@ pred_counts(.day = "Mon")
 ```{r}
 nest_searching(
   .day = "Mon",
-  .me_patch_1 = "Continue path down the Western edge; Create distributaries from the central N-S path",
+  .me_patch_1 = "Finish and GPS path from trailcam_2 to CB 3; Create distributaries from the central N-S path",
   .me_patch_2 = "Search near CB 1 and 2 -- carve paths where necessary",
   
   # If schedule changes:
@@ -400,10 +424,70 @@ nest_searching(
 )
 ```
 
-Other to-dos:
+<button class="accordion" style="font-size: 1em; font-weight: 500; padding: 5;">
 
-* GPS the path at coyote from CB 4 to CB 5. 
-* Grab extra poles from grassland_a and the old forest_b.
+**Weather**: `r weather$Mon$detailed_forecast`
+
+```{r}
+
+weather$Mon %>% 
+  mutate(
+    `High temperature` = temperature,
+    `Chance of rain` = 
+      probability_of_precipitation_percent %>% 
+      str_c("%"),
+    .keep = "none"
+  ) %>% 
+  kable(
+    format = "html",
+    align =
+      c(
+        "c",
+        "c"
+      )
+  ) %>% 
+  my_kable_style()
+
+```
+
+</button>
+
+::: panel
+
+```{r}
+
+weather$Mon %>% 
+  select(day, hourly) %>% 
+  unnest(hourly) %>% 
+  filter(
+    hour(start_time) >= 4,
+    hour(start_time) <= 17
+  ) %>% 
+  mutate(
+    Time = 
+      hms::as_hms(start_time) %>% 
+      as.character() %>% 
+      str_remove(":00$"),
+    Forecast = short_forecast,
+    Temperature = temperature,
+    `Chance of rain` = 
+      probability_of_precipitation_percent %>% 
+      str_c("%"),
+    .keep = "none"
+  ) %>% 
+  kable(
+    format = "html",
+    align =
+      c(
+        "c",
+        "c"
+      )
+  ) %>% 
+  my_kable_style()
+
+```
+
+:::
 
 :::
 
@@ -432,10 +516,10 @@ pred_counts(.day = "Tue")
 ```{r}
 nest_searching(
   .day = "Tue",
-  .helper_patch_1 = "Search the Western section of the patch",
-  .me_patch_1 = "GPS the rest of the shrub line",
-  .helper_patch_2 = "Search the Northern section of the patch (near CB 2-3)",
-  .me_patch_2 = "Continue path from trailcam_1 to trailcam_0",
+  .helper_patch_1 = "-",
+  .me_patch_1 = "Finish and GPS the Southern section of the cross-patch path",
+  .helper_patch_2 = "-",
+  .me_patch_2 = "-",
   
   # If schedule changes:
   
@@ -453,12 +537,7 @@ nest_searching(
 
 ::: summary_box
 
-*Helper: BSE*
-<!-- `r unique(schedule_list$Wed$helper)`* -->
-
-*Note: Transfer predator camera files during the commute*
-
-*BSE: Machete from CB 2 to CB 1 at grassland_a during morning sampling.*
+*Helper: `r unique(schedule_list$Wed$helper)`*
 
 ```{r}
 morning_times(.day = "Wed")
@@ -482,15 +561,13 @@ nest_searching(
   
   # If schedule changes:
   
-  .ordered = FALSE,
-  .patches = c("forest_a", "leech"),
-  .helper = "BSE",
-  .helper_patch_1 = "Machete-search from CB 4 (and surrounding area) towards CB 5; Concealment photo trial run",
-  .helper_patch_2 = "Machete path down the entrance trail (from entrance to CB 4)"
+  # .ordered = FALSE,
+  # .patches = c("", ""),
+  # .helper = "",
+  # .helper_patch_1 = "-",
+  # .helper_patch_2 = "-"
 )
 ```
-
-*Also install metal boxes on the Bushnell trailcams!*
 
 :::
 
@@ -546,8 +623,7 @@ Notes:
 
 ::: summary_box
 
-*Helper: BSE*
-<!-- `r unique(schedule_list$Fri$helper)`* -->
+*Helper: `r unique(schedule_list$Fri$helper)`*
 
 ```{r}
 morning_times(.day = "Fri")
@@ -561,8 +637,6 @@ morning_times(.day = "Fri")
 pred_counts(.day = "Fri")
 ```
 
-*BSE: Complete the circle at grassland_b during morning sampling. Then extend a path from the circle to the Southern end of the patch.*
-
 **Nest searching**: `r nest_searching_order(.day = "Fri")`
 
 ```{r}
@@ -573,11 +647,11 @@ nest_searching(
   
   # If schedule changes:
   
-  .ordered = FALSE,
-  .patches = c("grassland_a", "grassland_b_fence"),
-  .helper = "BSE",
-  .helper_patch_1 = "Connector trail from CB 1 to the trailcam_1 path",
-  .helper_patch_2 = "Extend the main cross-path patch further NE (starting at the path that begins between CB 4 and 5)"
+  # .ordered = FALSE,
+  # .patches = c("", ""),
+  # .helper = "",
+  # .helper_patch_1 = "",
+  # .helper_patch_2 = ""
 )
 ```
 
@@ -594,8 +668,7 @@ Notes:
 
 ::: summary_box
 
-*Helper: -*
-<!-- `r unique(schedule_list$Sat$helper)`* -->
+*Helper: `r unique(schedule_list$Sat$helper)`*
 
 ```{r}
 morning_times(.day = "Sat")
@@ -614,16 +687,16 @@ pred_counts(.day = "Sat")
 ```{r}
 nest_searching(
   .day = "Sat",
-  # .helper_patch_1 = "-",
+  .helper_patch_1 = "-",
   .me_patch_1 = "Pocket along entrace path",
-  # .helper_patch_2 = "-",
+  .helper_patch_2 = "-",
   .me_patch_2 = "Line of trees at the Southern end of the patch",
   
   # If schedule changes:
   
-  .ordered = FALSE,
-  .helper = "-",
-  .patches = c("leech", "grassland_b")
+  # .ordered = FALSE,
+  # .helper = "-",
+  # .patches = c("leech", "grassland_b")
 )
 ```
 
