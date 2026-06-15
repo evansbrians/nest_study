@@ -80,7 +80,11 @@ nests_start <-
 # Icons:
 
 icons <-
-  list.files("icons/map_icons", full.names = TRUE) %>% 
+  list.files(
+    "icons/map_icons", 
+    pattern = "png$",
+    full.names = TRUE
+  ) %>% 
   set_names_from_path() %>% 
   map(
     ~ makeIcon(
@@ -314,7 +318,7 @@ map_tracking <-
 
 saveWidget(
   map_tracking,
-  file = "outputs/field_map/index.html",
+  file = "outputs/test_pages/docs/field_map.html",
   selfcontained = FALSE,
   title = "Nest Study Field Map"
 )
