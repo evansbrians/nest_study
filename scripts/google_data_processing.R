@@ -28,18 +28,15 @@ urls <-
 # coverboards -------------------------------------------------------------
 
 coverboards_raw <- 
-  urls$coverboards %>% 
-  sheet_names() %>% 
-  set_names() %>% 
-  map_df(
-    ~ read_sheet(
-      urls$coverboards,
-      sheet = .x
-    )
+  read_sheet(
+    urls$coverboards
   )
 
 coverboards_proc <- 
   coverboards_raw %>% 
+  mutate(
+    date = as_date(date)
+  ) %>% 
   select(
     patch_id,
     date,
