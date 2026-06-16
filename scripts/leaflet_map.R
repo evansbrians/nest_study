@@ -276,7 +276,7 @@ map <-
         "Point Counts",
         "Nests"
       ),
-    options = layersControlOptions(collapsed = FALSE)
+    options = layersControlOptions(collapsed = TRUE)
   ) %>%
   
   # Scale bar for distance reference:
