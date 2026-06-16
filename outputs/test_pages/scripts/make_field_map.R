@@ -326,7 +326,7 @@ map_tracking <-
 
 map_out <-
   Sys.getenv("QUARTO_PROJECT_OUTPUT_DIR", unset = "docs") %>% 
-  file.path("field_map", "index.html")
+  file.path("field_map.html")
 
 # Create the directory:
 
