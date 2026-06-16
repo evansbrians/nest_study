@@ -41,3 +41,12 @@
   padding: 4px 10px;
   border-width: 2px;
 }
+
+/* Bigger zoom buttons */
+
+.leaflet-control-zoom a {
+  width: 33px;
+  height: 33px;
+  line-height: 33px;
+  font-size: 23px;
+}
