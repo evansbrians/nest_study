@@ -516,10 +516,10 @@ pred_counts(.day = "Tue")
 ```{r}
 nest_searching(
   .day = "Tue",
-  .helper_patch_1 = "-",
-  .me_patch_1 = "Finish and GPS the Southern section of the cross-patch path",
-  .helper_patch_2 = "-",
-  .me_patch_2 = "-",
+  .helper_patch_1 = "Explore the Northern section of the cross-patch path",
+  .me_patch_1 = "Finish and GPS the Southern section of the cross-patch path; Hunt for catbirds and cardinals in the Southern dense Autumn olive",
+  .helper_patch_2 = "Between CB 4 and 6 (I've heard some serious cardinal activity there)",
+  .me_patch_2 = "Machete-explore between CB 1 and 2",
   
   # If schedule changes:
   
