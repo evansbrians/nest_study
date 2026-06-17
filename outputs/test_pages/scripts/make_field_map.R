@@ -83,7 +83,7 @@ nests_start <-
 
 icons <-
   list.files(
-    here::here("icons/map_icons"), 
+    here::here("images/icons/map_icons"), 
     pattern = "png$",
     full.names = TRUE
   ) %>% 
