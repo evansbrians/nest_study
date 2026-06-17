@@ -529,6 +529,71 @@ nest_searching(
 )
 ```
 
+<button class="accordion" style="font-size: 1em; font-weight: 500; padding: 5;">
+
+**Weather**: `r weather$Tue$detailed_forecast`
+
+```{r}
+
+weather$Tue %>% 
+  mutate(
+    `High temperature` = temperature,
+    `Chance of rain` = 
+      probability_of_precipitation_percent %>% 
+      str_c("%"),
+    .keep = "none"
+  ) %>% 
+  kable(
+    format = "html",
+    align =
+      c(
+        "c",
+        "c"
+      )
+  ) %>% 
+  my_kable_style()
+
+```
+
+</button>
+
+::: panel
+
+```{r}
+
+weather$Tue %>% 
+  select(day, hourly) %>% 
+  unnest(hourly) %>% 
+  filter(
+    hour(start_time) >= 4,
+    hour(start_time) <= 17
+  ) %>% 
+  mutate(
+    Time = 
+      hms::as_hms(start_time) %>% 
+      as.character() %>% 
+      str_remove(":00$"),
+    Forecast = short_forecast,
+    Temperature = temperature,
+    `Chance of rain` = 
+      probability_of_precipitation_percent %>% 
+      str_c("%"),
+    .keep = "none"
+  ) %>% 
+  kable(
+    format = "html",
+    align =
+      c(
+        "c",
+        "c"
+      )
+  ) %>% 
+  my_kable_style()
+
+```
+
+:::
+
 :::
 
 <button class="accordion">Wednesday `r day_level_data$Wed$date_pretty`</button>
@@ -537,7 +602,8 @@ nest_searching(
 
 ::: summary_box
 
-*Helper: `r unique(schedule_list$Wed$helper)`*
+*Helper: BSE*
+<!-- `r unique(schedule_list$Wed$helper)`* -->
 
 ```{r}
 morning_times(.day = "Wed")
@@ -551,23 +617,90 @@ morning_times(.day = "Wed")
 pred_counts(.day = "Wed")
 ```
 
+*BSE: Machete (and search) at firehouse: Bramble patch past coverboard 1, trailcam_1 area (locate, gps, and flag path to CB 3)*
+
 **Nest searching**: `r nest_searching_order(.day = "Wed")`
 
 ```{r}
 nest_searching(
   .day = "Wed",
-  .me_patch_1 = "Machete-search from CB 5 towards CB 4; Concealment photo trial run",
-  .me_patch_2 = "Machete search near CB 6; Machete path from CB 6 to the Northern tip",
+  .me_patch_1 = "Machete-search from CB 6 to CB 4 (and beyond)",
+  .me_patch_2 = "CB 3 outcrop, working towards CB 6",
   
   # If schedule changes:
   
-  # .ordered = FALSE,
-  # .patches = c("", ""),
-  # .helper = "",
-  # .helper_patch_1 = "-",
-  # .helper_patch_2 = "-"
+  .ordered = FALSE,
+  .patches = c("leech", "grassland_b"),
+  .helper = "BSE",
+  .helper_patch_1 = "Bramble pocket past the entrance gate",
+  .helper_patch_2 = "Southern section of the patch (inside and around the trail circle)"
 )
 ```
+
+<button class="accordion" style="font-size: 1em; font-weight: 500; padding: 5;">
+
+**Weather**: `r weather$Wed$detailed_forecast`
+
+```{r}
+
+weather$Wed %>% 
+  mutate(
+    `High temperature` = temperature,
+    `Chance of rain` = 
+      probability_of_precipitation_percent %>% 
+      str_c("%"),
+    .keep = "none"
+  ) %>% 
+  kable(
+    format = "html",
+    align =
+      c(
+        "c",
+        "c"
+      )
+  ) %>% 
+  my_kable_style()
+
+```
+
+</button>
+
+::: panel
+
+```{r}
+
+weather$Wed %>% 
+  select(day, hourly) %>% 
+  unnest(hourly) %>% 
+  filter(
+    hour(start_time) >= 4,
+    hour(start_time) <= 17
+  ) %>% 
+  mutate(
+    Time = 
+      hms::as_hms(start_time) %>% 
+      as.character() %>% 
+      str_remove(":00$"),
+    Forecast = short_forecast,
+    Temperature = temperature,
+    `Chance of rain` = 
+      probability_of_precipitation_percent %>% 
+      str_c("%"),
+    .keep = "none"
+  ) %>% 
+  kable(
+    format = "html",
+    align =
+      c(
+        "c",
+        "c"
+      )
+  ) %>% 
+  my_kable_style()
+
+```
+
+:::
 
 :::
 
@@ -615,6 +748,71 @@ Notes:
 * At each nest, take a picture from further away and jot down a brief description of where the picture was taken and how to find the nest.
 * Install metal boxes at trailcam_0 in each patch
 
+<button class="accordion" style="font-size: 1em; font-weight: 500; padding: 5;">
+
+**Weather**: `r weather$Thu$detailed_forecast`
+
+```{r}
+
+weather$Thu %>% 
+  mutate(
+    `High temperature` = temperature,
+    `Chance of rain` = 
+      probability_of_precipitation_percent %>% 
+      str_c("%"),
+    .keep = "none"
+  ) %>% 
+  kable(
+    format = "html",
+    align =
+      c(
+        "c",
+        "c"
+      )
+  ) %>% 
+  my_kable_style()
+
+```
+
+</button>
+
+::: panel
+
+```{r}
+
+weather$Thu %>% 
+  select(day, hourly) %>% 
+  unnest(hourly) %>% 
+  filter(
+    hour(start_time) >= 4,
+    hour(start_time) <= 17
+  ) %>% 
+  mutate(
+    Time = 
+      hms::as_hms(start_time) %>% 
+      as.character() %>% 
+      str_remove(":00$"),
+    Forecast = short_forecast,
+    Temperature = temperature,
+    `Chance of rain` = 
+      probability_of_precipitation_percent %>% 
+      str_c("%"),
+    .keep = "none"
+  ) %>% 
+  kable(
+    format = "html",
+    align =
+      c(
+        "c",
+        "c"
+      )
+  ) %>% 
+  my_kable_style()
+
+```
+
+:::
+
 :::
 
 <button class="accordion">Friday `r day_level_data$Fri$date_pretty`</button>
@@ -660,6 +858,71 @@ Notes:
 * At each nest, take a picture from further away and jot down a brief description of where the picture was taken and how to find the nest.
 * Install metal boxes at trailcam_0 in each patch
 
+<button class="accordion" style="font-size: 1em; font-weight: 500; padding: 5;">
+
+**Weather**: `r weather$Fri$detailed_forecast`
+
+```{r}
+
+weather$Fri %>% 
+  mutate(
+    `High temperature` = temperature,
+    `Chance of rain` = 
+      probability_of_precipitation_percent %>% 
+      str_c("%"),
+    .keep = "none"
+  ) %>% 
+  kable(
+    format = "html",
+    align =
+      c(
+        "c",
+        "c"
+      )
+  ) %>% 
+  my_kable_style()
+
+```
+
+</button>
+
+::: panel
+
+```{r}
+
+weather$Fri %>% 
+  select(day, hourly) %>% 
+  unnest(hourly) %>% 
+  filter(
+    hour(start_time) >= 4,
+    hour(start_time) <= 17
+  ) %>% 
+  mutate(
+    Time = 
+      hms::as_hms(start_time) %>% 
+      as.character() %>% 
+      str_remove(":00$"),
+    Forecast = short_forecast,
+    Temperature = temperature,
+    `Chance of rain` = 
+      probability_of_precipitation_percent %>% 
+      str_c("%"),
+    .keep = "none"
+  ) %>% 
+  kable(
+    format = "html",
+    align =
+      c(
+        "c",
+        "c"
+      )
+  ) %>% 
+  my_kable_style()
+
+```
+
+:::
+
 :::
 
 <button class="accordion">Saturday `r day_level_data$Sat$date_pretty`</button>
@@ -701,6 +964,71 @@ nest_searching(
 ```
 
 *Note: There is an active nest in the Southern portion of grassland_b... be very careful when traversing (or macheteing) through that area!*
+
+<button class="accordion" style="font-size: 1em; font-weight: 500; padding: 5;">
+
+**Weather**: `r weather$Sat$detailed_forecast`
+
+```{r}
+
+weather$Sat %>% 
+  mutate(
+    `High temperature` = temperature,
+    `Chance of rain` = 
+      probability_of_precipitation_percent %>% 
+      str_c("%"),
+    .keep = "none"
+  ) %>% 
+  kable(
+    format = "html",
+    align =
+      c(
+        "c",
+        "c"
+      )
+  ) %>% 
+  my_kable_style()
+
+```
+
+</button>
+
+::: panel
+
+```{r}
+
+weather$Sat %>% 
+  select(day, hourly) %>% 
+  unnest(hourly) %>% 
+  filter(
+    hour(start_time) >= 4,
+    hour(start_time) <= 17
+  ) %>% 
+  mutate(
+    Time = 
+      hms::as_hms(start_time) %>% 
+      as.character() %>% 
+      str_remove(":00$"),
+    Forecast = short_forecast,
+    Temperature = temperature,
+    `Chance of rain` = 
+      probability_of_precipitation_percent %>% 
+      str_c("%"),
+    .keep = "none"
+  ) %>% 
+  kable(
+    format = "html",
+    align =
+      c(
+        "c",
+        "c"
+      )
+  ) %>% 
+  my_kable_style()
+
+```
+
+:::
 
 :::
 

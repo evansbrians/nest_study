@@ -21,6 +21,12 @@ library(tidyverse)
 species_info <- 
   here("data", "species_info.rds") %>% 
   read_rds() %>% 
+  left_join(
+    googlesheets4::read_sheet(
+      "https://docs.google.com/spreadsheets/d/1_DO_ynGZnT2YGIIU-_LdOINxllWJVSCpjNWtGNnsIqw"
+    ),
+    by = c("common_name", "alpha_code")
+  ) %>% 
   split(.$alpha_code)
 
 # Custom functions --------------------------------------------------------
@@ -103,6 +109,7 @@ my_kable_style <-
 
 species_info$AGOL %>% 
   select(
+    "Breeding season" = breeding_season,
     "Brood attempts" = brood_attempts,
     "Incubation" = incubation,
     "Nestling" = nestling
@@ -139,6 +146,54 @@ species_info$AGOL %>%
 ```
 
 `r species_info$AGOL$egg_description`
+
+:::
+
+<button class="accordion"> `r species_info$BLJA$common_name` (*`r species_info$AGOL$scientific_name`*)</button>
+
+::: panel
+
+```{r}
+
+species_info$BLJA %>% 
+  select(
+    "Breeding season" = breeding_season,
+    "Brood attempts" = brood_attempts,
+    "Incubation" = incubation,
+    "Nestling" = nestling
+  ) %>% 
+  kable() %>% 
+  my_kable_style()
+
+```
+
+### Nest description
+
+<!-- ![](images/agol_nest.jpg){.image} -->
+
+`r species_info$BLJA$nest_description`
+
+### Egg description
+
+```{r}
+
+species_info$BLJA %>% 
+  # unite(
+  #   "egg_dimensions",
+  #   c(egg_width, egg_length),
+  #   sep = "x"
+  # ) %>% 
+  select(
+    "Clutch size" = clutch_size,
+    "Egg width" = egg_width,
+    "Egg length" = egg_length
+  ) %>% 
+  kable() %>% 
+  my_kable_style()
+
+```
+
+`r species_info$BLJA$egg_description`
 
 :::
 
