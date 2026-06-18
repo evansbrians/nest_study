@@ -86,3 +86,15 @@ This will only affect the output when used on a mobile device
   }
 }
 
+/* accuracy control */
+
+.location-accuracy-control {
+  background: rgba(255, 255, 255, 0.85);
+  padding: 4px 8px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
+}
+

@@ -19,6 +19,8 @@ function(el, x) {
       map.setView(e.latlng, map.getZoom());
       firstFix = false;
     }
+    
+    /* Add an accuracy circle */
 
     if (accuracyCircle) {
       accuracyCircle.setLatLng(e.latlng).setRadius(e.accuracy);
@@ -32,6 +34,27 @@ function(el, x) {
         interactive: false
       }).addTo(map);
     }
+    
+    /* Add accuracy text */
+    
+    var accuracyControl = L.control({ position: "bottomleft" });
+    
+    accuracyControl.onAdd = function(map) {
+      var div = L.DomUtil.create("div", "leaflet-control location-accuracy-control");
+      div.innerHTML = "Accuracy: -- m";
+      return div;
+    };
+
+    accuracyControl.addTo(map);
+
+    /* Update the accuracy text whenever location is found */
+    
+    map.on("locationfound", function(e) {
+      var accuracy_m = Math.round(e.accuracy);
+  
+      document.querySelector(".location-accuracy-control").innerHTML =
+      "Accuracy: " + accuracy_m + " m";
+      });
 
     // The arrow serves as the position marker -- created on the first GPS
     // fix and repositioned on every subsequent fix. Rotation is handled
