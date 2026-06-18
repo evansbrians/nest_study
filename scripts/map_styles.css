@@ -121,29 +121,29 @@
   
   /* Button for centering on location */
   
-.center-location-control {
-  width: 120px;
-  height: 120px;
-  
-  position: relative;
-  display: block;
-  align-items: center;
-  justify-content: center;
-  
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  font-size: 115px;
-  font-weight: 700;
-  color: #fff;
-  line-height: 1;
-  text-align: center;
-  background: #00000055;
-  border: none;
-  border-radius: 3px;
-  cursor: pointer;
-  box-shadow: none;
-  padding: 0;
-  margin-bottom: 36px !important;
-}
+  .center-location-control {
+    width: 120px;
+    height: 120px;
+    
+    position: relative;
+    display: block;
+    align-items: center;
+    justify-content: center;
+    
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 115px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1;
+    text-align: center;
+    background: #00000055;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    box-shadow: none;
+    padding: 0;
+    margin-bottom: 36px !important;
+  }
 
   /* Position the crosshairs in the center of their box:*/
 
@@ -152,7 +152,7 @@
     left: 50%;
     top: 50%;
   
-    transform: translate(-50%, -60%);
+    transform: translate(-65%, -75%);
   
     display: block;
     line-height: 1;
@@ -168,9 +168,12 @@
           
   /* Move the scale bar and accuraacy text up north */
   
-  .location-accuracy-control,
+  .location-accuracy-control {
+    transform: translate(25px, -50px);
+  }
+  
   .leaflet-control-scale {
-    transform: translate(25px, -40px);
+    transform: translate(30px, -50px);
   }
 }
 
