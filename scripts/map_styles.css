@@ -177,6 +177,51 @@
   }
 }
 
+/* Dealing with landscape view woes */
+
+@media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+
+  /* Expanded layer-control panel */
+  
+  .leaflet-container .leaflet-control-layers-expanded,
+  .leaflet-touch .leaflet-control-layers-expanded {
+    font-size: 24px;
+    line-height: 1.25;
+    padding: 10px 20px 10px 12px;
+
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+  }
+
+  /* Individual layer labels */
+  
+  .leaflet-container .leaflet-control-layers label,
+  .leaflet-touch .leaflet-control-layers label {
+    font-size: 32px;
+    line-height: 1.25;
+    padding: 4px 0;
+  }
+
+  /* Checkboxes and radio buttons */
+  
+  .leaflet-container .leaflet-control-layers input[type='radio'],
+  .leaflet-container .leaflet-control-layers input[type='checkbox'],
+  .leaflet-touch .leaflet-control-layers input[type='radio'],
+  .leaflet-touch .leaflet-control-layers input[type='checkbox'] {
+    width: 32px;
+    height: 32px;
+    margin-right: 10px;
+  }
+
+  /* Collapsed layer button */
+  
+  .leaflet-container .leaflet-control-layers-toggle,
+  .leaflet-touch .leaflet-control-layers-toggle {
+    width: 70px;
+    height: 70px;
+    background-size: 55px 55px;
+  }
+}
 
 
 
