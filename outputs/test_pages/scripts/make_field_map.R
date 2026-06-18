@@ -102,10 +102,10 @@ icons <-
   map(
     ~ makeIcon(
       iconUrl = base64enc::dataURI(file = .x, mime = "image/png"),
-      iconWidth = 26,
-      iconHeight = 26,
-      iconAnchorX = 13,
-      iconAnchorY = 26
+      iconWidth = 30,
+      iconHeight = 30,
+      iconAnchorX = 15,
+      iconAnchorY = 15
     )
   ) %>% 
   do.call(iconList, .)
@@ -297,7 +297,12 @@ map <-
   
   addScaleBar(
     position = "bottomleft",
-    options = scaleBarOptions(imperial = FALSE)
+    options = 
+      scaleBarOptions(
+        maxWidth = 300,
+        metric = TRUE,
+        imperial = FALSE
+      )
   ) %>% 
   
   # Hide points unless selected otherwise:
@@ -315,7 +320,7 @@ map <-
 
 map_mobile_friendly <-
   map %>%
-  htmlwidgets::prependContent(
+  htmlwidgets::appendContent(
     htmltools::tags$style(
       htmltools::HTML(
         read_file("scripts/map_styles.css")

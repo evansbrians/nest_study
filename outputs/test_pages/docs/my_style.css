@@ -99,11 +99,12 @@ body:has(.field-map-container) main.content {
 
 /* Container around the iframe */
 
-.field-map-container {
+.field-map-container iframe {
+  display: block;
   width: 100%;
-  height: calc(100dvh - 0.5rem);
+  height: calc(100vh - 70px);
   margin: 0;
-  padding: 0;
+  padding: 5px;
 }
 
 /* The map iframe itself */

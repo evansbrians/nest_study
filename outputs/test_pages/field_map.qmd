@@ -4,6 +4,8 @@ page-layout: full
 title-block-banner: false
 ---
 
+::: {.field-map-container}
+
 ```{=html}
 <iframe 
   src="docs/field_map.html" 
@@ -12,3 +14,5 @@ title-block-banner: false
   title="Nest Study Field Map">
 </iframe>
 ```
+
+:::
