@@ -5,13 +5,6 @@
 * {
   font-family: "Times New Roman", Times, serif !important;
 }
-
-/* Move the scale bar and accuraacy text up north */
-  
-.location-accuracy-control,
-.leaflet-control-scale {
-  transform: translate(25px, -40px);
-}
   
 /* This will only affect the output when used on a mobile device */
 
@@ -125,9 +118,8 @@
     padding: 4px 8px 6px 8px;
     box-shadow: none;
   }
-}
-
-/* Button for centering on location */
+  
+  /* Button for centering on location */
   
 .center-location-control {
   width: 120px;
@@ -153,26 +145,36 @@
   margin-bottom: 36px !important;
 }
 
-/* Position the crosshairs in the center of their box:*/
+  /* Position the crosshairs in the center of their box:*/
 
-.center-location-icon {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-
-  transform: translate(-50%, -60%);
-
-  display: block;
-  line-height: 1;
+  .center-location-icon {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+  
+    transform: translate(-50%, -60%);
+  
+    display: block;
+    line-height: 1;
+  }
+  
+  .center-location-control:hover {
+    background: #ffff00;
+    color: #000;
+    font-weight: 900;
+    font-size: 80px;
+    line-height: 90px;
+  }
+          
+  /* Move the scale bar and accuraacy text up north */
+  
+  .location-accuracy-control,
+  .leaflet-control-scale {
+    transform: translate(25px, -40px);
+  }
 }
 
-.center-location-control:hover {
-  background: #ffff00;
-  color: #000;
-  font-weight: 900;
-  font-size: 80px;
-  line-height: 90px;
-}
+
 
 
 
