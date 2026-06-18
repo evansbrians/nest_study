@@ -5,6 +5,42 @@
 * {
   font-family: "Times New Roman", Times, serif !important;
 }
+
+/* Button for centering on location */
+
+.center-location-control {
+  width: 120px;
+  height: 120px;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif !important;
+  font-size: 115px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+  text-align: center;
+
+  background: #00000055;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  box-shadow: none;
+  padding: 0;
+  margin-bottom: 36px !important;
+}
+
+/* Crosshair itself */
+
+.center-location-icon {
+  display: block;
+  line-height: 1;
+
+  /* optional visual nudge */
+  transform: translateY(-6px);
+}
   
 /* This will only affect the output when used on a mobile device */
 
@@ -143,19 +179,6 @@
     box-shadow: none;
     padding: 0;
     margin-bottom: 36px !important;
-  }
-
-  /* Position the crosshairs in the center of their box:*/
-
-  .center-location-icon {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-  
-    transform: translate(-65%, -75%);
-  
-    display: block;
-    line-height: 1;
   }
   
   .center-location-control:hover {
@@ -298,6 +321,19 @@
     font-weight: 700;
     line-height: 1;
     padding: 4px 8px 6px 8px;
+  }
+  
+  /* The dastardly center location crosshairs */
+  
+  .center-location-control {
+    width: 70px;
+    height: 70px;
+    font-size: 64px;
+    margin-bottom: 18px !important;
+  }
+
+  .center-location-icon {
+    transform: translateY(-3px);
   }
 }
 
