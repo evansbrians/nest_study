@@ -1,6 +1,7 @@
 project:
   type: website
   output-dir: docs
+  execute-dir: project
   post-render: scripts/make_field_map.R
   resources:
     - scripts/accordion.js

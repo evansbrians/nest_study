@@ -81,12 +81,23 @@ nests_start <-
 
 # Icons:
 
-icons <-
+icon_files <-
   list.files(
-    here::here("images/icons/map_icons"), 
-    pattern = "png$",
+    "images/map_icons", 
+    pattern = "\\.png$",
     full.names = TRUE
-  ) %>% 
+  )
+
+if(!dir.exists("images/map_icons")) {
+  stop("I can't even find that fucking map_icons folder Billy!")
+}
+
+if (length(icon_files) == 0) {
+  stop(str_c(getwd(), " I can't find any png files in that folder, fuckballs!"))
+}
+  
+icons <-
+  icon_files %>% 
   set_names_from_path() %>% 
   map(
     ~ makeIcon(
