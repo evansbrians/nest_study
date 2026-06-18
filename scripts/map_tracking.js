@@ -10,7 +10,7 @@ function(el, x) {
     window.matchMedia("(max-width: 768px)").matches ||
     window.matchMedia("(pointer: coarse)").matches;
   
-  if (!is.mobile) {
+  if (!isMobile) {
     return;
   }
   
