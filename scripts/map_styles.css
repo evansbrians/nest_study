@@ -292,11 +292,11 @@
   /* Move the scale bar and accuracy text down south */
   
   .location-accuracy-control {
-    transform: translateY(25px);
+    transform: translateY(-5px);
   }
   
   .leaflet-control-scale {
-    transform: translateY(25px);
+    transform: translateY(-5px);
   }
   
   /* Location accuracy label */
