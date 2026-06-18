@@ -232,10 +232,10 @@
   .leaflet-container .leaflet-control-zoom a,
   .leaflet-container .leaflet-touch .leaflet-control-zoom a,
   .leaflet-touch .leaflet-control-zoom a {
-    width: 60px;
-    height: 60px;
-    line-height: 60px;
-    font-size: 45px;
+    width: 40px;
+    height: 40px;
+    line-height: 40px;
+    font-size: 30px;
   }
 
   /* Individual layer labels */
@@ -265,6 +265,16 @@
     width: 70px;
     height: 70px;
     background-size: 55px 55px;
+  }
+  
+  /* Move the scale bar and accuracy text down south */
+  
+  .location-accuracy-control {
+    transform: translateY(50px);
+  }
+  
+  .leaflet-control-scale {
+    transform: translateY(50px);
   }
 }
 
