@@ -81,7 +81,7 @@ schedule <-
     week ==
       week(
         today() + 1
-      ) - 18,
+      ) - 19,
   ) %>% 
   summarize(
     boards = 
@@ -730,9 +730,9 @@ pred_counts(.day = "Thu")
 nest_searching(
   .day = "Thu",
   .helper_patch_1 = "-",
-  .me_patch_1 = "Finish path from the Northern section to CB 3; Create distributaries from the central N-S path",
-  .helper_patch_2 = "Explore new trail network, working your way towards the Western section of the patch",
-  .me_patch_2 = "Explore dense stuff along the Northern edge; Machete inlets",
+  .me_patch_1 = "Create branches off the CB 1 to CB 3 path",
+  .helper_patch_2 = "Explore the Western section of the patch (there's a new trail at the Western edge)",
+  .me_patch_2 = "Inlets along the Northern edge",
   
   # If schedule changes:
   
@@ -744,9 +744,8 @@ nest_searching(
 
 Notes: 
 
-* There is an active nest right along the power line alley walkway at firehouse... be very careful when traversing through that area!
-* At each nest, take a picture from further away and jot down a brief description of where the picture was taken and how to find the nest.
-* Install metal boxes at trailcam_0 in each patch
+* Alternate activity: At each nest, take a picture from further away, circle the nest in the picture, and jot down a brief description of where the picture was taken in relation to the nest. Also record the status of the nest (e.g., How old is it? If recent, would it be a good candidate for fake, Quinn-poop-covered eggs?)
+* Install a metal box at witch_hazel trailcam_0
 
 <button class="accordion" style="font-size: 1em; font-weight: 500; padding: 5;">
 
