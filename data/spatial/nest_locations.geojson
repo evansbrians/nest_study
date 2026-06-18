@@ -63,6 +63,11 @@
 { "type": "Feature", "properties": { "name": "N061", "elevation": 287.58432, "datetime": "2026-06-17T14:39:27Z" }, "geometry": { "type": "Point", "coordinates": [ -78.151257, 38.898226 ] } },
 { "type": "Feature", "properties": { "name": "N063", "elevation": 327.187561, "datetime": "2026-06-17T16:54:01Z" }, "geometry": { "type": "Point", "coordinates": [ -78.166384, 38.894366 ] } },
 { "type": "Feature", "properties": { "name": "N064", "elevation": 329.28363, "datetime": "2026-06-17T17:02:57Z" }, "geometry": { "type": "Point", "coordinates": [ -78.166612, 38.894454 ] } },
+{ "type": "Feature", "properties": { "name": "N052", "elevation": 277.13031, "datetime": "2026-06-18T12:45:11Z" }, "geometry": { "type": "Point", "coordinates": [ -78.170784, 38.892725 ] } },
+{ "type": "Feature", "properties": { "name": "N065", "elevation": 273.52832, "datetime": "2026-06-18T13:20:01Z" }, "geometry": { "type": "Point", "coordinates": [ -78.171031, 38.892898 ] } },
+{ "type": "Feature", "properties": { "name": "N066", "elevation": 278.24118, "datetime": "2026-06-18T14:08:24Z" }, "geometry": { "type": "Point", "coordinates": [ -78.172426, 38.892359 ] } },
+{ "type": "Feature", "properties": { "name": "N067", "elevation": 343.409546, "datetime": "2026-06-18T16:15:12Z" }, "geometry": { "type": "Point", "coordinates": [ -78.154644, 38.896297 ] } },
+{ "type": "Feature", "properties": { "name": "N068", "elevation": 341.494476, "datetime": "2026-06-18T17:57:00Z" }, "geometry": { "type": "Point", "coordinates": [ -78.156604, 38.895425 ] } },
 { "type": "Feature", "properties": { "name": "N030", "elevation": null, "datetime": null }, "geometry": { "type": "Point", "coordinates": [ -78.159444, 38.890269 ] } },
 { "type": "Feature", "properties": { "name": "N031", "elevation": null, "datetime": null }, "geometry": { "type": "Point", "coordinates": [ -77.632613, 38.799172 ] } },
 { "type": "Feature", "properties": { "name": "N032", "elevation": null, "datetime": null }, "geometry": { "type": "Point", "coordinates": [ -78.159363, 38.890069 ] } }

@@ -72,14 +72,15 @@ point_counts_proc <-
     count = replace_na(count, 0)
   ) %>% 
   select(
-    patch_id:start_time,
+    patch_id:date,
+    start_time,
     interval,
+    weather,
     observer,
     species:count
   ) %>% 
   nest(count_data = species:count) %>% 
-  nest(interval_data = observer:count_data) %>% 
-  nest(data = interval:interval_data)
+  nest(interval_data = interval:count_data)
 
 # visits ------------------------------------------------------------------
 
