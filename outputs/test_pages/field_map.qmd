@@ -1,7 +1,7 @@
 ---
 title: "Field map"
 page-layout: full
-title-block-banner: false
+title-block-banner: true
 ---
 
 ::: {.field-map-container}
