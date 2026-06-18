@@ -166,7 +166,7 @@
     line-height: 90px;
   }
           
-  /* Move the scale bar and accuraacy text up north */
+  /* Move the scale bar and accuracy text up north */
   
   .location-accuracy-control {
     transform: translate(25px, -50px);
@@ -180,6 +180,40 @@
 /* Dealing with landscape view woes */
 
 @media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+  
+  /* Make sure the screen is still filled */
+  
+  html,
+  body {
+    width: 100vw;
+    height: 100vh;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden;
+  }
+
+  .leaflet,
+  .leaflet-container,
+  .html-widget,
+  .leaflet-html-widget {
+    width: 100vw !important;
+    height: 100vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  main,
+  .content,
+  .page-layout-full,
+  .quarto-container,
+  .quarto-layout-panel,
+  .cell-output-display {
+    width: 100vw !important;
+    max-width: none !important;
+    height: 100vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
 
   /* Expanded layer-control panel */
   
@@ -191,6 +225,17 @@
 
     max-height: calc(100vh - 24px);
     overflow-y: auto;
+  }
+  
+  /* Smaller zoom buttons */
+  
+  .leaflet-container .leaflet-control-zoom a,
+  .leaflet-container .leaflet-touch .leaflet-control-zoom a,
+  .leaflet-touch .leaflet-control-zoom a {
+    width: 60px;
+    height: 60px;
+    line-height: 60px;
+    font-size: 45px;
   }
 
   /* Individual layer labels */
@@ -208,9 +253,9 @@
   .leaflet-container .leaflet-control-layers input[type='checkbox'],
   .leaflet-touch .leaflet-control-layers input[type='radio'],
   .leaflet-touch .leaflet-control-layers input[type='checkbox'] {
-    width: 32px;
-    height: 32px;
-    margin-right: 10px;
+    width: 28px;
+    height: 28px;
+    margin-right: 8px;
   }
 
   /* Collapsed layer button */
