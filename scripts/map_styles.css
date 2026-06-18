@@ -270,11 +270,11 @@
   /* Move the scale bar and accuracy text down south */
   
   .location-accuracy-control {
-    transform: translateY(50px);
+    transform: translateY(10px);
   }
   
   .leaflet-control-scale {
-    transform: translateY(50px);
+    transform: translateY(10px);
   }
 }
 
