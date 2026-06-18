@@ -276,11 +276,28 @@
   /* Move the scale bar and accuracy text down south */
   
   .location-accuracy-control {
-    transform: translateY(10px);
+    transform: translateY(15px);
   }
   
   .leaflet-control-scale {
-    transform: translateY(10px);
+    transform: translateY(15px);
+  }
+  
+  /* Location accuracy label */
+
+  .location-accuracy-control {
+    font-size: 24px;
+    line-height: 1;
+    padding: 10px 16px;
+  }
+  
+  /* Leaflet scale bar: make it solid and more visible */
+  
+  .leaflet-control-scale-line {
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 4px 8px 6px 8px;
   }
 }
 
