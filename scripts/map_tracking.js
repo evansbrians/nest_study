@@ -49,7 +49,7 @@ function(el, x) {
     );
   
     button.type = "button";
-    button.innerHTML = '<span class="center-location-icon">&target;</span>';
+    button.innerHTML = '<span class="center-location-icon">&#8982;</span>';
     button.title = "Center on my location";
   
     L.DomEvent.disableClickPropagation(button);
@@ -110,15 +110,6 @@ centerControl.addTo(map);
         interactive: false
       }).addTo(map);
     }
-
-    /* Update the accuracy text whenever location is found */
-    
-    map.on("locationfound", function(e) {
-      var accuracy_m = Math.round(e.accuracy);
-  
-      document.querySelector(".location-accuracy-control").innerHTML =
-      "Accuracy: " + accuracy_m + " m";
-      });
 
     // The arrow serves as the position marker -- created on the first GPS
     // fix and repositioned on every subsequent fix. Rotation is handled
