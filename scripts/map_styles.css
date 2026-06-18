@@ -1,14 +1,21 @@
-/* CSS for leaflet map
-This will only affect the output when used on a mobile device
-*/
+/* CSS for leaflet map */
+
+/* Tara likes Times */
+
+* {
+  font-family: "Times New Roman", Times, serif !important;
+}
+
+/* This will only affect the output when used on a mobile device */
 
 @media (hover: none) and (pointer:coarse) {
+  
   /* Layer control panel and all text within it */
         
   .leaflet-control-layers {
     font-size: 24px;
     line-height: 2;
-    padding: 8px 12px;
+    padding: 8px 24px;
   }
   
   /* Bigger button for table of contents (layer control) */
@@ -26,7 +33,7 @@ This will only affect the output when used on a mobile device
   .leaflet-touch .leaflet-control-layers-expanded {
     font-size: 42px;
     line-height: 1.8;
-    padding: 18px 24px;
+    padding: 18px 36px;
   }
   
   /* Individual layer labels -- padding increases touch target height */
@@ -84,17 +91,83 @@ This will only affect the output when used on a mobile device
     line-height: 1;
     padding: 2px 4px;
   }
+  
+  /* Location accuracy label */
+
+  .location-accuracy-control {
+    font-size: 36px;
+    font-weight: 700;
+    line-height: 1.1;
+    padding: 12px 18px;
+    background: #ffffffe6;
+    border: 2px solid #333;
+    border-radius: 6px;
+    box-shadow: none;
+  }
+  
+  /* Leaflet scale bar: make it solid and more visible */
+  
+  .leaflet-control-scale-line {
+    border: none;
+    border-top: none;
+    color: #fff;
+    background: #0000ffa6;
+    font-size: 36px;
+    font-weight: 700;
+    line-height: 1.2;
+    padding: 4px 8px 6px 8px;
+    box-shadow: none;
+  }
 }
 
-/* accuracy control */
-
-.location-accuracy-control {
-  background: rgba(255, 255, 255, 0.85);
-  padding: 4px 8px;
-  font-size: 14px;
-  font-weight: 600;
-  border-radius: 4px;
-  margin-bottom: 4px;
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
+/* Button for centering on location */
+  
+.center-location-control {
+  width: 120px;
+  height: 120px;
+  
+  position: relative;
+  display: block;
+  align-items: center;
+  justify-content: center;
+  
+  font-size: 115px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+  text-align: center;
+  background: #00000055;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  box-shadow: none;
+  padding: 0;
+  margin-bottom: 36px !important;
 }
+
+/* Position the crosshairs in the center of their box:*/
+
+.center-location-icon {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+
+  transform: translate(-50%, -60%);
+
+  display: block;
+  line-height: 1;
+}
+
+.center-location-control:hover {
+  background: #ffff00;
+  color: #000;
+  font-weight: 900;
+  font-size: 80px;
+  line-height: 90px;
+}
+
+
+
+
+
 

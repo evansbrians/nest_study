@@ -3,9 +3,76 @@
 function(el, x) {
 
   var map = this;
+  
+  // Check if mobile and get out of here if it isn't!
+  
+  var isMobile = 
+    window.matchMedia("(max-width: 768px)").matches ||
+    window.matchMedia("(pointer: coarse)").matches;
+  
+  if (!is.mobile) {
+    return;
+  }
+  
+  // ... Otherwise, start setting the other variables:
+  
   var accuracyCircle = null;
   var headingMarker = null;
   var firstFix = true;
+  var latestLatLng = null;
+  
+  // accuracy text control ------------------------------------------------
+
+  var accuracyControl = L.control({ position: "bottomleft" });
+  var accuracyDiv = null;
+
+  accuracyControl.onAdd = function(map) {
+    accuracyDiv = L.DomUtil.create(
+      "div",
+      "leaflet-control location-accuracy-control"
+    );
+
+    accuracyDiv.innerHTML = "Accuracy: -- m";
+    return accuracyDiv;
+  };
+
+  accuracyControl.addTo(map);
+  
+  // center on location button --------------------------------------------
+  
+  var centerControl = L.control({ position: "bottomright" });
+
+  centerControl.onAdd = function(map) {
+    var button = L.DomUtil.create(
+      "button",
+      "leaflet-control center-location-control"
+    );
+  
+    button.type = "button";
+    button.innerHTML = '<span class="center-location-icon">&target;</span>';
+    button.title = "Center on my location";
+  
+    L.DomEvent.disableClickPropagation(button);
+    L.DomEvent.disableScrollPropagation(button);
+  
+    L.DomEvent.on(button, "click", function(e) {
+      L.DomEvent.stop(e);
+  
+      if (latestLatLng) {
+        map.setView(latestLatLng, map.getZoom());
+      } else {
+        map.locate({
+          setView: true,
+          enableHighAccuracy: true,
+          maxZoom: map.getZoom()
+        });
+      }
+    });
+  
+    return button;
+};
+
+centerControl.addTo(map);
 
   // location tracking ----------------------------------------------------
 
@@ -15,9 +82,18 @@ function(el, x) {
   });
 
   map.on('locationfound', function(e) {
+    latestLatLng = e.latlng;
+    
     if (firstFix) {
       map.setView(e.latlng, map.getZoom());
       firstFix = false;
+    }
+    
+    // Update accuracy text
+
+    if (accuracyDiv) {
+      accuracyDiv.innerHTML =
+        "Accuracy: " + Math.round(e.accuracy) + " m";
     }
     
     /* Add an accuracy circle */
@@ -34,18 +110,6 @@ function(el, x) {
         interactive: false
       }).addTo(map);
     }
-    
-    /* Add accuracy text */
-    
-    var accuracyControl = L.control({ position: "bottomleft" });
-    
-    accuracyControl.onAdd = function(map) {
-      var div = L.DomUtil.create("div", "leaflet-control location-accuracy-control");
-      div.innerHTML = "Accuracy: -- m";
-      return div;
-    };
-
-    accuracyControl.addTo(map);
 
     /* Update the accuracy text whenever location is found */
     
@@ -66,7 +130,7 @@ function(el, x) {
       headingMarker = L.marker(e.latlng, {
         icon: L.divIcon({
           html: '<svg class="heading-arrow" viewBox="0 0 40 40"' +
-            ' width="60" height="60" xmlns="http://www.w3.org/2000/svg">' +
+            ' width="80" height="80" xmlns="http://www.w3.org/2000/svg">' +
             '<g class="heading-group">' +
               '<polygon points="20,4 34,36 20,27 6,36"' +
                 ' fill="#136aec" stroke="white"' +
@@ -74,8 +138,8 @@ function(el, x) {
             '</g>' +
           '</svg>',
           className: '',
-          iconSize: [60, 60],
-          iconAnchor: [30, 30]
+          iconSize: [80, 80],
+          iconAnchor: [40, 40]
         }),
         interactive: false,
         zIndexOffset: 1000
