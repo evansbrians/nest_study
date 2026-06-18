@@ -6,6 +6,13 @@
   font-family: "Times New Roman", Times, serif !important;
 }
 
+/* Move the scale bar and accuraacy text up north */
+  
+.location-accuracy-control,
+.leaflet-control-scale {
+  transform: translate(25px, -40px);
+}
+  
 /* This will only affect the output when used on a mobile device */
 
 @media (hover: none) and (pointer:coarse) {
@@ -131,6 +138,7 @@
   align-items: center;
   justify-content: center;
   
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
   font-size: 115px;
   font-weight: 700;
   color: #fff;

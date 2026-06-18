@@ -68,11 +68,10 @@ function(el, x) {
         });
       }
     });
-  
     return button;
-};
+  };
 
-centerControl.addTo(map);
+  centerControl.addTo(map);
 
   // location tracking ----------------------------------------------------
 
