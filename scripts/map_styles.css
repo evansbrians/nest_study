@@ -12,16 +12,14 @@
   width: 120px;
   height: 120px;
 
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
+  position: relative;
+  display: block !important;
 
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif !important;
   font-size: 115px;
   font-weight: 700;
   color: #fff;
   line-height: 1;
-  text-align: center;
 
   background: #00000055;
   border: none;
@@ -35,14 +33,17 @@
 /* Crosshair itself */
 
 .center-location-icon {
+  position: absolute !important;
+  left: 50% !important;
+  top: 50% !important;
+
+  transform: translate(-50%, -56%) !important;
+
   display: block;
   line-height: 1;
-
-  /* optional visual nudge */
-  transform: translateY(-6px);
 }
   
-/* This will only affect the output when used on a mobile device */
+/* The following will only affect the output when used on a mobile device */
 
 @media (hover: none) and (pointer:coarse) {
   
@@ -180,14 +181,6 @@
     padding: 0;
     margin-bottom: 36px !important;
   }
-  
-  .center-location-control:hover {
-    background: #ffff00;
-    color: #000;
-    font-weight: 900;
-    font-size: 80px;
-    line-height: 90px;
-  }
           
   /* Move the scale bar and accuracy text up north */
   
@@ -299,11 +292,11 @@
   /* Move the scale bar and accuracy text down south */
   
   .location-accuracy-control {
-    transform: translateY(15px);
+    transform: translateY(25px);
   }
   
   .leaflet-control-scale {
-    transform: translateY(15px);
+    transform: translateY(25px);
   }
   
   /* Location accuracy label */
@@ -329,11 +322,12 @@
     width: 70px;
     height: 70px;
     font-size: 64px;
+    line-height: 1;
     margin-bottom: 18px !important;
   }
 
   .center-location-icon {
-    transform: translateY(-3px);
+    transform: translate(-50%, -56%) !important;
   }
 }
 
