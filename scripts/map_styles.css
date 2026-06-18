@@ -185,19 +185,25 @@
   
   html,
   body {
-    width: 100vw;
-    height: 100vh;
     margin: 0 !important;
     padding: 0 !important;
-    overflow: hidden;
+    width: 100vw !important;
+    height: 100dvh !important;
+    overflow: hidden !important;
   }
 
-  .leaflet,
-  .leaflet-container,
   .html-widget,
-  .leaflet-html-widget {
+  .leaflet,
+  .leaflet-container {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+
     width: 100vw !important;
-    height: 100vh !important;
+    height: 100dvh !important;
+
     margin: 0 !important;
     padding: 0 !important;
   }
