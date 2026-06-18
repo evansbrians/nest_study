@@ -281,7 +281,14 @@ map <-
   
   # Scale bar for distance reference:
   
-  addScaleBar(position = "bottomleft") %>% 
+  addScaleBar(
+    position = "bottomleft",
+    options = 
+      scaleBarOptions(
+        metric = TRUE,
+        imperial = FALSE
+      )
+  ) %>% 
   
   # Hide points unless selected otherwise:
   
@@ -298,7 +305,7 @@ map <-
 
 map_mobile_friendly <-
   map %>%
-  htmlwidgets::prependContent(
+  htmlwidgets::appendContent(
     htmltools::tags$style(
       htmltools::HTML(
         read_file("scripts/map_styles.css")
