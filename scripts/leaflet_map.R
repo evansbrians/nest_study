@@ -34,6 +34,54 @@ make_nest_popup <-
     )
   }
 
+# Basemap:
+
+basemap <-
+  leaflet() %>%
+  
+  # Base tile layers:
+  
+  addProviderTiles(
+    providers$Esri.WorldImagery,
+    group = "Satellite",
+    options = tileOptions(maxZoom = 21)
+  ) %>%
+  addProviderTiles(
+    providers$OpenStreetMap,
+    group = "Street Map"
+  ) %>%
+  
+  # Precipitation:
+  
+  addWMSTiles(
+    baseUrl =
+      "https://opengeo.ncep.noaa.gov/geoserver/conus/conus_cref_qcd/ows",
+    layers = "conus_cref_qcd", 
+    options = WMSTileOptions(
+      format = "image/png",
+      transparent = TRUE,
+      opacity = 0.50,
+      version = "1.3.0"
+    ),
+    group = "Precipitation",
+    attribution = "Precipitation &copy; NOAA/NWS OpenGeo"
+  ) %>% 
+  
+  # Add weather radar layer:
+  
+  addWMSTiles(
+    baseUrl = "https://opengeo.ncep.noaa.gov/geoserver/klwx/ows",
+    layers = "klwx_sr_bref", 
+    options = 
+      WMSTileOptions(
+        format = "image/png", 
+        transparent = TRUE,
+        opacity = 0.65
+      ),
+    group = "Weather radar",
+    attribution = "NEXRAD &copy; NOAA/NWS"
+  )
+
 # data gathering and pre-processing ---------------------------------------
 
 # Spatial data:
@@ -189,19 +237,7 @@ nests_coded <-
 # build map ---------------------------------------------------------------
 
 map <-
-  leaflet() %>%
-  
-  # Base tile layers:
-  
-  addProviderTiles(
-    providers$Esri.WorldImagery,
-    group = "Satellite",
-    options = tileOptions(maxZoom = 21)
-  ) %>%
-  addProviderTiles(
-    providers$OpenStreetMap,
-    group = "Street Map"
-  ) %>%
+  basemap %>% 
   
   # Patches drawn first so point layers render on top:
   
@@ -270,6 +306,8 @@ map <-
     baseGroups = c("Satellite", "Street Map"),
     overlayGroups = 
       c(
+        "Precipitation",
+        "Weather radar",
         "Patches",
         "Coverboards",
         "Trail Cameras",
@@ -295,6 +333,8 @@ map <-
   
   hideGroup(
     c(
+      "Precipitation",
+      "Weather radar",
       "Coverboards",
       "Trail Cameras", 
       "Point Counts",

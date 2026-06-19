@@ -167,7 +167,7 @@
     align-items: center;
     justify-content: center;
     
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
     font-size: 115px;
     font-weight: 700;
     color: #fff;
@@ -330,10 +330,3 @@
     transform: translate(-50%, -56%) !important;
   }
 }
-
-
-
-
-
-
-
