@@ -76,11 +76,16 @@ function(el, x) {
   // Rotating phone orientations are a pain!
   
   function refreshMapSizeAndCenter() {
-    [100, 300, 600, 1000].forEach(function(delay) {
+    [100, 300, 600].forEach(function(delay) {
       setTimeout(function() {
-        centerOnLatestLocation();
+        map.invalidateSize(false);
       }, delay);
     });
+  
+    // Recenter once, after the viewport has mostly settled.
+    setTimeout(function() {
+      centerOnLatestLocation();
+    }, 800);
   }
 
   window.addEventListener("resize", refreshMapSizeAndCenter);
@@ -124,7 +129,7 @@ function(el, x) {
       L.DomEvent.stop(e);
   
       if (latestLatLng) {
-        refreshMapSizeAndCenter();
+        centerOnLatestLocation();
       } else {
         map.locate({
           setView: true,
