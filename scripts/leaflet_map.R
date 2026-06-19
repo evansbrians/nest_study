@@ -334,7 +334,7 @@ map <-
   hideGroup(
     c(
       "Precipitation",
-      "Weather radar",
+      "NEXRAD",
       "Coverboards",
       "Trail Cameras", 
       "Point Counts",

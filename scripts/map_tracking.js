@@ -214,7 +214,7 @@ function(el, x) {
     }
   
     var correctedHeading =
-      (heading - getScreenAngle() + 360) % 360;
+      (heading - getScreenAngle() - 360) % 360;
   
     setHeading(correctedHeading);
   }
