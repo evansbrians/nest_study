@@ -21,6 +21,40 @@ function(el, x) {
   var firstFix = true;
   var latestLatLng = null;
   
+  // detecting screen orientation angle -----------------------------------
+  
+  function getScreenAngle() {
+    if (
+      screen.orientation &&
+      typeof screen.orientation.angle === "number"
+    ) {
+      return screen.orientation.angle;
+    }
+  
+    if (typeof window.orientation === "number") {
+      return window.orientation;
+    }
+  
+    return 0;
+  }
+  
+  function refreshMapSizeAndCenter() {
+    setTimeout(function() {
+      map.invalidateSize(false);
+  
+      if (latestLatLng) {
+        map.setView(
+          latestLatLng,
+          map.getZoom(),
+          { animate: false }
+        );
+      }
+    }, 300);
+  }
+
+  window.addEventListener("resize", refreshMapSizeAndCenter);
+  window.addEventListener("orientationchange", refreshMapSizeAndCenter);
+  
   // accuracy text control ------------------------------------------------
 
   var accuracyControl = L.control({ position: "bottomleft" });
@@ -59,13 +93,21 @@ function(el, x) {
       L.DomEvent.stop(e);
   
       if (latestLatLng) {
-        map.setView(latestLatLng, map.getZoom());
-      } else {
-        map.locate({
-          setView: true,
-          enableHighAccuracy: true,
-          maxZoom: map.getZoom()
-        });
+        map.invalidateSize(false);
+      
+        setTimeout(function() {
+          map.setView(
+            latestLatLng,
+            map.getZoom(),
+            { animate: false }
+          );
+        }, 50);
+        } else {
+          map.locate({
+            setView: true,
+            enableHighAccuracy: true,
+            maxZoom: map.getZoom()
+          });
       }
     });
     return button;
@@ -143,8 +185,8 @@ function(el, x) {
 
   // compass heading ------------------------------------------------------
 
-  // Position is now managed by locationfound, so setHeading only needs
-  // to update the rotation of the existing marker.
+  // Position is managed by locationfound, so setHeading only needs to update
+  // the rotation of the existing marker.
 
   function setHeading(degrees) {
     if (!headingMarker) return;
@@ -156,17 +198,25 @@ function(el, x) {
       }
     }
   }
+  
+  // This will use the actual orientation if in portrait mode or define based
+  // on the direction of the screen if they are not the same.
 
   function handleOrientation(event) {
     var heading;
-    if (typeof event.webkitCompassHeading === 'number') {
+  
+    if (typeof event.webkitCompassHeading === "number") {
       heading = event.webkitCompassHeading;
-    } else if (event.absolute && typeof event.alpha === 'number') {
+    } else if (event.absolute && typeof event.alpha === "number") {
       heading = (360 - event.alpha) % 360;
     } else {
       return;
     }
-    setHeading(heading);
+  
+    var correctedHeading =
+      (heading - getScreenAngle() + 360) % 360;
+  
+    setHeading(correctedHeading);
   }
 
   if (

@@ -78,7 +78,7 @@ basemap <-
         transparent = TRUE,
         opacity = 0.65
       ),
-    group = "Weather radar",
+    group = "NEXRAD",
     attribution = "NEXRAD &copy; NOAA/NWS"
   )
 
@@ -307,7 +307,7 @@ map <-
     overlayGroups = 
       c(
         "Precipitation",
-        "Weather radar",
+        "NEXRAD",
         "Patches",
         "Coverboards",
         "Trail Cameras",
