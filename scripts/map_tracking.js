@@ -24,32 +24,63 @@ function(el, x) {
   // detecting screen orientation angle -----------------------------------
   
   function getScreenAngle() {
-    if (
-      screen.orientation &&
-      typeof screen.orientation.angle === "number"
-    ) {
-      return screen.orientation.angle;
-    }
-  
+    
+    // Sometimes screen orientation is a window.orientation number signifying
+    // rotation (0, 90, -90, 180):
+    
     if (typeof window.orientation === "number") {
       return window.orientation;
     }
+    
+    // Sometimes (apparently) it is a screen.orientation.angle:
+    
+    if (
+    screen.orientation &&
+    typeof screen.orientation.angle === "number"
+    ) {
+      return screen.orientation.angle;
+    }
+    
+    // Sometimes the browser says it's in landscape, but doesn't provide a 
+    // number (annoying!). In that case, we'll set the orietation based on
+    // the width and height of the window:
+    
+    if (window.innerWidth > window.innerHeight) {
+      return 90;
+    }
+  
+    // Otherwise, we'll assume that the phone is in portrait mode and facing
+    // forward, so we don't need to add a correction:
   
     return 0;
   }
   
-  function refreshMapSizeAndCenter() {
-    setTimeout(function() {
-      map.invalidateSize(false);
+  // Centering:
   
-      if (latestLatLng) {
-        map.setView(
-          latestLatLng,
-          map.getZoom(),
-          { animate: false }
-        );
+  function centerOnLatestLocation() {
+    if (!latestLatLng) return;
+  
+    map.invalidateSize(false);
+  
+    map.setView(
+      latestLatLng,
+      map.getZoom(),
+      {
+        animate: false,
+        reset: true
       }
-    }, 300);
+    );
+  }
+  
+  // Make sure the position of the arrow is still centered on rotation.
+  // Rotating phone orientations are a pain!
+  
+  function refreshMapSizeAndCenter() {
+    [100, 300, 600, 1000].forEach(function(delay) {
+      setTimeout(function() {
+        centerOnLatestLocation();
+      }, delay);
+    });
   }
 
   window.addEventListener("resize", refreshMapSizeAndCenter);
@@ -93,23 +124,16 @@ function(el, x) {
       L.DomEvent.stop(e);
   
       if (latestLatLng) {
-        map.invalidateSize(false);
-      
-        setTimeout(function() {
-          map.setView(
-            latestLatLng,
-            map.getZoom(),
-            { animate: false }
-          );
-        }, 50);
-        } else {
-          map.locate({
-            setView: true,
-            enableHighAccuracy: true,
-            maxZoom: map.getZoom()
-          });
+        refreshMapSizeAndCenter();
+      } else {
+        map.locate({
+          setView: true,
+          enableHighAccuracy: true,
+          maxZoom: map.getZoom()
+        });
       }
     });
+    
     return button;
   };
 
@@ -126,7 +150,7 @@ function(el, x) {
     latestLatLng = e.latlng;
     
     if (firstFix) {
-      map.setView(e.latlng, map.getZoom());
+      refreshMapSizeAndCenter();
       firstFix = false;
     }
     
@@ -214,7 +238,7 @@ function(el, x) {
     }
   
     var correctedHeading =
-      (heading - getScreenAngle() - 360) % 360;
+      (heading - getScreenAngle() + 360) % 360;
   
     setHeading(correctedHeading);
   }
