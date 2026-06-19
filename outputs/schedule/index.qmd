@@ -945,15 +945,17 @@ morning_times(.day = "Sat")
 pred_counts(.day = "Sat")
 ```
 
+*BSE: Machete-search from trailcam_2 to CB 1 in grassland_a during morning sampling.*
+
 **Nest searching**: `r nest_searching_order(.day = "Sat")`
 
 ```{r}
 nest_searching(
   .day = "Sat",
-  .helper_patch_1 = "-",
-  .me_patch_1 = "Pocket along entrace path",
-  .helper_patch_2 = "-",
-  .me_patch_2 = "Line of trees at the Southern end of the patch",
+  .helper_patch_1 = "CB 5 to 4",
+  .me_patch_1 = "Bamboo patch area and CB 4 to 5",
+  .helper_patch_2 = "Continue exploring around the pocket along entrace path",
+  .me_patch_2 = "Continue exploring near CB 6 and the edges along the power line alleyway",
   
   # If schedule changes:
   
@@ -963,7 +965,10 @@ nest_searching(
 )
 ```
 
-*Note: There is an active nest in the Southern portion of grassland_b... be very careful when traversing (or macheteing) through that area!*
+Notes:
+
+* At each nest, take a picture from further away and jot down a brief description of where the picture was taken and how to find the nest.
+* Take note of which inactive nests might be suitable for artificial eggs.
 
 <button class="accordion" style="font-size: 1em; font-weight: 500; padding: 5;">
 
