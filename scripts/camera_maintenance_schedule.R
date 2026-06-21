@@ -20,41 +20,74 @@ pred_cams <-
 
 # camera maintenance schedule ---------------------------------------------
 
-# The next maintenance date is the date closest to two weeks past the last
-# maintenance date
+# Define the next two cameras for sampling:
 
-predator_camera_maintenance <- 
+next_maintenance <- 
   pred_cams %>% 
-  select(
-    camera_id, 
-    date,
-    install:replace_batteries
-  ) %>% 
+  
+  # Subset to the last time in which any maintenance activity occurred:
+  
   filter(
-    when_any(install, replace_sd & replace_batteries)
-    # install | (replace_sd & replace_batteries)
+    when_any(install, replace_sd & replace_batteries),
   ) %>% 
   filter(
     date == max(date),
     .by = camera_id
   ) %>% 
   mutate(
+    camera_id,
     patch = 
       str_remove(camera_id, "_trailcam_[0-2]"),
-    next_maintenance =
-      date + 14
+    
+    # Set the date as two weeks after the last maintenance activity:
+    
+    date = date + 14,
+    .keep = "none"
+  ) %>% 
+  
+  # Subset to cameras that need to be sampled in the next week:
+  
+  filter(
+    get_sampling_week(date) <=
+      get_sampling_week()
+  ) %>% 
+  
+  # Get the two cameras that are most in need of maintenance in each patch:
+  
+  slice_min(
+    date,
+    n = 2,
+    with_ties = FALSE,
+    by = patch
   ) %>% 
   mutate(
-    next_maintenance =
-      season_schedule %>% 
-      filter(
-        date >= next_maintenance
-      ) %>% 
-      pull(date) %>% 
-      min(),
-    .by = c(patch, camera_id)
+    priority = row_number(),
+    .by = patch
+  ) %>%
+  select(patch:priority, camera_id)
+
+# Get maintenance schedule for the week:
+
+predator_camera_maintenance <- 
+  season_schedule %>% 
+  drop_na(patch_count) %>% 
+  filter(
+    week == get_sampling_week()
   ) %>% 
-  select(patch, camera_id, next_maintenance)
+  select(patch = patch_count, date) %>% 
+  arrange(patch, date) %>% 
+  mutate(
+    visit = row_number(),
+    .by = patch
+  ) %>% 
+  left_join(
+    next_maintenance,
+    by = join_by(patch, visit == priority)
+  ) %>% 
+  select(!visit) %>% 
+  mutate(
+    camera_id = str_extract(camera_id, "[0-2]$")
+  )
 
 # write to file -----------------------------------------------------------
 

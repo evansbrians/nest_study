@@ -59,18 +59,7 @@ next_nest_checks <-
 next_pred_cam_maintenance <-
   here("data", "predator_camera_maintenance.rds") %>% 
   read_rds() %>% 
-  mutate(
-    patch,
-    date = next_maintenance,
-    camera_id = 
-      str_extract_all(camera_id, "[0-2]$"),
-    .keep = "none"
-  ) %>% 
-  summarize(
-    predator_cameras = 
-      str_flatten(camera_id, collapse = ", "),
-    .by = !camera_id
-  )
+  drop_na(camera_id)
 
 schedule <-
   here("data", "season_schedule.rds") %>% 
@@ -78,10 +67,7 @@ schedule <-
   unnest(patch_counts) %>% 
   unnest(boards) %>% 
   filter(
-    week ==
-      week(
-        today() + 1
-      ) - 19,
+    week == get_sampling_week()
   ) %>% 
   summarize(
     boards = 
@@ -94,7 +80,7 @@ schedule <-
   ) %>% 
   left_join(
     next_pred_cam_maintenance,
-    by = join_by(date, patch_count == patch)
+    by = join_by(patch_count == patch, date)
   ) %>% 
   mutate(
     home_departure_time = 
@@ -113,7 +99,7 @@ schedule <-
       as.character() %>% 
       str_remove(":00$"),
     across(
-      check_nests:predator_cameras,
+      check_nests:camera_id,
       ~ replace_na(.x, "-")
     )
   )
@@ -195,7 +181,7 @@ pred_counts <-
         Patch = patch_count,
         Coverboards = boards,
         `Check nests` = check_nests,
-        `Predator cameras` = predator_cameras
+        `Predator cameras` = camera_id
       ) %>% 
       kable(
         format = "html",
