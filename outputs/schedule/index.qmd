@@ -397,8 +397,8 @@ pred_counts(.day = "Mon")
 ```{r}
 nest_searching(
   .day = "Mon",
-  .me_patch_1 = "Finish and GPS path from trailcam_2 to CB 3; Create distributaries from the central N-S path",
-  .me_patch_2 = "Search near CB 1 and 2 -- carve paths where necessary",
+  .me_patch_1 = "Search the bramble patch loop; ",
+  .me_patch_2 = "Search near CB 1 and 2 - carve paths where necessary; Scan the fenceline",
   
   # If schedule changes:
   
@@ -409,6 +409,12 @@ nest_searching(
   # .helper_patch_2 = "-"
 )
 ```
+
+Notes: 
+
+* Check the security of trailcam_2 at coyote. Switch SD cards in sensitivity test cameras (witch_hazel 1 and 2, firehouse 2).
+* At each nest, take a picture from further away and jot down a brief description of where the picture was taken and how to find the nest.
+* Take note of which inactive nests might be suitable for artificial eggs.
 
 <button class="accordion" style="font-size: 1em; font-weight: 500; padding: 5;">
 
@@ -502,8 +508,8 @@ pred_counts(.day = "Tue")
 ```{r}
 nest_searching(
   .day = "Tue",
-  .helper_patch_1 = "Explore the Northern section of the cross-patch path",
-  .me_patch_1 = "Finish and GPS the Southern section of the cross-patch path; Hunt for catbirds and cardinals in the Southern dense Autumn olive",
+  .helper_patch_1 = "Explore the Western section of the patch",
+  .me_patch_1 = "Hunt for fledgling WEVIs near the point count spot; Scan the fence line West of CB 4",
   .helper_patch_2 = "Between CB 4 and 6 (I've heard some serious cardinal activity there)",
   .me_patch_2 = "Machete-explore between CB 1 and 2",
   
@@ -514,6 +520,11 @@ nest_searching(
   # .patches = c("", "")
 )
 ```
+
+Notes:
+
+* At each nest, take a picture from further away and jot down a brief description of where the picture was taken and how to find the nest.
+* Take note of which inactive nests might be suitable for artificial eggs.
 
 <button class="accordion" style="font-size: 1em; font-weight: 500; padding: 5;">
 
@@ -588,8 +599,7 @@ weather$Tue %>%
 
 ::: summary_box
 
-*Helper: BSE*
-<!-- `r unique(schedule_list$Wed$helper)`* -->
+*Helper: `r unique(schedule_list$Wed$helper)`*
 
 ```{r}
 morning_times(.day = "Wed")
@@ -603,25 +613,28 @@ morning_times(.day = "Wed")
 pred_counts(.day = "Wed")
 ```
 
-*BSE: Machete (and search) at firehouse: Bramble patch past coverboard 1, trailcam_1 area (locate, gps, and flag path to CB 3)*
-
 **Nest searching**: `r nest_searching_order(.day = "Wed")`
 
 ```{r}
 nest_searching(
   .day = "Wed",
-  .me_patch_1 = "Machete-search from CB 6 to CB 4 (and beyond)",
-  .me_patch_2 = "CB 3 outcrop, working towards CB 6",
+  .me_patch_1 = "Large central island; Explore more in the bamboo, heading towards CB 4",
+  .me_patch_2 = "Explore the CB 3 outcrop, working towards CB 6; Scan the CB 2 outcrop",
   
   # If schedule changes:
   
-  .ordered = FALSE,
-  .patches = c("leech", "grassland_b"),
-  .helper = "BSE",
-  .helper_patch_1 = "Bramble pocket past the entrance gate",
-  .helper_patch_2 = "Southern section of the patch (inside and around the trail circle)"
+  # .ordered = FALSE,
+  # .patches = c("leech", "grassland_b"),
+  # .helper = "BSE",
+  # .helper_patch_1 = "Bramble pocket past the entrance gate",
+  # .helper_patch_2 = "Southern section of the patch (inside and around the trail circle)"
 )
 ```
+
+Notes:
+
+* At each nest, take a picture from further away and jot down a brief description of where the picture was taken and how to find the nest.
+* Take note of which inactive nests might be suitable for artificial eggs.
 
 <button class="accordion" style="font-size: 1em; font-weight: 500; padding: 5;">
 
@@ -731,7 +744,6 @@ nest_searching(
 Notes: 
 
 * Alternate activity: At each nest, take a picture from further away, circle the nest in the picture, and jot down a brief description of where the picture was taken in relation to the nest. Also record the status of the nest (e.g., How old is it? If recent, would it be a good candidate for fake, Quinn-poop-covered eggs?)
-* Install a metal box at witch_hazel trailcam_0
 
 <button class="accordion" style="font-size: 1em; font-weight: 500; padding: 5;">
 
