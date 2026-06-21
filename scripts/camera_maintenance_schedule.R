@@ -31,11 +31,8 @@ predator_camera_maintenance <-
     install:replace_batteries
   ) %>% 
   filter(
-    install == TRUE |
-      (
-        replace_sd == TRUE &
-          replace_batteries == TRUE
-      ),
+    when_any(install, replace_sd & replace_batteries)
+    # install | (replace_sd & replace_batteries)
   ) %>% 
   filter(
     date == max(date),
