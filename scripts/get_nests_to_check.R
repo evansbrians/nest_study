@@ -100,12 +100,7 @@ nests_proc <-
   mutate(
     nest_id,
     patch = patch_id,
-    check_freq = 
-      case_when(
-        host_eggs > 0 ~ 3,
-        host_young > 0 ~ 3,
-        .default = 6
-      ),
+    check_freq = 3,
     earliest_check = date + check_freq,
     .keep = "none"
   )
