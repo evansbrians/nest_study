@@ -86,6 +86,19 @@ char_time_to_time <-
       hms::as_hms()
   }
 
+# Get sampling week:
+
+get_sampling_week <-
+  function(
+    .date = today(),
+    .week_offset = 19,
+    .day_offset = 4
+  ) {
+    week(
+      .date + .day_offset
+    ) - .week_offset
+  }
+
 ## spatial functions ------------------------------------------------------
 
 # Because I get annoyed with constantly having to convert the output of
