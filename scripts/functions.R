@@ -45,6 +45,26 @@ get_summary_stats <-
       )
   }
 
+# Because I am often annoyed with the fact that filter doesn't allow you to 
+# drop columns:
+
+filter_me <- 
+  function(.data, ...) {
+    
+    filter_exprs <- rlang::enquos(...)
+    
+    cols_to_drop <- 
+      filter_exprs %>% 
+      purrr::map(rlang::quo_get_expr) %>% 
+      purrr::map(all.vars) %>% 
+      unlist() %>% 
+      unique()
+    
+    .data %>% 
+      dplyr::filter(...) %>% 
+      dplyr::select(!dplyr::any_of(cols_to_drop))
+  }
+
 ## time and dates ---------------------------------------------------------
 
 # Pretty date (as factor):
