@@ -20,7 +20,7 @@ pred_cams <-
 
 # camera maintenance schedule ---------------------------------------------
 
-# Define the next two cameras for sampling:
+# Define the next two cameras for sampling (one per patch visit):
 
 next_maintenance <- 
   pred_cams %>% 
@@ -30,19 +30,16 @@ next_maintenance <-
   filter(
     when_any(install, replace_sd & replace_batteries),
   ) %>% 
-  filter(
-    date == max(date),
-    .by = camera_id
+  group_by(
+    patch = str_remove(camera_id, "_trailcam_[0-2]"),
+    camera_id
   ) %>% 
-  mutate(
-    camera_id,
-    patch = 
-      str_remove(camera_id, "_trailcam_[0-2]"),
+  summarize(
     
     # Set the date as two weeks after the last maintenance activity:
     
-    date = date + 14,
-    .keep = "none"
+    date = max(date) + 14,
+    .groups = "drop"
   ) %>% 
   
   # Subset to cameras that need to be sampled in the next week:
@@ -60,11 +57,15 @@ next_maintenance <-
     with_ties = FALSE,
     by = patch
   ) %>% 
+  
+  # Assign camera priority:
+  
   mutate(
     priority = row_number(),
     .by = patch
   ) %>%
-  select(patch:priority, camera_id)
+  select(!date)
+
 
 # Get maintenance schedule for the week:
 
