@@ -69,6 +69,29 @@ filter_me <-
       )
   }
 
+# I don't like using `group_by`. This gets around that, the only difference is
+# that you have to specify your groups using `vars()` rather than `c()` or a
+# single variable name:
+
+summarize_me <- 
+  function(.data, ..., .by = NULL) {
+    
+    # If there's no .by, just use `summarize()`:
+    
+    if (is.null(.by)) {
+      return(
+        summarize(.data, ...)
+      )
+    }
+    
+    .data %>% 
+      group_by(!!!.by) %>% 
+      summarize(
+        ...,
+        .groups = "drop"
+      )
+  }
+
 ## time and dates ---------------------------------------------------------
 
 # Pretty date (as factor):
