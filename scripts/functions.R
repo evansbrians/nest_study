@@ -55,14 +55,18 @@ filter_me <-
     
     cols_to_drop <- 
       filter_exprs %>% 
-      purrr::map(rlang::quo_get_expr) %>% 
-      purrr::map(all.vars) %>% 
-      unlist() %>% 
+      map(
+        ~ rlang::quo_get_expr(.x) %>% 
+          all.vars()
+      ) %>% 
+      unlist() %>%
       unique()
     
     .data %>% 
-      dplyr::filter(...) %>% 
-      dplyr::select(!dplyr::any_of(cols_to_drop))
+      filter(...) %>% 
+      select(
+        !any_of(cols_to_drop)
+      )
   }
 
 ## time and dates ---------------------------------------------------------
