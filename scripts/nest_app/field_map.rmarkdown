@@ -1,0 +1,343 @@
+---
+title: "Field map"
+page-layout: full
+title-block-banner: true
+output-file: index.html
+format:
+  html:
+    embed-resources: true
+---
+
+```{r}
+#| echo: false
+
+# Inline the host-page CSS, read fresh each render (embedded, so no browser can
+# serve a stale cached stylesheet).
+
+htmltools::tags$style(
+  htmltools::HTML(
+    paste(
+      readLines(here::here("scripts/nest_app/field_map_app.css")),
+      collapse = "\n"
+    )
+  )
+)
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+source(here::here("scripts/nest_app/make_field_map.R"))
+
+map_tracking
+```
+
+```{=html}
+<!-- Portrait lock: on a phone in landscape this covers everything and asks the
+     user to rotate. The app is designed for portrait use only. -->
+<div id="rotateNotice" class="rotate-notice">
+  <div class="rotate-notice-inner">
+    <div class="rotate-notice-icon">&#x21BB;</div>
+    <div>Please rotate your device to portrait.</div>
+  </div>
+</div>
+
+<!-- Waypoint navigation: a top banner (target / distance / bearing + Cancel)
+     while navigating, and a centered "You have arrived!" popup. -->
+<div id="navBanner" class="nav-banner" hidden>
+  <div class="nav-banner-info">
+    <span id="navTarget" class="nav-banner-target">&mdash;</span>
+    <span class="nav-banner-stats">
+      <span id="navDist">-- m</span> &middot; <span id="navBrg">--&deg;</span>
+    </span>
+  </div>
+  <button type="button" id="navCancelBtn" class="nav-banner-cancel">Cancel</button>
+</div>
+
+<div id="navArrived" class="nav-arrived" hidden>
+  <div class="nav-arrived-box">
+    <div class="nav-arrived-title">You have arrived!</div>
+    <div id="navArrivedName" class="nav-arrived-name"></div>
+    <button type="button" id="navArrivedCancel" class="field-button">
+      Cancel navigation
+    </button>
+  </div>
+</div>
+```
+
+<!-- Menu overlay: holds several screens; only the .is-active one is shown.
+     The bottom bar (a sibling, further down) stays visible on every screen.
+     Each screen is a Quarto fenced div; its form controls -- buttons, inputs,
+     selects, toggle switches -- have no Markdown equivalent, so they stay as
+     raw HTML inside `{=html}` blocks. -->
+     
+:::: {#fieldMenuOverlay .field-menu-overlay}
+
+::: {.field-screen .is-active data-name="main"}
+```{=html}
+    <div class="field-menu-panel">
+      <div class="field-tilegrid">
+        <button type="button" class="field-tile" data-screen="mapoptions">
+          <img class="field-tile-icon" src="icons/gear.svg" alt="">
+          <span>Map options</span>
+        </button>
+        <button type="button" class="field-tile" data-screen="addwaypoint">
+          <img class="field-tile-icon" src="icons/waypoint.svg" alt="">
+          <span>Add waypoint</span>
+        </button>
+        <button type="button" class="field-tile" data-screen="waypointmgr">
+          <img class="field-tile-icon" src="icons/waypoints.svg" alt="">
+          <span>Waypoint manager</span>
+        </button>
+        <button type="button" class="field-tile" data-screen="tracks">
+          <img class="field-tile-icon" src="icons/tracks.svg" alt="">
+          <span>Tracks</span>
+        </button>
+      </div>
+
+      <!-- Patch filter: choose a patch to show only features within 50 m of it.
+           Options are populated from the patch names by field_map_app.js.
+           The "Patch" label text is omitted -- context makes it obvious. -->
+      <label class="field-field-label">
+        <select id="patchSelect" class="field-input">
+          <option value="__all__">All patches</option>
+        </select>
+      </label>
+    </div>
+```
+:::
+
+::: {.field-screen data-name="mapoptions"}
+```{=html}
+    <div class="field-menu-panel">
+      <div class="field-menu-title">Map options</div>
+      <div class="field-section-title">Default options:</div>
+
+      <label class="field-toggle">
+        <input type="checkbox" id="todayToggle" class="field-toggle-input" checked>
+        <span class="field-toggle-track">
+          <span class="field-toggle-thumb"></span>
+        </span>
+        <span class="field-toggle-label">Subset to today's data</span>
+      </label>
+
+      <label class="field-toggle">
+        <input type="checkbox" id="weatherToggle" class="field-toggle-input">
+        <span class="field-toggle-track">
+          <span class="field-toggle-thumb"></span>
+        </span>
+        <span class="field-toggle-label">Show weather</span>
+      </label>
+
+      <label class="field-toggle">
+        <input type="checkbox" id="patchesToggle" class="field-toggle-input" checked>
+        <span class="field-toggle-track">
+          <span class="field-toggle-thumb"></span>
+        </span>
+        <span class="field-toggle-label">Include patch boundaries</span>
+      </label>
+
+      <label class="field-toggle">
+        <input type="checkbox" id="samplingToggle" class="field-toggle-input" checked>
+        <span class="field-toggle-track">
+          <span class="field-toggle-thumb"></span>
+        </span>
+        <span class="field-toggle-label">Show sampling points</span>
+      </label>
+
+      <label class="field-toggle">
+        <input type="checkbox" id="osmToggle" class="field-toggle-input">
+        <span class="field-toggle-track">
+          <span class="field-toggle-thumb"></span>
+        </span>
+        <span class="field-toggle-label">Include OpenStreetMap</span>
+      </label>
+    </div>
+```
+:::
+
+::: {.field-screen data-name="addwaypoint"}
+```{=html}
+    <div class="field-menu-panel">
+      <div class="field-menu-title">Add waypoint</div>
+
+      <!-- Live position + heading + (averaging) accuracy. -->
+      <div class="field-live-readout">
+        <div>Longitude: <span id="wpLon">--</span></div>
+        <div>Latitude: <span id="wpLat">--</span></div>
+        <div>Bearing: <span id="wpBrg">--</span></div>
+
+        <!-- Sample confidence: empty = poor accuracy, grows to the right (and
+             shifts red -> dark green) as the averaged estimate improves. -->
+        <div class="field-conf">
+          <div class="field-conf-head">
+            <span class="field-conf-title">Sample confidence</span>
+            <span class="field-conf-stats">
+              <span id="wpTimer">00:00</span> &middot;
+              <span id="wpSamples">0 samples</span>
+            </span>
+          </div>
+          <div class="field-conf-track">
+            <div class="field-conf-fill" id="wpAccBar"></div>
+          </div>
+          <div class="field-conf-foot">
+            Spatial accuracy: <span id="wpAccLabel">--</span> meters
+          </div>
+        </div>
+      </div>
+
+      <label class="field-field-label">Name
+        <input type="text" id="wpName" class="field-input"
+               placeholder="Waypoint name" autocomplete="off">
+      </label>
+
+      <label class="field-field-label">Class
+        <select id="wpClass" class="field-input">
+          <option>Nest</option>
+          <option>Landmark</option>
+          <option>Path crossing</option>
+          <option>Boundary marker</option>
+          <option>Other</option>
+        </select>
+      </label>
+
+      <label class="field-field-label">Note
+        <textarea id="wpNote" class="field-input" rows="3"
+                  placeholder="Describe the waypoint"></textarea>
+      </label>
+
+      <label class="field-field-label">Photo
+        <!-- No `capture` attribute: the OS offers Take Photo *or* Choose File. -->
+        <input type="file" id="wpPhoto" class="field-input" accept="image/*">
+      </label>
+      <div id="wpPhotoPreview" class="field-photo-preview"></div>
+
+      <div class="field-field-label">Marker color</div>
+      <!-- Color swatches (ROYGBIV) are injected by field_map_app.js. -->
+      <div id="wpColorRow" class="field-color-row"></div>
+
+      <div class="field-waypoint-actions">
+        <button type="button" id="addWaypointSaveBtn" class="field-button">
+          Save waypoint
+        </button>
+        <button type="button" id="addWaypointCancelBtn"
+                class="field-button field-button--danger">
+          Cancel
+        </button>
+      </div>
+
+      <div id="addWaypointStatus" class="field-status" role="status"
+           aria-live="polite"></div>
+    </div>
+```
+:::
+
+::: {.field-screen data-name="waypointmgr"}
+```{=html}
+    <div class="field-menu-panel">
+      <div class="field-menu-title">Waypoint manager</div>
+
+      <ul id="waypointList" class="field-waypoint-list"></ul>
+
+      <div class="field-waypoint-actions">
+        <button type="button" id="downloadWaypointsBtn" class="field-button">
+          Download all (GeoJSON)
+        </button>
+        <button type="button" id="clearWaypointsBtn"
+                class="field-button field-button--danger">
+          Clear all
+        </button>
+      </div>
+    </div>
+```
+:::
+
+::: {.field-screen data-name="tracks"}
+```{=html}
+    <div class="field-menu-panel">
+      <div class="field-menu-title">Track</div>
+
+      <label class="field-field-label">Track name
+        <input type="text" id="trackName" class="field-input"
+               placeholder="Track name" autocomplete="off">
+      </label>
+      <label class="field-field-label">Notes
+        <textarea id="trackNote" class="field-input" rows="2"
+                  placeholder="Notes about this track"></textarea>
+      </label>
+
+      <button type="button" id="trackToggleBtn" class="field-button">
+        Start track
+      </button>
+
+      <!-- Live recording readout. -->
+      <div class="field-track-readout">
+        <div>Speed: <span id="trkSpeed">--</span> m/min</div>
+        <div>Length: <span id="trkLen">--</span></div>
+        <div>Start: <span id="trkStart">--</span></div>
+        <div>Elapsed: <span id="trkClock">00:00</span></div>
+      </div>
+
+      <div id="trackStatus" class="field-status" role="status"
+           aria-live="polite"></div>
+
+      <div class="field-track-actions">
+        <button type="button" id="saveTrackBtn" class="field-button" disabled>
+          Save track
+        </button>
+        <button type="button" id="clearTrackBtn"
+                class="field-button field-button--danger" disabled>
+          Clear track
+        </button>
+      </div>
+
+      <!-- Track manager: accordion of saved tracks with show/hide checkboxes. -->
+      <button type="button" id="trackMgrToggle" class="field-accordion"
+              aria-expanded="false" aria-controls="trackMgrBody">
+        <span class="field-accordion-caret">&#x25B8;</span> Track manager
+      </button>
+      <div id="trackMgrBody" class="field-accordion-body" hidden>
+        <ul id="trackList" class="field-waypoint-list"></ul>
+      </div>
+    </div>
+```
+:::
+
+::::
+
+```{=html}
+<!-- Bottom bar. Contents change with context (managed in field_map_app.js):
+       map view    -> Menu + Accuracy + Bearing
+       main menu   -> Map
+       sub-screen  -> Main Menu + Map
+     Hidden buttons carry the field-hide class. -->
+<div class="field-menu-bar" id="fieldMenuBar">
+  <button type="button" class="field-bar-menu-btn" id="fieldMenuBtn"
+          aria-label="Open menu" aria-expanded="false">Menu</button>
+  <button type="button" class="field-bar-menu-btn field-hide"
+          id="fieldMainMenuBtn">Main Menu</button>
+  <button type="button" class="field-bar-menu-btn field-hide"
+          id="fieldMapBtn">Map</button>
+  <span class="field-bar-readout" id="barAccuracy">Accuracy: --</span>
+  <span class="field-bar-readout" id="barBearing">Bearing: --</span>
+</div>
+```
+
+```{r}
+#| echo: false
+
+# Inline the host-page JS at the end of the body (after the menu elements
+# above exist). Embedded, so never cached stale.
+
+htmltools::tags$script(
+  htmltools::HTML(
+    paste(
+      readLines(here::here("scripts/nest_app/field_map_app.js")),
+      collapse = "\n"
+    )
+  )
+)
+```
+

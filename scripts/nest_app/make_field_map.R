@@ -437,19 +437,9 @@ field_today_json <-
     {
       sched_env <- new.env()
 
-      # schedule_for_map.R calls bare here().
-
-      sched_env$here <- here::here
-
-      # schedule_for_map.R also uses bare relative paths, so source it with the
-      # working directory set to the project root (with_dir restores it after).
-
-      withr::with_dir(
-        here::here(),
-        source(
-          here::here("scripts/nest_app/schedule_for_map.R"),
-          local = sched_env
-        )
+      source(
+        here::here("scripts/nest_app/schedule_for_map.R"),
+        local = sched_env
       )
 
       today <- Sys.Date()

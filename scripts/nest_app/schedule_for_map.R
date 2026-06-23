@@ -2,12 +2,12 @@
 
 library(tidyverse)
 
-source("scripts/functions.R")
+source(here::here("scripts/functions.R"))
 
 # get and process schedule data --------------------------------------------
 
 schedule <-
-  read_rds("data/season_schedule.rds") %>% 
+  read_rds(here::here("data/season_schedule.rds")) %>%
   unnest(patch_counts) %>% 
   unnest(boards) %>% 
   filter(
@@ -25,7 +25,7 @@ schedule <-
 # predator camera maintenance ----------------------------------------------
 
 next_pred_cam_maintenance <-
-  here("data", "predator_camera_maintenance.rds") %>% 
+  here::here("data", "predator_camera_maintenance.rds") %>%
   read_rds() %>% 
   drop_na(camera_id)
 
@@ -34,7 +34,7 @@ next_pred_cam_maintenance <-
 # Read in nest data and subset to variables of interest:
 
 nests_raw <- 
-  read_rds("data/field_data.rds") %>% 
+  read_rds(here::here("data/field_data.rds")) %>%
   pluck("nests") %>% 
   unnest(interval_data) %>% 
   mutate(
