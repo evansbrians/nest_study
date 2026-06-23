@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="70.81144mm"
+   height="67.106804mm"
+   viewBox="0 0 70.81144 67.106804"
+   version="1.1"
+   id="svg5"
+   sodipodi:docname="waypoint.svg"
+   inkscape:version="1.2 (dc2aeda, 2022-05-15)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview7"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     showgrid="false"
+     inkscape:zoom="0.914906"
+     inkscape:cx="153.56769"
+     inkscape:cy="579.29448"
+     inkscape:window-width="3440"
+     inkscape:window-height="1440"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs2" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-50.952409,-24.698768)">
+    <path
+       id="path186"
+       style="fill:#ffcc00;fill-opacity:1;stroke:#000000;stroke-width:0.529167;stroke-opacity:0.5"
+       d="m 96.152791,24.963849 c -21.779116,0.08499 -23.272946,11.717971 -23.239408,22.758817 0.05087,16.748499 24.292057,40.013062 24.292057,40.013062 0,0 24.53041,-23.264563 24.29209,-40.013062 C 121.33795,36.507652 119.98928,25.257691 97.20544,24.9685 96.849443,24.964 96.498491,24.9625 96.152791,24.9638 Z m 1.052649,14.907617 c 5.9161,-1.26e-4 10.71211,4.85532 10.71204,10.844816 7e-5,5.989496 -4.79594,10.844942 -10.71204,10.844816 -5.91609,1.26e-4 -10.712075,-4.85532 -10.712008,-10.844816 -6.7e-5,-5.989496 4.795918,-10.844942 10.712008,-10.844816 z"
+       sodipodi:nodetypes="sscsssccccc"
+       inkscape:export-filename="../waypoints.svg"
+       inkscape:export-xdpi="96"
+       inkscape:export-ydpi="96" />
+    <path
+       id="path1129"
+       style="fill:#ff2a2a;fill-opacity:1;stroke:#000000;stroke-width:0.529167;stroke-opacity:0.5"
+       d="m 74.456944,24.963849 c -21.779116,0.08499 -23.272946,11.717971 -23.239408,22.758817 0.05087,16.748499 24.292057,40.013062 24.292057,40.013062 0,0 24.530287,-23.264563 24.29197,-40.013062 C 99.641983,36.507652 98.293322,25.257691 75.509593,24.9685 75.153596,24.964 74.802644,24.9625 74.456944,24.9638 Z m 1.052649,14.907617 c 5.916089,-1.26e-4 10.712068,4.85532 10.711998,10.844816 7e-5,5.989496 -4.795909,10.844942 -10.711998,10.844816 -5.91609,1.26e-4 -10.712075,-4.85532 -10.712008,-10.844816 -6.7e-5,-5.989496 4.795918,-10.844942 10.712008,-10.844816 z"
+       sodipodi:nodetypes="sscsssccccc"
+       inkscape:export-filename="../waypoint.svg"
+       inkscape:export-xdpi="96"
+       inkscape:export-ydpi="96" />
+    <path
+       id="path1127"
+       style="fill:#0000ff;fill-opacity:1;stroke:#000000;stroke-width:0.529167;stroke-opacity:0.5"
+       d="M 85.569451,28.668018 C 63.790335,28.753008 62.296505,40.385989 62.330043,51.426835 62.380913,68.175334 86.6221,91.439897 86.6221,91.439897 c 0,0 24.53035,-23.264563 24.29203,-40.013062 -0.15958,-11.215014 -1.50825,-22.464975 -24.29203,-22.754166 -0.355997,-0.0045 -0.706949,-0.006 -1.052649,-0.0047 z M 86.6221,43.575635 c 5.916089,-1.26e-4 10.712068,4.85532 10.711998,10.844816 7e-5,5.989496 -4.795909,10.844942 -10.711998,10.844816 -5.91609,1.26e-4 -10.712075,-4.85532 -10.712008,-10.844816 -6.7e-5,-5.989496 4.795918,-10.844942 10.712008,-10.844816 z"
+       sodipodi:nodetypes="sscsssccccc"
+       inkscape:export-filename="../waypoint.svg"
+       inkscape:export-xdpi="96"
+       inkscape:export-ydpi="96" />
+  </g>
+</svg>

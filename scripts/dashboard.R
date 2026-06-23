@@ -57,6 +57,20 @@ source("scripts/update_google_earth.R")
 
 source("scripts/leaflet_map.R")
 
+# This part powers the phone app (currently ios but soon to be in ios *and*
+# Android!):
+
+quarto::quarto_render("scripts/nest_app/field_map.qmd")
+
+file.copy(
+  "scripts/nest_app/index.html",
+  "outputs/map_sandbox/index.html",
+  overwrite = TRUE
+)
+
+source("scripts/functions.R")
+autopush_updates()
+
 # PNG maps (printed maps):
 
 source("scripts/update_map_print-outs.R")
