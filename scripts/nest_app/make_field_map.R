@@ -373,8 +373,7 @@ map_tracking <-
 # add weather toggle support -----------------------------------------------
 
 # A separate onRender so it runs on desktop too (map_tracking.js returns
-# early on non-mobile). Supports the menu's "Show weather" switch, which
-# adds/removes the Precipitation + NEXRAD layers from the table of contents.
+# early on non-mobile):
 
 map_tracking <-
   map_tracking %>%
@@ -431,11 +430,7 @@ map_tracking <-
 
 # Sources schedule_for_map.R (run from the project root, since it uses bare
 # relative paths) and computes today's patches plus which features are
-# scheduled today, for the "Subset to today's data" switch. Wrapped so any
-# failure just disables the feature (window.fieldToday = null -> switch shows
-# everything). Embeds:
-#   { patches: [today's patch names],
-#     fade: { "lat,lng": opacity } }   # opacity for NOT-scheduled markers
+# scheduled today.
 
 field_today_json <-
   tryCatch(
@@ -536,26 +531,13 @@ map_tracking <-
 
 # embed offline satellite tiles --------------------------------------------
 
-# Pre-fetch Esri World Imagery tiles covering every patch (+ a small buffer) at
-# offline_zooms and embed them as data URIs (window.fieldOfflineTiles, keyed
-# "z/x/y"). map_weather.js then serves these when present, so the satellite
-# background still renders at the patches with no cell signal; the layer's
-# maxNativeZoom = 19 means closer zooms overzoom these z19 tiles. Tiles are
-# cached on disk between renders (only missing ones download). The first render
-# fetches a few hundred tiles, so it is slow; later renders are fast. Wrapped so
-# any failure just yields an empty set (online-only -- nothing breaks).
-#
-# NOTE: tile_cache/ holds ~16 MB of imagery; add it to .gitignore if you don't
-# want it committed.
+# Pre-fetch Esri World Imagery tiles
 
 offline_zooms  <- 16:19     # native zooms stored; higher zooms overzoom z19
 offline_buffer <- 50        # meters of margin around each patch
 tile_cache_dir <- here::here("scripts/nest_app/offline_tiles")
 
-# Which patches to embed offline imagery for (keeps the file small). Only the
-# low-elevation, poor-reception sites are built in; set to NULL to include all
-# patches. (Tiles already cached on disk for other patches are left in place --
-# they just aren't embedded.)
+# Which patches to embed offline imagery:
 
 offline_patches <- c("coyote", "witch_hazel", "leech")
 
