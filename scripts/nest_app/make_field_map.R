@@ -556,6 +556,7 @@ tile_cache_dir <- here::here("scripts/nest_app/offline_tiles")
 # low-elevation, poor-reception sites are built in; set to NULL to include all
 # patches. (Tiles already cached on disk for other patches are left in place --
 # they just aren't embedded.)
+
 offline_patches <- c("coyote", "witch_hazel", "leech")
 
 .deg2tile <- 
