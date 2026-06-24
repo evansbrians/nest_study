@@ -7,6 +7,8 @@ library(glue)
 library(here)
 library(tidyverse)
 
+system("git pull")
+
 googlesheets4::gs4_auth(email = TRUE)
 
 # download data points from garmin ----------------------------------------
@@ -26,7 +28,6 @@ quarto::quarto_render("outputs/print-outs/schedule_pdf.qmd")
 
 # Push changes:
 
-source("scripts/functions.R")
 autopush_updates()
 
 # update the combined app (currently test_pages) --------------------------
