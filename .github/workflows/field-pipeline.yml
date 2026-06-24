@@ -41,8 +41,8 @@ jobs:
       - name: Mark the workspace safe for git (container runs as root)
         run: git config --global --add safe.directory '*'
 
-      - name: Install Quarto
-        uses: quarto-dev/quarto-actions/setup@v2
+      # Quarto + TinyTeX already ship in rocker/geospatial (built on rocker/verse),
+      # so there is no separate Quarto install step.
 
       - name: Install the extra R packages not already in the image
         run: |

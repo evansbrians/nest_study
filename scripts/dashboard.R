@@ -7,7 +7,7 @@ library(glue)
 library(here)
 library(tidyverse)
 
-googlesheets4::gs4_auth()
+googlesheets4::gs4_auth(email = TRUE)
 
 # download data points from garmin ----------------------------------------
 
@@ -15,15 +15,7 @@ source("scripts/convert_gpx_geojson.R")
 
 # download and pre-process field data -------------------------------------
 
-source("scripts/google_data_processing.R")
-
-# update the nest-checking file -------------------------------------------
-
-source("scripts/get_nests_to_check.R")
-
-# update the predator camera maintenance schedule -------------------------
-
-source("scripts/camera_maintenance_schedule.R")
+source("scripts/updater.R")
 
 # update the scheduling app and document ----------------------------------
 
@@ -36,7 +28,6 @@ quarto::quarto_render("outputs/print-outs/schedule_pdf.qmd")
 
 source("scripts/functions.R")
 autopush_updates()
-
 
 # update the combined app (currently test_pages) --------------------------
 
