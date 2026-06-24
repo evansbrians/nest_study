@@ -1,0 +1,78 @@
+name: Daily field build
+
+# Automatically runs the no-input portion of the dashboard (scripts/ci_build.R) and commits the products. Our existing static.yml then publishes them to Pages.
+
+# Triggers: every day at 03:59 UTC, on pushes to main (e.g. when Tara pushes
+# new Garmin tracks), and manually from the Actions tab. The `if` below skips
+# the bot's own commits so it never loops.
+
+on:
+  schedule:
+    - cron: "59 3 * * *"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+  
+    # Skip the bot's own push (prevents an infinite loop); schedule and manual
+    # runs always proceed.
+    
+    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[bot]') }}
+    runs-on: ubuntu-latest
+
+    # Prebuilt geospatial image: R + sf/terra/GDAL/GEOS/PROJ + tidyverse already
+    # installed, so only the lighter extra packages install at run time.
+    
+    container:
+      image: rocker/geospatial:latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+        
+          # Use a Personal Access Token so the bot's push triggers static.yml
+          # (the Pages deploy). The default token would not.
+          
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Mark the workspace safe for git (container runs as root)
+        run: git config --global --add safe.directory '*'
+
+      - name: Install Quarto
+        uses: quarto-dev/quarto-actions/setup@v2
+
+      - name: Install the extra R packages not already in the image
+        run: |
+          Rscript -e '
+            pkgs <- c("googlesheets4", "googledrive", "here", "glue",
+                      "leaflet", "htmlwidgets", "htmltools", "rmapshaper",
+                      "base64enc", "jsonlite", "magick", "tmap", "maptiles",
+                      "xml2", "zip", "quarto", "withr")
+            need <- setdiff(pkgs, rownames(installed.packages()))
+            if (length(need)) install.packages(need, repos = "https://packagemanager.posit.co/cran/__linux__/jammy/latest")
+          '
+
+      - name: Write the service-account key from the repo secret
+        env:
+          GOOGLE_SHEETS_KEY_JSON: ${{ secrets.GOOGLE_SHEETS_KEY }}
+        run: |
+          printf '%s' "$GOOGLE_SHEETS_KEY_JSON" > "$RUNNER_TEMP/gs_key.json"
+          echo "GOOGLE_SHEETS_KEY=$RUNNER_TEMP/gs_key.json" >> "$GITHUB_ENV"
+
+      - name: Build the daily products
+        run: Rscript scripts/ci_build.R
+
+      - name: Commit and push the regenerated products
+        run: |
+          git config user.name "nest-study-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          if git diff --quiet --cached; then
+            echo "No changes to commit."
+          else
+            git commit -m "Auto-build daily products [bot]"
+            git push
+          fi
