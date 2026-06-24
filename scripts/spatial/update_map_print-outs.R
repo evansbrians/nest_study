@@ -8,7 +8,8 @@ library(tmap)
 library(sf)
 library(tidyverse)
 
-source("scripts/functions.R")
+source("scripts/utils/functions/spatial_functions.R")
+source("scripts/utils/functions/utility_functions.R")
 
 tmap_mode("plot")
 

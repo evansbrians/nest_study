@@ -13,7 +13,7 @@ library(tidyverse)
 # Basic functions file:
 
 source(
-  here("scripts/functions.R")
+  here("scripts/utils/functions/utility_functions.R")
 )
 
 # Functions for the app:
@@ -123,10 +123,11 @@ nests_start <-
 
 icons <-
   list.files(
-    here("icons/map_icons"),
+    here("scripts/nest_app/icons"),
     pattern = "png$",
     full.names = TRUE
   ) %>% 
+  str_subset("app_icon|nest_old", negate = TRUE) %>% 
   set_names_from_path() %>% 
   imap(
     \ (.icon, .name) {

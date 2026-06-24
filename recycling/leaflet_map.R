@@ -9,7 +9,7 @@ library(htmlwidgets)
 library(htmltools)
 library(tidyverse)
 
-source("scripts/functions.R")
+source("scripts/utils/functions/utility_functions.R")
 
 # Function to make popup:
 
@@ -129,7 +129,7 @@ nests_start <-
 
 icons <-
   list.files(
-    "icons/map_icons", 
+    "scripts/nest_app/icons", 
     pattern = "png$",
     full.names = TRUE
   ) %>% 

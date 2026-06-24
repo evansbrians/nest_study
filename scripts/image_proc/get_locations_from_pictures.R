@@ -7,7 +7,7 @@ library(sf)
 library(glue)
 library(tidyverse)
 
-source("scripts/functions.R")
+source("scripts/utils/functions/utility_functions.R")
 
 # Spatial data:
 

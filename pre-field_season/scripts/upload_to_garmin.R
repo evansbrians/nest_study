@@ -6,7 +6,7 @@
 library(sf)
 library(tidyverse)
 
-source("scripts/functions.R")
+source("scripts/utils/functions/utility_functions.R")
 
 # Garmin file location:
 

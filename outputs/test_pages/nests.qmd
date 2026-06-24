@@ -138,7 +138,7 @@ list.files(
 
 icons <-
   list.files(
-    here::here("icons/map_icons"), 
+    here::here("scripts/nest_app/icons"), 
     pattern = "png$",
     full.names = TRUE
   ) %>% 

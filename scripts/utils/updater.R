@@ -6,7 +6,8 @@ library(here)
 library(googlesheets4)
 library(tidyverse)
 
-source("scripts/functions.R")
+source("scripts/utils/functions/time_and_date_functions.R")
+source("scripts/utils/functions/utility_functions.R")
 
 # Create file path/url for each Google sheet:
 

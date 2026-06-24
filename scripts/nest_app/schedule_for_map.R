@@ -2,7 +2,7 @@
 
 library(tidyverse)
 
-source(here::here("scripts/functions.R"))
+source(here::here("scripts/utils/functions/time_and_date_functions.R"))
 
 # get and process schedule data --------------------------------------------
 

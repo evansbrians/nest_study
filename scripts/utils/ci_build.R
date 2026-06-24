@@ -13,7 +13,7 @@
 # The workflow commits whatever this regenerates.
 #
 # *Not* included here:
-# - scripts/convert_gpx_geojson.R (because you need to plug in your garmin)
+# - scripts/spatial/convert_gpx_geojson.R (because you need to plug in your garmin)
 # - Printing
 
 # setup -------------------------------------------------------------------
@@ -33,21 +33,9 @@ if (nzchar(sa_key)) {
   googlesheets4::gs4_auth()
 }
 
-# Helper functions:
-
-source("scripts/functions.R")
-
 # download and pre-process field data -------------------------------------
 
-source("scripts/google_data_processing.R")
-
-# update the nest-checking file -------------------------------------------
-
-source("scripts/get_nests_to_check.R")
-
-# update the predator camera maintenance schedule -------------------------
-
-source("scripts/camera_maintenance_schedule.R")
+source("scripts/utils/updater.R")
 
 # render the schedule app + printable schedule ----------------------------
 
@@ -56,7 +44,7 @@ quarto::quarto_render("outputs/print-outs/schedule_pdf.qmd")
 
 # update the Google Earth file --------------------------------------------
 
-source("scripts/update_google_earth.R")
+source("scripts/spatial/update_google_earth.R")
 
 # render the phone / web field map ----------------------------------------
 
@@ -77,4 +65,4 @@ file.path(
 
 # update the printable PNG maps -------------------------------------------
 
-source("scripts/update_map_print-outs.R")
+source("scripts/spatial/update_map_print-outs.R")

@@ -8,7 +8,8 @@ library(xml2)
 library(sf)
 library(tidyverse)
 
-source("scripts/functions.R")
+source("scripts/utils/functions/spatial_functions.R")
+source("scripts/utils/functions/utility_functions.R")
 
 # Remove previous KMZ file, if present:
 
@@ -34,8 +35,10 @@ spatial_files <-
 
 icon_urls <-
   list.files(
-    "icons/map_icons",
+    "scripts/nest_app/icons",
+    pattern = "png$"
   ) %>% 
+  str_subset("app_icon|nest_old", negate = TRUE) %>% 
   set_names_from_path() %>% 
   map(
     ~  str_c("files/", .x)
@@ -230,9 +233,11 @@ write_xml(
 
 local_icons <-
   list.files(
-    "icons/map_icons",
+    "scripts/nest_app/icons",
+    pattern = "png$",
     full.names = TRUE
   ) %>% 
+  str_subset("app_icon|nest_old", negate = TRUE) %>% 
   set_names_from_path()
 
 # Copy each icon into files using its basename (the name without the path):

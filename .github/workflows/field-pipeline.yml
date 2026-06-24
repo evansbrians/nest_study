@@ -1,6 +1,6 @@
 name: Daily field build
 
-# Automatically runs the no-input portion of the dashboard (scripts/ci_build.R) and commits the products. Our existing static.yml then publishes them to Pages.
+# Automatically runs the no-input portion of the dashboard (scripts/utils/ci_build.R) and commits the products. Our existing static.yml then publishes them to Pages.
 
 # Triggers: every day at 03:59 UTC, on pushes to main (e.g. when Tara pushes
 # new Garmin tracks), and manually from the Actions tab. The `if` below skips
@@ -63,7 +63,7 @@ jobs:
           echo "GOOGLE_SHEETS_KEY=$RUNNER_TEMP/gs_key.json" >> "$GITHUB_ENV"
 
       - name: Build the daily products
-        run: Rscript scripts/ci_build.R
+        run: Rscript scripts/utils/ci_build.R
 
       - name: Commit and push the regenerated products
         run: |

@@ -3,7 +3,8 @@
 
 library(tidyverse)
 
-source("scripts/functions.R")
+source("scripts/utils/functions/time_and_date_functions.R")
+source("scripts/utils/functions/utility_functions.R")
 
 # get and process schedule data -------------------------------------------
 

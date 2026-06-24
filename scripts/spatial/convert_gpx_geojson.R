@@ -17,7 +17,7 @@ if (!dir.exists(garmin_dir)) {
 library(sf)
 library(tidyverse)
 
-source("scripts/functions.R")
+source("scripts/utils/functions/utility_functions.R")
 
 # read and pre-process GPS files ------------------------------------------
 

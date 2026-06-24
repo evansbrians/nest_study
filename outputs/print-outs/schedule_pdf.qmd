@@ -29,7 +29,7 @@ library(glue)
 library(here)
 library(tidyverse)
 
-here("scripts/functions.R") %>% 
+here("scripts/utils/functions/time_and_date_functions.R") %>% 
   source()
 
 # get and process data ----------------------------------------------------

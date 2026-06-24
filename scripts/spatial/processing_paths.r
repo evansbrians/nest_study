@@ -12,7 +12,7 @@ library(tidyverse)
 
 tmap_mode("view")
 
-source("scripts/functions.R")
+source("scripts/utils/functions/spatial_functions.R")
 
 # Define a basemap across operations (to avoid repetition):
 

@@ -13,11 +13,11 @@ googlesheets4::gs4_auth(email = TRUE)
 
 # download data points from garmin ----------------------------------------
 
-source("scripts/convert_gpx_geojson.R")
+source("scripts/spatial/convert_gpx_geojson.R")
 
 # download and pre-process field data -------------------------------------
 
-source("scripts/updater.R")
+source("scripts/utils/updater.R")
 
 # update the scheduling app and document ----------------------------------
 
@@ -43,7 +43,7 @@ autopush_updates()
 
 # Google Earth:
 
-source("scripts/update_google_earth.R")
+source("scripts/spatial/update_google_earth.R")
 
 # This part renders the phone apps (currently ios but soon to be in ios *and*
 # Android!) and web pages:
@@ -68,7 +68,7 @@ autopush_updates()
 
 # PNG maps (printed maps):
 
-source("scripts/update_map_print-outs.R")
+source("scripts/spatial/update_map_print-outs.R")
 
 # printing ----------------------------------------------------------------
 
@@ -92,7 +92,7 @@ here("outputs/print-outs/schedule_pdf.pdf") %>%
 
 # Print datasheets:
 
-source("scripts/functions.R")
+source("scripts/utils/functions/utility_functions.R")
 
 print_datasheets(
   # .datasheet = "coverboards",

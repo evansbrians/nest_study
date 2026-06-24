@@ -6,7 +6,7 @@ library(tmap)
 library(sf)
 library(tidyverse)
 
-source("scripts/functions.R")
+source("scripts/utils/functions/utility_functions.R")
 
 # Get patches, coverboard, trailcam, and point count locations:
 
