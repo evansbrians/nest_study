@@ -7,6 +7,8 @@ library(sf)
 library(glue)
 library(tidyverse)
 
+source("scripts/functions.R")
+
 # Spatial data:
 
 list.files(
@@ -60,22 +62,23 @@ nest_photos <-
       map(
         ~ base64enc::dataURI(file = .x, mime = "image/png")
       ),
-    date_time = 
+    datetime = 
       as_datetime(gps_date_time) %>% 
       with_tz("America/New_York"),
     lon = gps_longitude,
     lat = gps_latitude,
     positiion_error = gpsh_positioning_error,
+    elevation = gps_altitude,
     bearing = gps_dest_bearing,
     popup_content = glue("<img src='{uri}' style='width:250px;'>"),
     .keep = "none"
   ) %>% 
-  arrange(date_time) %>% 
+  arrange(datetime) %>% 
   st_as_sf(
     coords = c("lon", "lat"),
     crs = 4326
   )
-  
+
 # view on map -------------------------------------------------------------
 
 leaflet() %>%
@@ -106,6 +109,26 @@ leaflet() %>%
   
   addMarkers(
     data = nest_photos,
-    popup = ~ popup_content
+    popup = ~ popup_content,
+    label = ~ datetime
   )
-  
+
+# add to nest shapefile ---------------------------------------------------
+
+current_nests <- 
+  st_read("data/spatial/nest_locations.geojson")
+
+nest_photos %>% 
+  filter(
+    as_date(datetime) == "2026-06-17"
+  ) %>% 
+  mutate(name = "N088") %>% 
+  select(
+    name,
+    elevation,
+    datetime
+  ) %>% 
+  st_write("data/spatial/nest_locations.geojson", append = TRUE)
+
+
+
