@@ -216,8 +216,13 @@ function(el, x) {
   // from window.fieldPatches (embedded by make_field_map.R) as rings of
   // [lat, lng]. Distances use a local equirectangular projection.
 
+  // Patch boundaries are intentionally NOT here: their visibility is governed
+  // solely by the "Include patch boundaries" toggle (setPatches), so the
+  // today-subset never hides them. applyFilter still subsets/fades the points
+  // and zooms to today's patches via patchBounds().
+
   var PATCH_GROUPS =
-    ["Nests", "Coverboards", "Trail Cameras", "Point Counts", "Patches", "Paths"];
+    ["Nests", "Coverboards", "Trail Cameras", "Point Counts", "Paths"];
 
   function segDist(px, py, ax, ay, bx, by) {
     var dx = bx - ax, dy = by - ay;
