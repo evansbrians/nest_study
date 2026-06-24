@@ -426,13 +426,16 @@ map_tracking <-
     )
   )
 
-# embed today's schedule subset --------------------------------------------
+# embed the schedule, keyed by date ----------------------------------------
 
-# Sources schedule_for_map.R (run from the project root, since it uses bare
-# relative paths) and computes today's patches plus which features are
-# scheduled today.
+# Sources schedule_for_map.R and bakes the WHOLE upcoming schedule as
+# window.fieldSchedule -- a map from date (YYYY-MM-DD) to that day's scheduled
+# patches plus the markers to fade. map_weather.js then selects the entry that
+# matches the phone's current date, so the map advances to the next day on its
+# own (no re-render needed). Wrapped so any failure just disables the feature
+# (window.fieldSchedule = null -> the switch shows everything).
 
-field_today_json <-
+field_schedule_json <-
   tryCatch(
     {
       sched_env <- new.env()
@@ -442,29 +445,9 @@ field_today_json <-
         local = sched_env
       )
 
-      today <- Sys.Date()
-
-      # The schedule stores a bare patch + integer id, but the map markers are
-      # named "<patch>_cb_<n>" / "<patch>_trailcam_<n>" (and nests by nest_id),
-      # so rebuild the full marker names to match against.
-
-      sb <-
-        sched_env$schedule %>%
-        dplyr::filter(date == today)
-
-      sc <-
-        sched_env$next_pred_cam_maintenance %>%
-        dplyr::filter(date == today)
-
-      tp   <- unique(as.character(sb$patch))
-      tb   <- unique(str_c(sb$patch, "_cb_", sb$board_id))
-      tcam <- unique(str_c(sc$patch, "_trailcam_", sc$camera_id))
-
-      tn <-
-        sched_env$next_checks %>%
-        dplyr::filter(date == today) %>%
-        dplyr::pull(nest_id) %>%
-        unique()
+      schedule <- sched_env$schedule
+      cam      <- sched_env$next_pred_cam_maintenance
+      checks   <- sched_env$next_checks
 
       # "lat,lng" key (6 dp) for every feature in a layer -- matches the keys
       # map_weather.js builds from the marker coordinates.
@@ -475,7 +458,7 @@ field_today_json <-
           sprintf("%.6f,%.6f", cc[, "Y"], cc[, "X"])
         }
 
-      # Keys of the markers in a layer that are NOT scheduled today.
+      # Keys of the markers in a layer NOT scheduled on a given day.
 
       fade_keys <-
         function(sfobj, scheduled) {
@@ -484,37 +467,85 @@ field_today_json <-
           ]
         }
 
-      # Half-opacity for every not-scheduled marker, keyed by "lat,lng".
+      # One day's entry: { patches: [...], fade: { "lat,lng": 0.5 } }. Map
+      # markers are named "<patch>_cb_<n>" / "<patch>_trailcam_<n>" (nests by
+      # nest_id), so rebuild those names from the schedule to match against.
 
-      not_scheduled_keys <-
-        c(
-          fade_keys(coverboards, tb),
-          fade_keys(nests, tn),
-          fade_keys(trailcams, tcam)
-        )
+      day_entry <-
+        function(d_iso) {
+          d <- as.Date(d_iso)
 
-      fade <-
-        not_scheduled_keys %>%
-        map(~ 0.5) %>%
-        set_names(not_scheduled_keys)
+          sb <- dplyr::filter(schedule, date == d)
+          sc <- dplyr::filter(cam, date == d)
 
-      # as.list(tp) keeps `patches` a JSON array even when only one patch is
-      # scheduled today (auto_unbox would otherwise emit a bare string).
+          tp   <- unique(as.character(sb$patch))
+          tb   <- unique(str_c(sb$patch, "_cb_", sb$board_id))
+          tcam <- unique(str_c(sc$patch, "_trailcam_", sc$camera_id))
 
-      jsonlite::toJSON(
-        list(patches = as.list(as.character(tp)), fade = fade),
-        auto_unbox = TRUE
-      )
+          tn <-
+            checks %>%
+            dplyr::filter(date == d) %>%
+            dplyr::pull(nest_id) %>%
+            unique()
+
+          not_scheduled <-
+            c(
+              fade_keys(coverboards, tb),
+              fade_keys(nests, tn),
+              fade_keys(trailcams, tcam)
+            )
+
+          list(
+            patches = as.list(tp),
+            fade =
+              not_scheduled %>%
+              map(~ 0.5) %>%
+              set_names(not_scheduled)
+          )
+        }
+
+      # Every date in the schedule, as YYYY-MM-DD, mapped to its day entry.
+
+      all_dates_iso <-
+        c(schedule$date, cam$date, checks$date) %>%
+        as.Date() %>%
+        unique() %>%
+        sort() %>%
+        as.character()
+
+      all_dates_iso %>%
+        set_names(all_dates_iso) %>%
+        map(day_entry) %>%
+        jsonlite::toJSON(auto_unbox = TRUE)
     },
     error = function(e) "null"
   )
+
+# Select the day entry matching the phone's CURRENT date (not the render date)
+# at page load -- this is what advances the map to the next day on its own. It
+# is inline so it runs before field_map_app.js and map_weather.js read
+# window.fieldToday.
+
+field_today_selector <-
+  '
+window.fieldToday = (function () {
+  var n = new Date();
+  var iso = n.getFullYear() + "-" +
+    ("0" + (n.getMonth() + 1)).slice(-2) + "-" +
+    ("0" + n.getDate()).slice(-2);
+  return (window.fieldSchedule && window.fieldSchedule[iso]) || null;
+})();
+'
 
 map_tracking <-
   map_tracking %>%
   htmlwidgets::appendContent(
     htmltools::tags$script(
       htmltools::HTML(
-        str_c("window.fieldToday = ", field_today_json, ";")
+        str_c(
+          "window.fieldSchedule = ", field_schedule_json, ";\n",
+          field_today_selector
+        )
       )
     )
   )
