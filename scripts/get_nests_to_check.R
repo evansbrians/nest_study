@@ -11,15 +11,14 @@ schedule <-
   read_rds("data/season_schedule.rds") %>% 
   unnest(patch_counts) %>% 
   
-  # Remove Sundays and subset to between today and within the next week:
+  # Remove Sundays and subset to to the current week:
   
   filter(
     day != "Sun",
-    between(
-      date,
-      today(),
-      today() + 6
-    )
+    get_sampling_week(date) == 
+      get_sampling_week(
+        today()
+      )
   ) %>% 
   
   # Subset to only relevant information:
@@ -54,56 +53,53 @@ nests_raw <-
 
 nests_proc <- 
   nests_raw %>% 
-  drop_na(host_eggs) %>% 
-
-  # Assign "Unknown" as the nest_fate for nests that have had 0 eggs and 0 young
-  # for 3 or more checks:
+  
+  # It's probably safer to turn the NA values into 0s:
   
   mutate(
+    across(
+      host_eggs:host_young,
+      ~ replace_na(.x, 0)
+    ),
+    
+    # Define an empty check as one in which there was no eggs or young:
+    
     empty = 
       if_else(
         host_eggs == 0 & host_young == 0,
         1,
         0
-      ),
+      )
+  ) %>% 
+  
+  # Determine the number of consecutive checks with 0 eggs and 0 young:
+  
+  mutate(
     empty_checks = 
       cumsum(
         lag(
           empty, 
           default = first(empty)
         )
-      ),
-    empty_checks = 
-      max(empty_checks),
-    nest_fate =
-      if_else(
-        empty_checks >= 3,
-        "Unknown",
-        nest_fate
-      ),
+      ) %>% 
+      last(),
     .by = nest_id
   ) %>% 
   
-  # Grab the last observation for each nest:
-  
-  slice_max(date, n = 1, by = nest_id) %>% 
-  
-  # Do not check if the nest fate is "Success" or "Failure":
+  # Do not check if the nest fate is "Success", "Failure", or if there are 5
+  # empty checks (I upped empty checks to fit the new schedule of a check every
+  # 3 days):
   
   filter_out(
-    nest_fate %in% c("Success", "Failure", "Unknown")
+    when_any(
+      nest_fate %in% c("Success", "Failure"),
+      empty_checks > 5
+    )
   ) %>% 
   
-  # Earliest nest check is 3 days if there are eggs or young and 6 days if
-  # there is no eggs or young:
+  # Subset to nest and patch:
   
-  mutate(
-    nest_id,
-    patch = patch_id,
-    check_freq = 3,
-    earliest_check = date + check_freq,
-    .keep = "none"
-  )
+  distinct(nest_id, patch = patch_id)
 
 # determine the date of the next nest checks ------------------------------
 
@@ -117,19 +113,6 @@ next_checks <-
     by = "patch",
     relationship = "many-to-many"
   ) %>% 
-  filter(date >= earliest_check) %>% 
-  slice_min(date, by = nest_id) %>% 
-  mutate(
-    check_1 = date,
-    check_2 = date + check_freq,
-    .keep = "unused"
-  ) %>% 
-  pivot_longer(
-    check_1:check_2,
-    names_to = NULL,
-    values_to = "date"
-  ) %>% 
-  select(nest_id:patch, date) %>% 
   arrange(date, patch)
 
 # Re-arrange by patch and day to view the nests you have to check on a given
