@@ -3,50 +3,26 @@
 # setup --------------------------------------------------------------------
 
 library(glue)
+library(here)
 library(leaflet)
 library(sf)
 library(htmlwidgets)
 library(htmltools)
 library(tidyverse)
 
-# Confirm here::here() is actually landing on our project root (where
-# scripts/, data/ and icons/ live). If it didn't, fail with a message (because
-# default messages were confusing and generated rabbit holes).
+# Basic functions file:
 
-if (!file.exists(here::here("scripts/functions.R"))) {
-  stop(
-    "here::here() did not resolve to the project root (it gave: ",
-    here::here(),
-    "). Look for a stray .Rproj/.here/.git/_quarto.yml in a subfolder."
-  )
-}
+source(
+  here("scripts/functions.R")
+)
 
-source(here::here("scripts/functions.R"))
+# Functions for the app:
 
-# Function to make popup:
+source(
+  here("scripts/nest_app/app_functions.R")
+)
 
-make_nest_popup <-
-  function(.x) {
-    glue_data(
-      .x,
-      "
-      <div style='font-family: Times;'>
-      <h3><strong>{nest_id}</strong>. Species: {species}</h3>
-      <ul>
-      <li><strong>Patch</strong>: {patch_id}</li>
-      <li><strong>Plant species</strong>: {substrate}</li>
-      <li><strong>Height</strong>: {height}</li>
-      <li><strong>Location description</strong>: {location_description}</li>
-      <li><strong>Discovered on</strong>: {discovery_date}</li>
-      <li><strong>Last checked on</strong>: {last_check}</li>
-      <li><strong>Current status</strong>: {last_status}</li>
-      </ul>
-      </div>
-      "
-    )
-  }
-
-# Basemap:
+# basemap -----------------------------------------------------------------
 
 basemap <-
   leaflet() %>%
@@ -56,7 +32,11 @@ basemap <-
   addProviderTiles(
     providers$Esri.WorldImagery,
     group = "Satellite",
-    options = tileOptions(maxZoom = 21, maxNativeZoom = 19)
+    options = 
+      tileOptions(
+        maxZoom = 21,
+        maxNativeZoom = 19
+      )
   ) %>%
   addProviderTiles(
     providers$OpenStreetMap,
@@ -69,12 +49,13 @@ basemap <-
     baseUrl =
       "https://opengeo.ncep.noaa.gov/geoserver/conus/conus_cref_qcd/ows",
     layers = "conus_cref_qcd", 
-    options = WMSTileOptions(
-      format = "image/png",
-      transparent = TRUE,
-      opacity = 0.50,
-      version = "1.3.0"
-    ),
+    options = 
+      WMSTileOptions(
+        format = "image/png",
+        transparent = TRUE,
+        opacity = 0.50,
+        version = "1.3.0"
+      ),
     group = "Precipitation",
     attribution = "Precipitation &copy; NOAA/NWS OpenGeo"
   ) %>% 
@@ -99,7 +80,7 @@ basemap <-
 # Spatial data:
 
 list.files(
-  here::here("data/spatial"),
+  here("data/spatial"),
   pattern = "geojson",
   full.names = TRUE
 ) %>%
@@ -132,27 +113,33 @@ list.files(
 # Nest data:
 
 nests_start <-
-  read_rds(here::here("data/field_data.rds")) %>%
+  read_rds(
+    here("data/field_data.rds")
+  ) %>%
   pluck("nests") %>% 
   unnest(interval_data)
 
-# Icons:
+# Icons for points:
 
 icons <-
   list.files(
-    here::here("icons/map_icons"),
+    here("icons/map_icons"),
     pattern = "png$",
     full.names = TRUE
   ) %>% 
   set_names_from_path() %>% 
-  map(
-    ~ makeIcon(
-      iconUrl = base64enc::dataURI(file = .x, mime = "image/png"),
-      iconWidth = 20.25,
-      iconHeight = 20.25,
-      iconAnchorX = 10.125,
-      iconAnchorY = 10.125
-    )
+  imap(
+    \ (.icon, .name) {
+      
+      # Account for the width:height ratio of png files when defining size and
+      # position:
+      
+      if (str_detect(.name, "nest|cam")) {
+        make_flexsize_icon(.icon, .modify_height = TRUE)
+      } else {
+        make_flexsize_icon(.icon)
+      }
+    }
   ) %>% 
   do.call(iconList, .)
 
@@ -169,77 +156,106 @@ paths <-
 
 # Read and process nest data for map:
 
-# Nest popup:
-
-nest_popup <- 
+nest_proc <-
   nests_start %>% 
   summarize(
-    last_check = last(date), 
-    last_status = last(nest_status),
+    
+    # Gather information on what happened during the last sample:
+    
+    across(
+      matches("fate$|^host_[ey]|^date"),
+      ~ last(.x),
+      .names = "{str_replace(.col, '^host_', 'last_')}"
+    ),
+    
+    # Gather information on the maximum numbers of eggs and young:
+    
+    across(
+      matches("^host_[ey]"),
+      ~ max(.x),
+      .names = "{str_replace(.col, 'host', 'max')}"
+    ),
     .by = 
       c(
-        nest_id:patch_id, 
+        nest_id:discovery_date, 
         height,
         substrate, 
-        location_description,
-        discovery_date
+        location_description
       )
   ) %>% 
   mutate(
+    
+    # Convert NA character values to Unknown:
+    
     across(
       where(is.character),
       ~ replace_na(.x, "Unknown")
     ),
-    nest_popup =
-      pick(
-        everything()
-      ) %>%
-      make_nest_popup() %>%
-      as.character()
-  ) %>%
-  select(nest_id, nest_popup)
+    
+    # Define a brood status based on what happened during the last check:
+    
+    brood_status =
+      case_when(
+        nest_fate == "Success" ~ "Fledged",
+        nest_fate == "Failure" & 
+          max_young > 0 ~ "Failed: Nestling stage",
+        nest_fate == "Failure" &
+          max_eggs > 0 ~ "Failed: Egg stage",
+        tolower(species) == "artificial" ~ "Artificial",
+        last_young > 0 ~ "Nestlings",
+        last_eggs > 0 ~ "Eggs",
+        .default = "Inactive / Unknown"
+      )
+  )
 
-nests_coded <- 
-  nests_start %>% 
+# Nests for mapping:
+
+nests_mapping <- 
+  
+  nest_proc %>% 
+  arrange(nest_id) %>% 
+  
+  # Add nest icons:
+  
   mutate(
-    nest_id, 
-    nest_fate, 
-    date = as_date(date),
-    across(
-      host_eggs:host_young,
-      ~ as.numeric(.x)
-    ),
-    .keep = "none"
-  ) %>% 
-  slice_max(
-    date,
-    by = nest_id,
-    with_ties = FALSE
-  ) %>% 
-  mutate(
-    name = nest_id,
     icon_id = 
       case_when(
-        nest_fate %in% c("Success", "Failure") ~ "nest_old",
-        host_eggs == 0 & 
-          host_young == 0 ~  "nest_building",
-        is.na(host_eggs) & is.na(host_young) ~ "nest_unknown",
-        .default = "nest_active"
-      ),
-    .keep = "none"
+        brood_status %in% c("Fledged", "Nestlings") ~ "nest_fledglings",
+        brood_status == "Failed: Nestling stage" ~ "nest_failed_nestlings",
+        brood_status == "Eggs" ~ "nest_active_eggs",
+        brood_status == "Artificial" ~ "nest_artificial",
+        .default = "nest_inactive"
+      )
   ) %>% 
+
+  
+  # Add nest spatial data:
+  
   left_join(
     select(nests, !icon_id),
     .,
-    by = "name"
+    by = join_by(name == nest_id)
   ) %>% 
   
   # Add nest popup:
   
   left_join(
-    nest_popup,
+    nest_proc %>% 
+      mutate(
+        nest_popup =
+          pick(
+            everything()
+          ) %>%
+          make_nest_popup() %>%
+          as.character()
+      ) %>%
+      select(nest_id, nest_popup),
     by = join_by(name == nest_id)
-  )
+  ) %>% 
+  
+  # Grab just the columns of interest:
+  
+  select(name, icon_id:nest_popup)
 
 # build map ----------------------------------------------------------------
 
@@ -272,7 +288,7 @@ map <-
   # Nests
   
   addMarkers(
-    data = nests_coded,
+    data = nests_mapping,
     icon = ~ icons[icon_id],
     popup = ~ nest_popup,
     group = "Nests"
@@ -354,10 +370,12 @@ map <-
 
 map_mobile_friendly <-
   map %>%
-  htmlwidgets::appendContent(
-    htmltools::tags$style(
-      htmltools::HTML(
-        read_file(here::here("scripts/nest_app/map_styles.css"))
+  appendContent(
+    tags$style(
+      HTML(
+        read_file(
+          here("scripts/nest_app/map_styles.css")
+        )
       )
     )
   )
@@ -366,8 +384,10 @@ map_mobile_friendly <-
 
 map_tracking <-
   map_mobile_friendly %>%
-  htmlwidgets::onRender(
-    read_file(here::here("scripts/nest_app/map_tracking.js"))
+  onRender(
+    read_file(
+      here("scripts/nest_app/map_tracking.js")
+    )
   )
 
 # add weather toggle support -----------------------------------------------
@@ -377,8 +397,8 @@ map_tracking <-
 
 map_tracking <-
   map_tracking %>%
-  htmlwidgets::onRender(
-    read_file(here::here("scripts/nest_app/map_weather.js"))
+  onRender(
+    read_file(here("scripts/nest_app/map_weather.js"))
   )
 
 # embed patch geometries for the patch filter ------------------------------
@@ -386,13 +406,16 @@ map_tracking <-
 patch_geo_json <-
   tryCatch(
     {
-      pg <- sf::st_transform(patches, 4326)
-
+      pg <- st_transform(patches, 4326)
+      
       geoms <-
         seq_len(nrow(pg)) %>%
         map(
           function(i) {
-            cc <- sf::st_coordinates(sf::st_geometry(pg)[i])
+            cc <- 
+              st_coordinates(
+                st_geometry(pg)[i]
+              )
             ring_key <-
               if ("L2" %in% colnames(cc)) {
                 str_c(cc[, "L2"], cc[, "L1"], sep = "-")
@@ -410,7 +433,7 @@ patch_geo_json <-
           }
         ) %>%
         set_names(as.character(pg$name))
-
+      
       jsonlite::toJSON(geoms, auto_unbox = TRUE)
     },
     error = function(e) "{}"
@@ -418,9 +441,9 @@ patch_geo_json <-
 
 map_tracking <-
   map_tracking %>%
-  htmlwidgets::appendContent(
-    htmltools::tags$script(
-      htmltools::HTML(
+  appendContent(
+    tags$script(
+      HTML(
         str_c("window.fieldPatches = ", patch_geo_json, ";")
       )
     )
@@ -428,73 +451,72 @@ map_tracking <-
 
 # embed the schedule, keyed by date ----------------------------------------
 
-# Sources schedule_for_map.R and bakes the WHOLE upcoming schedule as
+# Sources schedule_for_map.R and bakes the *whole* upcoming schedule as
 # window.fieldSchedule -- a map from date (YYYY-MM-DD) to that day's scheduled
 # patches plus the markers to fade. map_weather.js then selects the entry that
 # matches the phone's current date, so the map advances to the next day on its
-# own (no re-render needed). Wrapped so any failure just disables the feature
-# (window.fieldSchedule = null -> the switch shows everything).
+# own. Wrapped so any failure just disables the feature.
 
 field_schedule_json <-
   tryCatch(
     {
       sched_env <- new.env()
-
+      
       source(
-        here::here("scripts/nest_app/schedule_for_map.R"),
+        here("scripts/nest_app/schedule_for_map.R"),
         local = sched_env
       )
-
+      
       schedule <- sched_env$schedule
       cam      <- sched_env$next_pred_cam_maintenance
       checks   <- sched_env$next_checks
-
+      
       # "lat,lng" key (6 dp) for every feature in a layer -- matches the keys
       # map_weather.js builds from the marker coordinates.
-
+      
       keyfun <-
         function(sfobj) {
-          cc <- sf::st_coordinates(sf::st_transform(sfobj, 4326))
+          cc <- st_coordinates(st_transform(sfobj, 4326))
           sprintf("%.6f,%.6f", cc[, "Y"], cc[, "X"])
         }
-
+      
       # Keys of the markers in a layer NOT scheduled on a given day.
-
+      
       fade_keys <-
         function(sfobj, scheduled) {
           keyfun(sfobj)[
             !(as.character(sfobj$name) %in% as.character(scheduled))
           ]
         }
-
+      
       # One day's entry: { patches: [...], fade: { "lat,lng": 0.5 } }. Map
       # markers are named "<patch>_cb_<n>" / "<patch>_trailcam_<n>" (nests by
       # nest_id), so rebuild those names from the schedule to match against.
-
+      
       day_entry <-
         function(d_iso) {
-          d <- as.Date(d_iso)
-
-          sb <- dplyr::filter(schedule, date == d)
-          sc <- dplyr::filter(cam, date == d)
-
+          d <- as_date(d_iso)
+          
+          sb <- filter(schedule, date == d)
+          sc <- filter(cam, date == d)
+          
           tp   <- unique(as.character(sb$patch))
           tb   <- unique(str_c(sb$patch, "_cb_", sb$board_id))
           tcam <- unique(str_c(sc$patch, "_trailcam_", sc$camera_id))
-
+          
           tn <-
             checks %>%
-            dplyr::filter(date == d) %>%
-            dplyr::pull(nest_id) %>%
+            filter(date == d) %>%
+            pull(nest_id) %>%
             unique()
-
+          
           not_scheduled <-
             c(
               fade_keys(coverboards, tb),
               fade_keys(nests, tn),
               fade_keys(trailcams, tcam)
             )
-
+          
           list(
             patches = as.list(tp),
             fade =
@@ -503,16 +525,16 @@ field_schedule_json <-
               set_names(not_scheduled)
           )
         }
-
+      
       # Every date in the schedule, as YYYY-MM-DD, mapped to its day entry.
-
+      
       all_dates_iso <-
         c(schedule$date, cam$date, checks$date) %>%
-        as.Date() %>%
+        as_date() %>%
         unique() %>%
         sort() %>%
         as.character()
-
+      
       all_dates_iso %>%
         set_names(all_dates_iso) %>%
         map(day_entry) %>%
@@ -539,9 +561,9 @@ window.fieldToday = (function () {
 
 map_tracking <-
   map_tracking %>%
-  htmlwidgets::appendContent(
-    htmltools::tags$script(
-      htmltools::HTML(
+  appendContent(
+    tags$script(
+      HTML(
         str_c(
           "window.fieldSchedule = ", field_schedule_json, ";\n",
           field_today_selector
@@ -556,11 +578,17 @@ map_tracking <-
 
 offline_zooms  <- 16:19     # native zooms stored; higher zooms overzoom z19
 offline_buffer <- 50        # meters of margin around each patch
-tile_cache_dir <- here::here("scripts/nest_app/offline_tiles")
+tile_cache_dir <- here("scripts/nest_app/offline_tiles")
 
 # Which patches to embed offline imagery:
 
-offline_patches <- c("coyote", "witch_hazel", "leech")
+offline_patches <- 
+  c(
+    "coyote",
+    "witch_hazel",
+    "leech",
+    "grassland_a"
+  )
 
 .deg2tile <- 
   function(lat, lng, z) {
@@ -575,28 +603,32 @@ offline_patches <- c("coyote", "witch_hazel", "leech")
 offline_tiles_json <-
   tryCatch(
     {
-      dir.create(tile_cache_dir, showWarnings = FALSE, recursive = TRUE)
-
-      pg <- sf::st_transform(patches, 4326)
-
+      dir.create(
+        tile_cache_dir, 
+        showWarnings = FALSE, 
+        recursive = TRUE
+      )
+      
+      pg <- st_transform(patches, 4326)
+      
       if (!is.null(offline_patches)) {
         pg <-
           pg %>%
           filter(as.character(name) %in% offline_patches)
       }
-
+      
       # Every unique z/x/y tile covering each selected patch (+ buffer) across
       # the offline zooms.
-
+      
       tiles_index <-
         seq_len(nrow(pg)) %>%
         map(
           function(i) {
-            bb   <- sf::st_bbox(sf::st_geometry(pg)[i])
+            bb   <- st_bbox(st_geometry(pg)[i])
             mlat <- as.numeric((bb["ymin"] + bb["ymax"]) / 2)
             dlat <- offline_buffer / 110540
             dlng <- offline_buffer / (111320 * cos(mlat * pi / 180))
-
+            
             offline_zooms %>%
               map(
                 function(z) {
@@ -624,7 +656,7 @@ offline_tiles_json <-
         ) %>%
         list_rbind() %>%
         distinct()
-
+      
       keys <-
         str_c(
           tiles_index$z,
@@ -632,15 +664,15 @@ offline_tiles_json <-
           tiles_index$y,
           sep = "/"
         )
-
+      
       files <-
         file.path(
           tile_cache_dir,
           str_c(tiles_index$z, "_", tiles_index$x, "_", tiles_index$y, ".jpg")
         )
-
+      
       # Esri tile path order is z / y / x.
-
+      
       urls <-
         sprintf(
           "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/%d/%d/%d",
@@ -648,10 +680,10 @@ offline_tiles_json <-
           tiles_index$y,
           tiles_index$x
         )
-
+      
       sizes <- file.info(files)$size
       need  <- is.na(sizes) | sizes == 0
-
+      
       if (any(need)) {
         if (requireNamespace("curl", quietly = TRUE)) {
           try(
@@ -675,10 +707,10 @@ offline_tiles_json <-
           )
         }
       }
-
+      
       # Build the data-URI dictionary from whatever is on disk. Skip tiny blank
       # responses Esri returns where it has no imagery.
-
+      
       tiles <-
         map2(
           keys,
@@ -699,7 +731,7 @@ offline_tiles_json <-
         ) %>%
         set_names(keys) %>%
         compact()
-
+      
       jsonlite::toJSON(tiles, auto_unbox = TRUE)
     },
     error = function(e) "{}"
@@ -707,9 +739,9 @@ offline_tiles_json <-
 
 map_tracking <-
   map_tracking %>%
-  htmlwidgets::appendContent(
-    htmltools::tags$script(
-      htmltools::HTML(
+  appendContent(
+    tags$script(
+      HTML(
         str_c("window.fieldOfflineTiles = ", offline_tiles_json, ";")
       )
     )
@@ -725,7 +757,7 @@ nav_points_json <-
     {
       nav_df <-
         function(sfobj, type) {
-          cc <- sf::st_coordinates(sf::st_transform(sfobj, 4326))
+          cc <- st_coordinates(st_transform(sfobj, 4326))
           tibble(
             name = as.character(sfobj$name),
             lat  = cc[, "Y"],
@@ -733,7 +765,7 @@ nav_points_json <-
             type = type
           )
         }
-
+      
       list(
         Nest = nests,
         Coverboard = coverboards,
@@ -748,9 +780,9 @@ nav_points_json <-
 
 map_tracking <-
   map_tracking %>%
-  htmlwidgets::appendContent(
-    htmltools::tags$script(
-      htmltools::HTML(
+  appendContent(
+    tags$script(
+      HTML(
         str_c("window.fieldNavPoints = ", nav_points_json, ";")
       )
     )
