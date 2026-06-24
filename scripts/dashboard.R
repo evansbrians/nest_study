@@ -53,22 +53,25 @@ autopush_updates()
 
 source("scripts/update_google_earth.R")
 
-# Leaflet (map app):
-
-source("scripts/leaflet_map.R")
-
-# This part powers the phone app (currently ios but soon to be in ios *and*
-# Android!):
+# This part renders the phone apps (currently ios but soon to be in ios *and*
+# Android!) and web pages:
 
 quarto::quarto_render("scripts/nest_app/field_map.qmd")
 
-file.copy(
-  "scripts/nest_app/index.html",
-  "outputs/map_sandbox/index.html",
-  overwrite = TRUE
-)
+# I'm not sure which web apps are being used in the field, so I'll update all
+# of them:
 
-source("scripts/functions.R")
+file.path(
+  "outputs",
+  c("map_sandbox", "field_map"),
+  "index.html"
+) %>% 
+  file.copy(
+    "scripts/nest_app/index.html",
+    .,
+    overwrite = TRUE
+  )
+
 autopush_updates()
 
 # PNG maps (printed maps):
