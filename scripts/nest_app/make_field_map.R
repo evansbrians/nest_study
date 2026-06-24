@@ -220,9 +220,10 @@ nests_mapping <-
   mutate(
     icon_id = 
       case_when(
-        brood_status %in% c("Fledged", "Nestlings") ~ "nest_fledglings",
-        brood_status == "Failed: Nestling stage" ~ "nest_failed_nestlings",
+        brood_status %in% c("Fledged", "Nestlings") ~ "nest_active_nestlings",
         brood_status == "Eggs" ~ "nest_active_eggs",
+        brood_status == "Failed: Nestling stage" ~ "nest_failed_nestlings",
+        brood_status == "Failed: Egg stage" ~ "nest_failed_eggs",
         brood_status == "Artificial" ~ "nest_artificial",
         .default = "nest_inactive"
       )
