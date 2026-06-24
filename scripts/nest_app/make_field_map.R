@@ -727,16 +727,9 @@ map_tracking <-
 
 # return the widget --------------------------------------------------------
 
+# field_map.qmd sources this script and prints the `map_tracking` widget to
+# render the page, so map_tracking must be the last object left here. Do NOT add
+# autopush_updates() or rm(list = ls()) -- this runs inside the Quarto render,
+# and dashboard.R pushes to git after the render completes.
+
 map_tracking
-
-# end session --------------------------------------------------------------
-
-# Update git:
-
-autopush_updates()
-
-# Clear global environment:
-
-rm(
-  list = ls()
-)
