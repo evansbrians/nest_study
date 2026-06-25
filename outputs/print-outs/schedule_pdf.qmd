@@ -43,7 +43,7 @@ next_pred_cam_maintenance <-
   read_rds() %>% 
   mutate(
     patch,
-    date = next_maintenance,
+    date,
     camera_id = 
       str_extract_all(camera_id, "[0-2]$"),
     .keep = "none"
