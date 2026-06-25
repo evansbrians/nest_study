@@ -44,6 +44,11 @@ jobs:
       # Quarto + TinyTeX already ship in rocker/geospatial (built on rocker/verse),
       # so there is no separate Quarto install step.
 
+      - name: Install system libraries needed by R packages (ImageMagick for magick)
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends libmagick++-dev
+
       - name: Install the extra R packages not already in the image
         run: |
           Rscript -e '
