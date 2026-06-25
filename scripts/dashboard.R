@@ -30,20 +30,7 @@ quarto::quarto_render("outputs/print-outs/schedule_pdf.qmd")
 
 autopush_updates()
 
-# update the combined app (currently test_pages) --------------------------
-
-quarto::quarto_render(
-  input = "outputs/test_pages",
-  execute_dir = "outputs/test_pages"
-)
-
-autopush_updates()
-
-# update maps -------------------------------------------------------------
-
-# Google Earth:
-
-source("scripts/spatial/update_google_earth.R")
+# update the app ----------------------------------------------------------
 
 # This part renders the phone apps (currently ios but soon to be in ios *and*
 # Android!) and web pages:
@@ -65,6 +52,12 @@ file.path(
   )
 
 autopush_updates()
+
+# update GE and map printouts ---------------------------------------------
+
+# Google Earth:
+
+source("scripts/spatial/update_google_earth.R")
 
 # PNG maps (printed maps):
 
