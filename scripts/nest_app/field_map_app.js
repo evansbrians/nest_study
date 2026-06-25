@@ -96,9 +96,9 @@ function init() {
     })(navButtons[i]);
   }
 
-  // Start in map view
+  // Open the menu (main screen) on launch
 
-  updateBar();
+  openMenu();
 
   // map layer options -----------------------------------------------------
 
@@ -382,6 +382,34 @@ function init() {
   var wpClass = document.getElementById("wpClass");
   var wpNote = document.getElementById("wpNote");
   var wpPhoto = document.getElementById("wpPhoto");
+  var wpNamePrefix = document.getElementById("wpNamePrefix");
+  var WP_PREFIX = {
+    "Nest": "N",
+    "Landmark": "landmark-",
+    "Path crossing": "path_xing-",
+    "Boundary marker": "boundary-",
+    "Other": ""
+  };
+  function currentPrefix() {
+    return (wpClass && WP_PREFIX.hasOwnProperty(wpClass.value)) ? WP_PREFIX[wpClass.value] : "";
+  }
+  function syncNamePrefix() {
+    var p = currentPrefix();
+    if (wpNamePrefix) {
+      wpNamePrefix.textContent = p;
+      wpNamePrefix.style.display = p ? "" : "none";
+    }
+    if (wpName) {
+      wpName.placeholder = (wpClass && wpClass.value === "Nest")
+        ? "Nest number (e.g. 042)" : "Waypoint name";
+    }
+  }
+  function currentName(fallback) {
+    var suffix = (wpName && wpName.value.trim()) || "";
+    return suffix ? (currentPrefix() + suffix) : fallback;
+  }
+  if (wpClass) wpClass.addEventListener("change", syncNamePrefix);
+  syncNamePrefix();
   var wpPhotoPreview = document.getElementById("wpPhotoPreview");
   var wpColorRow = document.getElementById("wpColorRow");
   var addSaveBtn = document.getElementById("addWaypointSaveBtn");
@@ -575,6 +603,7 @@ function init() {
     if (wpName) wpName.value = "";
     if (wpNote) wpNote.value = "";
     if (wpClass) wpClass.selectedIndex = 0;
+    syncNamePrefix();
     if (wpPhoto) wpPhoto.value = "";
     if (wpPhotoPreview) wpPhotoPreview.innerHTML = "";
     currentPhoto = null;
@@ -589,9 +618,14 @@ function init() {
 
   function startRemeasure(w, mode) {
     editWp = { id: w.point_id, mode: mode };
-    if (wpName) wpName.value = w.point_name || "";
-    if (wpNote) wpNote.value = w.note || "";
     if (wpClass) wpClass.value = w.point_class || "Other";
+    syncNamePrefix();
+    if (wpName) {
+      var remeasurePrefix = currentPrefix();
+      wpName.value = (remeasurePrefix && (w.point_name || "").indexOf(remeasurePrefix) === 0)
+        ? w.point_name.slice(remeasurePrefix.length) : (w.point_name || "");
+    }
+    if (wpNote) wpNote.value = w.note || "";
     currentColor = wpColorHex(w);
     
     // keep the existing photo unless replaced
@@ -700,7 +734,7 @@ function init() {
       w.horizontal_accuracy = Math.round(loc.accuracy * 10) / 10;
       if (a.elevation != null) w.elevation = Math.round(a.elevation * 10) / 10;
       w.time = t;
-      w.point_name = (wpName && wpName.value.trim()) || w.point_name;
+      w.point_name = currentName(w.point_name);
       w.point_class = (wpClass && wpClass.value) || w.point_class;
       w.note = (wpNote && wpNote.value.trim()) || "";
       w.color = currentColor;
@@ -710,6 +744,7 @@ function init() {
           isoClean(now).replace(/:/g, "-") + ".jpg";
       }
       storeWaypoints(arr);
+      downloadGeojson("nest-app-waypoints.geojson", arr);
       refreshWaypointMarker(w);
       renderWaypoints();
       resetAddForm();
@@ -720,7 +755,7 @@ function init() {
 
     var wp = {
       point_id: newId(),
-      point_name: (wpName && wpName.value.trim()) || t,
+      point_name: currentName(t),
       point_class: (wpClass && wpClass.value) || "Other",
       time: t,
       elevation: (a.elevation != null) ? Math.round(a.elevation * 10) / 10 : null,
@@ -746,8 +781,9 @@ function init() {
     }
 
     arr.push(wp);
-    storeWaypoints(arr);          // silent: no file download / OS save sheet
-    addWaypointMarker(wp);        // drop a marker (with popup) on the map
+    storeWaypoints(arr);
+    downloadGeojson("nest-app-waypoints.geojson", arr);
+    addWaypointMarker(wp);
     renderWaypoints();
     resetAddForm();
     addStatus("");
@@ -773,7 +809,6 @@ function init() {
   // waypoint manager ------------------------------------------------------
 
   var listEl = document.getElementById("waypointList");
-  var dlBtn = document.getElementById("downloadWaypointsBtn");
   var clearBtn = document.getElementById("clearWaypointsBtn");
 
   // Persist one change to the waypoint with the given id; returns the updated
@@ -1056,17 +1091,6 @@ function init() {
     });
   }
 
-  if (dlBtn) {
-    dlBtn.addEventListener("click", function () {
-      var arr = loadWaypoints();
-      if (!arr.length) return;
-      downloadGeojson(
-        "waypoints_" + fmtTime(new Date()).replace(/[: ]/g, "-") + ".geojson",
-        arr
-      );
-    });
-  }
-
   if (clearBtn) {
     clearBtn.addEventListener("click", function () {
       if (!loadWaypoints().length) return;
@@ -1194,6 +1218,7 @@ function init() {
   var trackMgrBody = document.getElementById("trackMgrBody");
   var trackListEl = document.getElementById("trackList");
   var walkAgainTarget = null;   // track id being re-walked
+  var replaceTarget = null;
   var tracking = false;
   var committed = [];     // finalized vertices [{lat,lng,t,acc,n}]
   var live = null;        // {lat,lng,acc} = windowed-mean current position
@@ -1639,6 +1664,14 @@ function init() {
     trackStatus("Walking \"" + t.name + "\" again — averages on Save.");
   }
 
+  function startRecordNew(t) {
+    replaceTarget = t.id;
+    walkAgainTarget = null;
+    if (trackNameEl) trackNameEl.value = t.name;
+    startTrack();
+    trackStatus("Recording new \"" + t.name + "\" — replaces the old on Save.");
+  }
+
   function renderTrackList() {
     if (!trackListEl) return;
     var arr = loadTracks();
@@ -1670,8 +1703,36 @@ function init() {
       });
 
       var nameSpan = document.createElement("span");
-      nameSpan.className = "field-mgr-name";
+      nameSpan.className = "field-mgr-name field-mgr-name-link";
+      nameSpan.setAttribute("role", "button");
       nameSpan.textContent = t.name;
+
+      var trackMenu = document.createElement("div");
+      trackMenu.className = "field-track-menu";
+      trackMenu.hidden = true;
+      var recNewBtn = document.createElement("button");
+      recNewBtn.type = "button"; recNewBtn.className = "field-button";
+      recNewBtn.textContent = "Record new track";
+      recNewBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        if (!window.confirm("Are you sure? This will delete the previous track!")) return;
+        trackMenu.hidden = true;
+        startRecordNew(t);
+      });
+      var avgNewBtn = document.createElement("button");
+      avgNewBtn.type = "button"; avgNewBtn.className = "field-button";
+      avgNewBtn.textContent = "Average with new track";
+      avgNewBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        trackMenu.hidden = true;
+        startWalkAgain(t);
+      });
+      trackMenu.appendChild(recNewBtn);
+      trackMenu.appendChild(avgNewBtn);
+      nameSpan.addEventListener("click", function (e) {
+        e.stopPropagation();
+        trackMenu.hidden = !trackMenu.hidden;
+      });
 
       var caret = document.createElement("span");
       caret.className = "field-accordion-caret";
@@ -1723,15 +1784,7 @@ function init() {
       });
       noteLbl.appendChild(noteInput);
 
-      // Actions: walk again / downloads / delete
-
-      var act1 = document.createElement("div");
-      act1.className = "field-mgr-actions";
-      var walk = document.createElement("button");
-      walk.type = "button"; walk.className = "field-button";
-      walk.textContent = "Walk again";
-      walk.addEventListener("click", function (e) { e.stopPropagation(); startWalkAgain(t); });
-      act1.appendChild(walk);
+      // Actions: downloads / delete
 
       var act2 = document.createElement("div");
       act2.className = "field-mgr-actions";
@@ -1761,11 +1814,11 @@ function init() {
       edit.appendChild(metaP);
       edit.appendChild(nameLbl);
       edit.appendChild(noteLbl);
-      edit.appendChild(act1);
       edit.appendChild(act2);
       edit.appendChild(act3);
 
       li.appendChild(row);
+      li.appendChild(trackMenu);
       li.appendChild(edit);
       trackListEl.appendChild(li);
     });
@@ -1837,6 +1890,13 @@ function init() {
       activeLine = null;
       committed = [];
       commitSavedTrack(t);
+      if (replaceTarget) {
+        hideSavedTrack(replaceTarget);
+        var keepTracks = loadTracks().filter(function (x) { return x.id !== replaceTarget; });
+        storeTracks(keepTracks);
+        replaceTarget = null;
+        renderTrackList();
+      }
       if (trackNameEl) trackNameEl.value = "";
       if (trackNoteEl) trackNoteEl.value = "";
       trackStatus("Track saved (line + error polygon downloaded).");
@@ -1854,6 +1914,7 @@ function init() {
       committed = [];
       live = null;
       walkAgainTarget = null;   // cancel any pending "walk again" average
+      replaceTarget = null;
       trackStatus("Track cleared.");
       updateReadout();
       updateTrackUI();

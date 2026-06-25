@@ -436,7 +436,7 @@ patch_geo_json <-
         ) %>%
         set_names(as.character(pg$name))
       
-      jsonlite::toJSON(geoms, auto_unbox = TRUE)
+      jsonlite::toJSON(geoms, auto_unbox = TRUE, digits = NA)
     },
     error = function(e) "{}"
   )
@@ -786,6 +786,83 @@ map_tracking <-
     tags$script(
       HTML(
         str_c("window.fieldNavPoints = ", nav_points_json, ";")
+      )
+    )
+  )
+
+icons_json <-
+  tryCatch(
+    icons %>%
+      imap(
+        ~ list(
+          iconUrl = .x$iconUrl,
+          iconWidth = .x$iconWidth,
+          iconHeight = .x$iconHeight,
+          iconAnchorX = .x$iconAnchorX,
+          iconAnchorY = .x$iconAnchorY
+        )
+      ) %>%
+      jsonlite::toJSON(auto_unbox = TRUE),
+    error = function(e) "{}"
+  )
+
+map_points_json <-
+  tryCatch(
+    {
+      map_points_df <-
+        function(sfobj, fallback_icon = NA_character_) {
+          cc <- st_coordinates(st_transform(sfobj, 4326))
+          ic <-
+            if (!is.null(sfobj$icon_id)) {
+              as.character(sfobj$icon_id)
+            } else {
+              fallback_icon
+            }
+          tibble(
+            name = as.character(sfobj$name),
+            lat = cc[, "Y"],
+            lng = cc[, "X"],
+            icon_id = ic
+          )
+        }
+
+      list(
+        map_points_df(nests_mapping),
+        map_points_df(coverboards),
+        map_points_df(trailcams),
+        map_points_df(point_counts, "pc")
+      ) %>%
+        list_rbind() %>%
+        jsonlite::toJSON(dataframe = "rows", digits = NA)
+    },
+    error = function(e) "[]"
+  )
+
+paths_json <-
+  tryCatch(
+    paths %>%
+      st_transform(4326) %>%
+      st_geometry() %>%
+      map(
+        function(.geom) {
+          co <- st_coordinates(.geom)
+          unname(cbind(co[, "Y"], co[, "X"]))
+        }
+      ) %>%
+      jsonlite::toJSON(digits = NA),
+    error = function(e) "[]"
+  )
+
+map_tracking <-
+  map_tracking %>%
+  appendContent(
+    tags$script(
+      HTML(
+        str_c(
+          "window.fieldIcons = ", icons_json, ";\n",
+          "window.fieldMapPoints = ", map_points_json, ";\n",
+          "window.fieldPaths = ", paths_json, ";"
+        )
       )
     )
   )

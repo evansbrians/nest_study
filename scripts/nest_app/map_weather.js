@@ -445,6 +445,15 @@ function(el, x) {
 
   applyFilter();
 
+  map.whenReady(function () {
+    setTimeout(function () {
+      var initialBounds = patchBounds(activePatchNames());
+      if (initialBounds) {
+        map.fitBounds(initialBounds, { padding: [25, 25], maxZoom: 19 });
+      }
+    }, 400);
+  });
+
   // Respond to the host page's option changes.
 
   window.addEventListener("message", function(e) {

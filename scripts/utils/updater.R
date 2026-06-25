@@ -242,7 +242,7 @@ rm(
 
 # Process nest data and determine the earliest next nest check:
 
-nests_proc <- 
+current_nests <- 
   nests %>% 
   unnest(interval_data) %>%
   # It's probably safest to turn the NA values into 0s:
@@ -289,7 +289,7 @@ nests_proc <-
 ## output: the date of the next nest checks in the current week -----------
 
 temp_nest_checking <- 
-  nests_proc %>% 
+  current_nests %>% 
   
   # Join with schedule and subset to the checks that will occur in next round of
   # checks:
@@ -308,10 +308,6 @@ temp_nest_checking <-
     check_nests = str_flatten(nest_id, collapse = ", "),
     .by = c(date, patch)
   ) 
-
-# Remove files we will not pass on:
-
-rm(nests_proc)
 
 # camera maintenance schedule ---------------------------------------------
 
@@ -388,6 +384,7 @@ rm(next_maintenance, schedule)
 
 lst(
   predator_camera_maintenance,
+  current_nests,
   temp_nest_checking,
   field_data
 ) %>% 
