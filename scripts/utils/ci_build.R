@@ -40,7 +40,13 @@ source("scripts/utils/updater.R")
 # render the schedule app + printable schedule ----------------------------
 
 quarto::quarto_render("outputs/schedule/index.qmd")
-quarto::quarto_render("outputs/print-outs/schedule_pdf.qmd")
+
+tryCatch(
+  quarto::quarto_render("outputs/print-outs/schedule_pdf.qmd"),
+  error = function(e) {
+    message("Skipping the printable schedule PDF: ", conditionMessage(e))
+  }
+)
 
 # update the Google Earth file --------------------------------------------
 
