@@ -151,7 +151,7 @@ paths <-
   filter(
     !str_detect(name, "line")
   ) %>% 
-  rmapshaper::ms_simplify(keep = 0.20)
+  st_simplify(dTolerance = 0.00001, preserveTopology = TRUE)
 
 # nest status --------------------------------------------------------------
 
