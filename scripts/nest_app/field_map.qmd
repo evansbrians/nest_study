@@ -515,7 +515,7 @@ document.addEventListener("DOMContentLoaded", function () {
     <div class="field-menu-panel">
       <div class="field-menu-title">Schedule</div>
       <div class="field-doc-content" id="scheduleDoc">
-        The schedule will appear here.
+        The schedule will appear here soon!
       </div>
     </div>
 ```
