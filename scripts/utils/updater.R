@@ -183,6 +183,10 @@ nests <-
       ~ as.numeric(.x)
     )
   ) %>% 
+  
+  # NA is somehow getting stuck in:
+  
+  drop_na(nest_id) %>% 
   select(
     
     # Nest level:
@@ -234,63 +238,53 @@ rm(
   visits
 )
 
-# get and process nest data -----------------------------------------------
+# nests to check ----------------------------------------------------------
 
 # Process nest data and determine the earliest next nest check:
 
 nests_proc <- 
   nests %>% 
   unnest(interval_data) %>%
-  arrange(
-    desc(date)
-  ) %>% 
-  
-  # It's probably safer to turn the NA values into 0s:
+  # It's probably safest to turn the NA values into 0s:
   
   mutate(
     across(
       host_eggs:host_young,
       ~ replace_na(.x, 0)
-    ),
-    
-    # Define an empty check as one in which there was no eggs or young:
-    
-    empty = 
-      if_else(
-        host_eggs == 0 & host_young == 0,
-        1,
-        0
+    )
+  ) %>% 
+  
+  # Determine the number of days with 0 eggs and 0 young:
+  
+  summarize_me(
+    first_check = min(date),
+    last_check = max(date),
+    n_checks = n_unique(date),
+    n_check_days = 
+      as.numeric(last_check - first_check),
+    always_empty = sum(host_eggs, host_young) == 0,
+    .by = 
+      vars(
+        nest_id,
+        patch = patch_id,
+        nest_fate
       )
   ) %>% 
   
-  # Determine the number of consecutive checks with 0 eggs and 0 young:
-  
-  mutate(
-    empty_checks = 
-      cumsum(
-        lag(
-          empty, 
-          default = first(empty)
-        )
-      ) %>% 
-      last(),
-    .by = nest_id
-  ) %>% 
-  
-  # Do not check if the nest fate is "Success", "Failure", or if there are 5
-  # empty checks (I upped empty checks to fit the new schedule of a check every
-  # 3 days):
+  # Do not check if the nest fate is "Success", "Failure", or if the nest has
+  # been empty for 12 or more days:
   
   filter_out(
     when_any(
       nest_fate %in% c("Success", "Failure"),
-      empty_checks > 5
+      n_check_days >= 12 & always_empty,
+      
+      # Also had to add this because several nests haven't been checked for a 
+      # long time (probably old nests?):
+      
+      today() - last_check > 14
     )
-  ) %>% 
-  
-  # Subset to nest and patch:
-  
-  distinct(nest_id, patch = patch_id)
+  )
 
 ## output: the date of the next nest checks in the current week -----------
 
@@ -421,5 +415,3 @@ ls() %>%
 # Add, commit, and push to github:
 
 autopush_updates()
-
-
