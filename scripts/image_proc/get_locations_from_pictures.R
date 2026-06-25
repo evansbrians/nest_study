@@ -5,6 +5,7 @@
 
 library(sf)
 library(glue)
+library(leaflet)
 library(tidyverse)
 
 source("scripts/utils/functions/utility_functions.R")
