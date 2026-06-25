@@ -117,7 +117,7 @@ map_tracking
           <span>Map options</span>
         </button>
         <button type="button" class="field-tile" data-screen="speciesinfo">
-          <img class="field-tile-icon" src="icons/dove-solid-full.svg" alt="">
+          <img class="field-tile-icon" src="icons/bunting.png" alt="">
           <span>Species info</span>
         </button>
       </div>

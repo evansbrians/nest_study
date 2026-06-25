@@ -39,6 +39,51 @@ char_time_to_time <-
       hms::as_hms()
   }
 
+# character or POSIXt to character time -----------------------------------
+
+make_pretty_time <-
+  function(
+    .time = now(),
+    .offset = minutes(0),
+    .leading_zero = TRUE
+  ) {
+    
+    # Character time:
+    
+    if (is.character(.time)) {
+      .time <- 
+        str_extract(.time, "[0-9]{1,2}:[0-9]{1,2}") %>% 
+        str_pad(
+          width = 5, 
+          side = "left",
+          pad = 0
+        )
+    } 
+    
+    # Datetime:
+    
+    if (is.POSIXt(.time)) {
+      .time <- 
+        format(.time, "%H:%M")
+    }
+    
+    # Make time:
+    
+    .time %>% 
+      { hm(.) + .offset } %>%
+      hms::hms() %>% 
+      as.character() %>% 
+      str_sub(1, 5) %>% 
+      
+      # Optionally remove the leading zero:
+      
+      {
+        if(!.leading_zero) {
+          str_remove(., "^0")
+        } else .
+      }
+  }
+
 # get sampling week -------------------------------------------------------
 
 get_sampling_week <-
