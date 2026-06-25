@@ -46,6 +46,15 @@ get_summary_stats <-
       )
   }
 
+# Because I don't like writing this all of the time:
+
+n_unique <-
+  function(.x) {
+    length(
+      unique(.x)
+    )
+  }
+
 # Because I am often annoyed with the fact that filter doesn't allow you to 
 # drop columns:
 
