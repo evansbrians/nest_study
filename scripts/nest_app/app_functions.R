@@ -6,6 +6,17 @@
 
 # Function to define icon sizes:
 
+png_dimensions <-
+  function(.file) {
+    con <- file(.file, "rb")
+    on.exit(close(con))
+    readBin(con, "raw", n = 16)
+    list(
+      width = readBin(con, "integer", n = 1, size = 4, endian = "big"),
+      height = readBin(con, "integer", n = 1, size = 4, endian = "big")
+    )
+  }
+
 make_flexsize_icon <-
   function(
     .icon_url,               # Path to the png file        
@@ -19,8 +30,7 @@ make_flexsize_icon <-
     ) {
     
     image_info <-
-      magick::image_read(.icon_url) %>% 
-      magick::image_info()
+      png_dimensions(.icon_url)
       
       # Add a modifier for width:height, if chosen:
       
