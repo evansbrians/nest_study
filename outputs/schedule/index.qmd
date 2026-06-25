@@ -709,7 +709,8 @@ weather$Wed %>%
 
 ::: summary_box
 
-*Helper: `r unique(schedule_list$Thu$helper)`*
+*Helper: -*
+<!-- `r unique(schedule_list$Thu$helper)`* -->
 
 ```{r}
 morning_times(.day = "Thu")
@@ -729,21 +730,19 @@ pred_counts(.day = "Thu")
 nest_searching(
   .day = "Thu",
   .helper_patch_1 = "-",
-  .me_patch_1 = "Create branches off the CB 1 to CB 3 path",
-  .helper_patch_2 = "Explore the Western section of the patch (there's a new trail at the Western edge)",
+  .me_patch_1 = "Northern section",
+  .helper_patch_2 = "-",
   .me_patch_2 = "Inlets along the Northern edge",
   
   # If schedule changes:
   
   # .ordered = FALSE,
-  # .helper = "",
+  # .helper = "-",
   # .patches = c("", "")
 )
 ```
 
-Notes: 
-
-* Alternate activity: At each nest, take a picture from further away, circle the nest in the picture, and jot down a brief description of where the picture was taken in relation to the nest. Also record the status of the nest (e.g., How old is it? If recent, would it be a good candidate for fake, Quinn-poop-covered eggs?)
+Note: Initiate two artificial nests at each patch (one camera and one control)
 
 <button class="accordion" style="font-size: 1em; font-weight: 500; padding: 5;">
 
