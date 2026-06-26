@@ -261,11 +261,16 @@ map_tracking
       <ul id="waypointList" class="field-waypoint-list"></ul>
 
       <div class="field-waypoint-actions">
+        <button type="button" id="saveAllWaypointsBtn" class="field-button">
+          Save waypoints
+        </button>
         <button type="button" id="clearWaypointsBtn"
                 class="field-button field-button--danger">
           Clear all
         </button>
       </div>
+      <div id="waypointSyncStatus" class="field-status" role="status"
+           aria-live="polite"></div>
     </div>
 ```
 :::

@@ -242,6 +242,44 @@ function init() {
     };
   }
   
+  var WP_SYNC = {
+    relayUrl: "https://script.google.com/macros/s/AKfycbwcrpt6oRl15FT7ffYihMrEgqBsyH4Q1oKtjOOlggg_f_erQejm1RS2xwZDkZYcP4Rr-Q/exec",
+    study: "scbi",
+    secret: "23_boy_howdy_58"
+  };
+
+  function waypointsFC(ws) {
+    return { type: "FeatureCollection", features: ws.map(waypointFeature) };
+  }
+  function syncTimestamp() {
+    return new Date().toISOString().replace(/[:.]/g, "-");
+  }
+  function uploadToDrive(target, filename, fc, onStatus) {
+    function say(m) { if (typeof onStatus === "function") onStatus(m); }
+    if (!WP_SYNC.relayUrl || WP_SYNC.relayUrl.indexOf("PASTE") === 0) {
+      say("Drive sync not set up yet.");
+      return;
+    }
+    if (!navigator.onLine) {
+      say("No signal -- saved locally; use Save waypoints when back online.");
+      return;
+    }
+    say("Sending to Drive...");
+    fetch(WP_SYNC.relayUrl, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({
+        secret: WP_SYNC.secret,
+        study: WP_SYNC.study,
+        target: target,
+        filename: filename,
+        geojson: JSON.stringify(fc)
+      })
+    }).then(function () { say("Sent to Drive."); })
+      .catch(function () { say("Drive upload failed -- data saved locally."); });
+  }
+
   function downloadGeojson(filename, ws) {
     var fc = { type: "FeatureCollection", features: ws.map(waypointFeature) };
     var blob = new Blob([JSON.stringify(fc, null, 2)], { type: "application/geo+json" });
@@ -749,7 +787,7 @@ function init() {
           isoClean(now).replace(/:/g, "-") + ".jpg";
       }
       storeWaypoints(arr);
-      downloadGeojson("nest-app-waypoints.geojson", arr);
+      uploadToDrive("individual_points", w.point_name + "_" + syncTimestamp() + ".geojson", waypointsFC([w]));
       refreshWaypointMarker(w);
       renderWaypoints();
       resetAddForm();
@@ -787,7 +825,7 @@ function init() {
 
     arr.push(wp);
     storeWaypoints(arr);
-    downloadGeojson("nest-app-waypoints.geojson", arr);
+    uploadToDrive("individual_points", wp.point_name + "_" + syncTimestamp() + ".geojson", waypointsFC([wp]));
     addWaypointMarker(wp);
     renderWaypoints();
     resetAddForm();
@@ -1103,6 +1141,22 @@ function init() {
         storeWaypoints([]);
         renderWaypoints();
       }
+    });
+  }
+
+  var saveAllBtn = document.getElementById("saveAllWaypointsBtn");
+  var syncStatusEl = document.getElementById("waypointSyncStatus");
+  function syncStatus(m) { if (syncStatusEl) syncStatusEl.textContent = m || ""; }
+  if (saveAllBtn) {
+    saveAllBtn.addEventListener("click", function () {
+      var arr = loadWaypoints();
+      if (!arr.length) { syncStatus("No waypoints to save."); return; }
+      uploadToDrive(
+        "bundled_points",
+        WP_SYNC.study + "_bundled_" + syncTimestamp() + ".geojson",
+        waypointsFC(arr),
+        syncStatus
+      );
     });
   }
 
