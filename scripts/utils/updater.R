@@ -65,6 +65,86 @@ schedule <-
 
 ## gps points -------------------------------------------------------------
 
+# Make a template for each point file:
+
+point_template <-
+  st_sf(
+    point_id = character(),
+    name = character(),
+    datetime = ymd_hms(tz = "America/New_York"),
+    elevation = double(),
+    bearing = double(),
+    accuracy = double(),
+    photo_name = character(),
+    photo = character(),
+    note = character(),
+    geometry = st_sfc(crs = 4326)
+  )
+
+class_template <-
+  point_template %>% 
+  mutate(point_class = character()) %>% 
+  select(point_class, everything())
+
+rbind_sf <- 
+  function(.lst) {
+    .lst <- keep(.lst, \ (.x) nrow(.x) > 0)
+    if (length(.lst) == 0) {
+      class_template
+    } else {
+      reduce(.lst, rbind)
+    }
+  }
+
+# Get current point files (if they exist):
+
+spatial_points <- 
+  list(
+    "nest",
+    "coverboard",
+    "trailcam",
+    "point_count",
+    "landmark",
+    "path_crossing",
+    "boundary_marker",
+    "other"
+  ) %>% 
+  set_names(.) %>% 
+  map(
+    \ (.point_class) {
+      
+      url <-
+        file.path(
+          "data/spatial",
+          str_c(.point_class, "_locations.geojson")
+        )
+      
+      if (file.exists(url)) {
+        st_read(url, quiet = TRUE) %>% 
+          
+          # Ensure the CRS is 4326:
+          
+          st_transform(4326) %>% 
+          
+          # Conform to the template:
+          
+          mutate(
+            across(
+              matches("elevation|bearing|accuracy"),
+              ~ as.numeric(.x)
+            ),
+            across(
+              any_of("datetime"),
+              ~ as_datetime(.x)
+            )
+          ) %>% 
+          bind_rows(point_template, .)
+      } else {
+        point_template
+      }
+    }
+  )
+
 # Collect gps points from Google Drive:
 
 new_points <- 
@@ -106,15 +186,23 @@ new_points <-
             # Read in the file and pre-process:
             
             st_read(.path, quiet = TRUE) %>% 
+              st_transform(4326) %>% 
+              rename_with(
+                ~ "accuracy", 
+                any_of("horizontal_accuracy")
+              ) %>% 
               mutate(
-                time = as_datetime(time),
                 
                 # Numeric class columns:
                 
                 across(
-                  elevation:bearing,
+                  matches("elevation|bearing|accuracy"),
                   ~ as.numeric(.x)
-                ),
+                )
+              ) %>% 
+              bind_rows(point_template, .) %>% 
+              mutate(
+                datetime = force_tz(as_datetime(time), "America/New_York"),
                 
                 # Snake case except for point_names of nests:
                 
@@ -130,18 +218,57 @@ new_points <-
                       tolower(point_name) %>% 
                       str_to_snake()
                   )
+              ) %>% 
+              
+              # Align with template:
+              
+              select(
+                point_class,
+                all_of(
+                  names(point_template)
+                )
               )
           }
         ) %>%
-        bind_rows() %>% 
-        select(!point_name)
+        rbind_sf()
     }
   ) %>% 
-
+  
   # Combine both sets of files and remove duplicates:
+  
+  rbind_sf() %>% 
+  distinct(point_id, .keep_all = TRUE) %>% 
+  
+  # Split by point_class:
+  
+  split(.$point_class)
 
-  bind_rows() %>% 
-  distinct()
+# Combine previous and new points:
+
+spatial_points %>% 
+  iwalk(
+    \ (.x, .name) {
+      if (!is.null(new_points[[.name]])) {
+        
+        # Define the path:
+        
+        url <- 
+          str_c(.name, "_locations.geojson") %>% 
+          file.path("data/spatial", .)
+        
+        to_write <-
+          new_points[[.name]] %>%
+          filter(!point_id %in% .x$point_id) %>%
+          select(!point_class)
+        
+        # Write:
+        
+        if (nrow(to_write) > 0) {
+          st_write(to_write, url, append = TRUE)
+        }
+      }
+    }
+  )
 
 ## coverboards ------------------------------------------------------------
 
