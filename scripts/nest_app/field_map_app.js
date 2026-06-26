@@ -404,9 +404,14 @@ function init() {
         ? "Nest number (e.g. 042)" : "Waypoint name";
     }
   }
+  function toSnakeCase(s) {
+    return String(s == null ? "" : s).trim().toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+  }
   function currentName(fallback) {
     var suffix = (wpName && wpName.value.trim()) || "";
-    return suffix ? (currentPrefix() + suffix) : fallback;
+    return suffix ? (currentPrefix() + toSnakeCase(suffix)) : fallback;
   }
   if (wpClass) wpClass.addEventListener("change", syncNamePrefix);
   syncNamePrefix();
@@ -1876,7 +1881,7 @@ function init() {
         }
       }
 
-      var name = (trackNameEl && trackNameEl.value.trim()) || isoClean(new Date());
+      var name = (trackNameEl && trackNameEl.value.trim()) ? toSnakeCase(trackNameEl.value.trim()) : isoClean(new Date());
       var t = {
         id: newId(),
         name: name,
