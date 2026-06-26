@@ -58,3 +58,8 @@ rsconnect/
 
 brian_sandbox/
 tara_sandbox/
+
+# Service account
+
+.secrets/
+service_account.json

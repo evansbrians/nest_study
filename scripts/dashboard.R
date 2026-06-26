@@ -9,8 +9,6 @@ library(tidyverse)
 
 system("git pull")
 
-googlesheets4::gs4_auth(email = TRUE)
-
 # download data points from garmin ----------------------------------------
 
 source("scripts/spatial/convert_gpx_geojson.R")

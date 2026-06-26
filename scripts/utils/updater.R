@@ -4,10 +4,21 @@
 library(glue)
 library(here)
 library(googlesheets4)
+library(googledrive)
+library(sf)
 library(tidyverse)
 
 source("scripts/utils/functions/time_and_date_functions.R")
 source("scripts/utils/functions/utility_functions.R")
+
+# Define folder locations in Drive where waypoints are stored:
+
+scbi_point_folders <-
+  drive_ls(
+    as_id("1JE63Iy4_hLRfaHjENlBHDpLYPKgD33B6")
+  ) %>%
+  filter(name == "scbi") %>%
+  drive_ls()
 
 # Create file path/url for each Google sheet:
 
@@ -51,6 +62,86 @@ schedule <-
   )
 
 # field_data --------------------------------------------------------------
+
+## gps points -------------------------------------------------------------
+
+# Collect gps points from Google Drive:
+
+new_points <- 
+  list("individual_points", "bundled_points") %>% 
+  set_names(.) %>% 
+  map(
+    \ (.subfolder) {
+      
+      # List files in the subfolder:
+      
+      scbi_point_folders %>%
+        filter(name == .subfolder) %>%
+        drive_ls() %>%
+        
+        # Subset to geojson file (if we've accumulated an junk):
+        
+        filter(
+          str_detect(name, "geojson$")
+        ) %>%
+        
+        # Map across Drive ids in the file:
+        
+        pull(id) %>%
+        map(
+          \ (.id) {
+            
+            # Define a temporary write path:
+            
+            .path <- tempfile(fileext = ".geojson")
+            
+            # Download the file to temp:
+            
+            drive_download(
+              as_id(.id), 
+              path = .path, 
+              overwrite = TRUE
+            )
+            
+            # Read in the file and pre-process:
+            
+            st_read(.path, quiet = TRUE) %>% 
+              mutate(
+                time = as_datetime(time),
+                
+                # Numeric class columns:
+                
+                across(
+                  elevation:bearing,
+                  ~ as.numeric(.x)
+                ),
+                
+                # Snake case except for point_names of nests:
+                
+                across(
+                  c(point_class, photo_name),
+                  ~ tolower(.x) %>% 
+                    str_to_snake()
+                ),
+                name = 
+                  case_when(
+                    point_class == "nest" ~ point_name,
+                    .default = 
+                      tolower(point_name) %>% 
+                      str_to_snake()
+                  )
+              )
+          }
+        ) %>%
+        bind_rows() %>% 
+        select(!point_name)
+    }
+  ) %>% 
+
+  # Combine both sets of files and remove duplicates:
+
+  bind_rows() %>% 
+  distinct()
 
 ## coverboards ------------------------------------------------------------
 
