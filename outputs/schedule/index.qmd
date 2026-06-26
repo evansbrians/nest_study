@@ -836,7 +836,7 @@ pred_counts(.day = "Fri")
 ```{r}
 nest_searching(
   .day = "Fri",
-  .me_patch_1 = "Focus on the Western section (CB 6 end)",
+  .me_patch_1 = "Hunt for WEVIs",
   .me_patch_2 = "Continue to create distributaries along the main paths; Investigate more near trailcam_1",
   
   # If schedule changes:
@@ -849,11 +849,7 @@ nest_searching(
 )
 ```
 
-Notes:
-
-* At each nest, take a picture from further away and jot down a brief description of where the picture was taken and how to find the nest.
-* Only change batteries and SD cards at one trailcam per patch (to avoid future maintenance scheduling woes).
-* Take note of which inactive nests might be suitable for artificial eggs.
+Note: Initiate two artificial nests at each patch (one camera and one control)
 
 <button class="accordion" style="font-size: 1em; font-weight: 500; padding: 5;">
 
