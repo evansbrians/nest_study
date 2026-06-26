@@ -209,7 +209,7 @@ map_tracking
           <option>Nest</option>
           <option>Landmark</option>
           <option>Path crossing</option>
-          <option>Boundary marker</option>
+          <option value="Boundary">Boundary marker</option>
           <option>Other</option>
         </select>
       </label>
@@ -520,7 +520,19 @@ document.addEventListener("DOMContentLoaded", function () {
     <div class="field-menu-panel">
       <div class="field-menu-title">Schedule</div>
       <div class="field-doc-content" id="scheduleDoc">
-        The schedule will appear here soon!
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+source(here::here("scripts/nest_app/schedule.R"))
+
+schedule_panels
+```
+
+```{=html}
       </div>
     </div>
 ```

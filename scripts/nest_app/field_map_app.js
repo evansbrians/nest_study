@@ -424,8 +424,8 @@ function init() {
   var WP_PREFIX = {
     "Nest": "N",
     "Landmark": "landmark-",
-    "Path crossing": "path_xing-",
-    "Boundary marker": "boundary-",
+    "Path crossing": "path_crossing-",
+    "Boundary": "boundary-",
     "Other": ""
   };
   function currentPrefix() {

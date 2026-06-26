@@ -107,7 +107,7 @@ spatial_points <-
     "point_count",
     "landmark",
     "path_crossing",
-    "boundary_marker",
+    "boundary",
     "other"
   ) %>% 
   set_names(.) %>% 
@@ -607,6 +607,30 @@ schedule_updates <-
     urls$schedule_updates,
     col_types = "c"
   ) 
+
+# weather forecast --------------------------------------------------------
+
+tryCatch(
+  {
+    source("scripts/utils/weather.R")
+
+    daily_forecast <-
+      get_weather(.hourly = FALSE) %>%
+      filter(is_daytime) %>%
+      mutate(date = as_date(start_time), .before = start_time) %>%
+      select(!is_daytime)
+
+    hourly_forecast <-
+      get_weather(.hourly = TRUE) %>%
+      mutate(date = as_date(start_time)) %>%
+      nest(hourly = !date)
+
+    daily_forecast %>%
+      left_join(hourly_forecast, by = "date") %>%
+      write_rds("data/weather.rds")
+  },
+  error = function(.e) message("Skipping the weather update: ", conditionMessage(.e))
+)
 
 # write to file -----------------------------------------------------------
 

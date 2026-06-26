@@ -50,7 +50,8 @@ jobs:
             pkgs <- c("googlesheets4", "googledrive", "here", "glue",
                       "leaflet", "htmlwidgets", "htmltools", "kableExtra",
                       "rmapshaper", "base64enc", "jsonlite", "magick",
-                      "tmap", "maptiles", "xml2", "zip", "quarto", "withr")
+                      "tmap", "maptiles", "xml2", "zip", "quarto", "withr",
+                      "httr", "janitor")
             need <- setdiff(pkgs, rownames(installed.packages()))
             if (length(need)) install.packages(need, repos = "https://packagemanager.posit.co/cran/__linux__/jammy/latest")
           '

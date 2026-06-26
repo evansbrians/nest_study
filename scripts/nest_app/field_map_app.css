@@ -900,6 +900,44 @@ input[type="file"].field-input {
   font-weight: 600;
 }
 
+.schedule-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+}
+
+.schedule-table th,
+.schedule-table td {
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border, #dfe3e8);
+  vertical-align: top;
+}
+
+.schedule-table th {
+  color: var(--text-muted, #5c6670);
+  font-weight: 600;
+}
+
+.schedule-table .sched-patch {
+  white-space: nowrap;
+  font-weight: 600;
+  border-right: 1px solid var(--border, #dfe3e8);
+}
+
+.schedule-notes {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+
+.weather-summary {
+  font-weight: 600;
+}
+
+.panel .accordion-group {
+  margin-top: 8px;
+}
+
 .panel h4 {
   margin: 10px 0 4px;
 }

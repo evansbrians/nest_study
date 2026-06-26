@@ -91,22 +91,32 @@ list.files(
       str_replace("(?<!s)$", "s")
   ) %>% 
   map(
-    ~ st_read(.x, quiet = TRUE) %>%
-      st_transform(4326) %>% 
+    \ (.file) {
+      points <-
+        st_read(.file, quiet = TRUE) %>%
+        st_transform(4326)
+      
+      # Empty point files arrive without a name column to match on:
+      
+      if (!"name" %in% names(points)) {
+        points <- mutate(points, name = character())
+      }
       
       # Add icon ids:
       
-      mutate(
-        icon_id = 
-          case_when(
-            str_detect(name, "cb|cam") ~ 
-              str_extract(name, "(cb|cam)_[0-6]$"),
-            str_detect(name, "^N") ~ "nest",
-            str_detect(name, "^point") ~ "pc",
-            .default = "patch"
-          ),
-        .after = name
-      )
+      points %>% 
+        mutate(
+          icon_id = 
+            case_when(
+              str_detect(name, "cb|cam") ~ 
+                str_extract(name, "(cb|cam)_[0-6]$"),
+              str_detect(name, "^N") ~ "nest",
+              str_detect(name, "^point") ~ "pc",
+              .default = "patch"
+            ),
+          .after = name
+        )
+    }
   ) %>% 
   list2env(.GlobalEnv)
 
