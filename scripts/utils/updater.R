@@ -28,7 +28,8 @@ urls <-
     point_counts = "10ZsdRqT-oS_C92CpD-RA79QO52DFSHKbT1mwxUZsEIo",
     visits = "1Pd4OYDbRkV3DMDlZU1kFfW2ci2izmtpq8eXY7MvYENY",
     nests = "1iosPhbwDOVhIM4EkaeexnX0kRLsBqZKEuCbCsxFyMPs",
-    predator_cameras = "1exlfw40PfefcOLRxf7WUyCi9TOJ3yydKbAXcJNmABfc"
+    predator_cameras = "1exlfw40PfefcOLRxf7WUyCi9TOJ3yydKbAXcJNmABfc",
+    schedule_updates = "1Pt-PPSekVv4BIM7nhCHPw1cmnUWkfrbjWpGw79-ohiQ"
   ) %>% 
   map(
     ~ file.path(
@@ -450,7 +451,6 @@ field_data <-
 # Remove files we will not pass on:
 
 rm(
-  urls,
   point_counts,
   coverboards,
   visits
@@ -598,15 +598,26 @@ predator_camera_maintenance <-
 
 rm(next_maintenance, schedule)
 
+# schedule ----------------------------------------------------------------
+
+# This one's a one step!
+
+schedule_updates <-
+  read_sheet(
+    urls$schedule_updates,
+    col_types = "c"
+  ) 
+
 # write to file -----------------------------------------------------------
 
 lst(
   predator_camera_maintenance,
   current_nests,
   temp_nest_checking,
-  field_data
+  field_data,
+  schedule_updates
 ) %>% 
-  imap(
+  iwalk(
     \ (.x, .name) {
       write_rds(
         .x, str_c("data/", .name, ".rds")
