@@ -243,7 +243,7 @@ function init() {
   }
   
   var WP_SYNC = {
-    relayUrl: "https://script.google.com/macros/s/AKfycbwcrpt6oRl15FT7ffYihMrEgqBsyH4Q1oKtjOOlggg_f_erQejm1RS2xwZDkZYcP4Rr-Q/exec",
+    relayUrl: "https://script.google.com/macros/s/AKfycbwet0ZyQbxDG4zF-I1o8SNwAKXkFNdFFmH269Ap7VMAgsi0E6ndTL5pDNiweHvKjGA_Ug/exec",
     study: "scbi",
     secret: "23_boy_howdy_58"
   };
