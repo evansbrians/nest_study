@@ -9,19 +9,18 @@ library(tidyverse)
 
 system("git pull")
 
-# download data points from garmin ----------------------------------------
-
-source("scripts/spatial/convert_gpx_geojson.R")
-
 # download and pre-process field data -------------------------------------
 
 source("scripts/utils/updater.R")
 
-# update the scheduling app and document ----------------------------------
+# download data points from garmin ----------------------------------------
+
+source("scripts/spatial/convert_gpx_geojson.R")
+
+# update the scheduling document ------------------------------------------
 
 # Update and render:
 
-quarto::quarto_render("outputs/schedule/index.qmd")
 quarto::quarto_render("outputs/print-outs/schedule_pdf.qmd")
 
 # Push changes:

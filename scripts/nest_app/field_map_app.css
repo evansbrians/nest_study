@@ -930,6 +930,11 @@ input[type="file"].field-input {
   padding-left: 18px;
 }
 
+.morning-table th,
+.morning-table td {
+  text-align: center;
+}
+
 .weather-summary {
   font-weight: 600;
 }

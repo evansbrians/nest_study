@@ -12,6 +12,89 @@ dash_blank <-
     if (is.na(.x) || str_trim(.x) == "") "-" else str_trim(.x)
   }
 
+# Seconds since midnight to an HH:MM label:
+
+format_time <-
+  function(.seconds) {
+    .seconds <- as.integer(round(.seconds))
+    sprintf("%02d:%02d", .seconds %/% 3600L, (.seconds %% 3600L) %/% 60L)
+  }
+
+# Home departure, arrival, sunrise and SCBI departure table:
+
+morning_times_table <-
+  function(.arrive, .sunrise) {
+    if (
+      is.null(.arrive) ||
+      length(.arrive) == 0 ||
+      is.na(.arrive[[1]]) ||
+      str_trim(as.character(.arrive[[1]])) == ""
+    ) {
+      return(NULL)
+    }
+    arrive <- as.character(.arrive[[1]])
+    sunrise <-
+      if (is.null(.sunrise) || length(.sunrise) == 0 || is.na(.sunrise[[1]])) {
+        "-"
+      } else {
+        as.character(.sunrise[[1]])
+      }
+    base <- period_to_seconds(hm(arrive))
+    tags$table(
+      class = "schedule-table morning-table",
+      tags$thead(
+        tags$tr(
+          tags$th("Home departure"),
+          tags$th("Arrival"),
+          tags$th("Sunrise"),
+          tags$th("SCBI departure")
+        )
+      ),
+      tags$tbody(
+        tags$tr(
+          tags$td(format_time(base - 45 * 60)),
+          tags$td(arrive),
+          tags$td(sunrise),
+          tags$td(format_time(base + 9 * 3600))
+        )
+      )
+    )
+  }
+
+# Point count times, coverboards, nests to check and predator cameras table:
+
+pred_counts_table <-
+  function(.rows) {
+    if (is.null(.rows) || nrow(.rows) == 0) return(NULL)
+    .rows <- arrange(.rows, patch_order)
+    tags$table(
+      class = "schedule-table",
+      tags$thead(
+        tags$tr(
+          tags$th("Time"),
+          tags$th("Patch"),
+          tags$th("Coverboards"),
+          tags$th("Check nests"),
+          tags$th("Predator cameras")
+        )
+      ),
+      tags$tbody(
+        seq_len(nrow(.rows)) %>%
+          map(
+            function(.i) {
+              tags$tr(
+                tags$td(.rows$time_label[[.i]]),
+                tags$td(as.character(.rows$patch_count[[.i]])),
+                tags$td(as.character(.rows$boards[[.i]])),
+                tags$td(as.character(.rows$check_nests[[.i]])),
+                tags$td(as.character(.rows$camera_id[[.i]]))
+              )
+            }
+          )
+      )
+    )
+  }
+
 # Patch / Person / Activities table for a single day:
 
 searching_table <-
@@ -178,7 +261,6 @@ schedule_panels <-
         read_rds(here::here("data/season_schedule.rds")) %>%
         unnest(patch_counts) %>%
         filter(week == get_sampling_week()) %>%
-        distinct(date, patch_count, patch_order) %>%
         mutate(date = as_date(date))
 
       updates <-
@@ -193,21 +275,88 @@ schedule_panels <-
           error = function(e) list()
         )
 
+      nest_checks <-
+        tryCatch(
+          {
+            high_ids <-
+              read_rds(here::here("data/field_data.rds")) %>%
+              pluck("nests") %>%
+              filter(height > 2) %>%
+              pull(nest_id)
+
+            checks <-
+              read_rds(here::here("data/temp_nest_checking.rds")) %>%
+              mutate(date = as_date(date))
+
+            if (length(high_ids) > 0) {
+              checks <-
+                checks %>%
+                mutate(
+                  check_nests =
+                    str_replace_all(
+                      check_nests,
+                      str_c("(", str_c(high_ids, collapse = "|"), ")"),
+                      "\\1 \U1F992"
+                    )
+                )
+            }
+            checks
+          },
+          error = function(e) tibble(date = as_date(character()), patch = character(), check_nests = character())
+        )
+
+      cameras <-
+        tryCatch(
+          read_rds(here::here("data/predator_camera_maintenance.rds")) %>%
+            mutate(date = as_date(date)) %>%
+            drop_na(camera_id),
+          error = function(e) tibble(date = as_date(character()), patch = character(), camera_id = character())
+        )
+
+      pred_data <-
+        tryCatch(
+          week_schedule %>%
+            unnest(boards) %>%
+            summarize(
+              boards = str_flatten(board_id, collapse = ", "),
+              .by = !board_id
+            ) %>%
+            left_join(nest_checks, by = join_by(date, patch_count == patch)) %>%
+            left_join(cameras, by = join_by(date, patch_count == patch)) %>%
+            mutate(
+              time_label =
+                format(
+                  ymd_hm(str_c(date, " ", sunrise)) + minutes(40 * (patch_order - 1)),
+                  "%H:%M"
+                ),
+              across(
+                c(check_nests, camera_id),
+                ~ replace_na(as.character(.x), "-")
+              )
+            ),
+          error = function(e) NULL
+        )
+
       week_schedule %>%
         distinct(date) %>%
         arrange(date) %>%
         pull(date) %>%
         map(
           function(.d) {
+            day_rows <- filter(week_schedule, date == .d)
+
             searched <-
-              week_schedule %>%
-              filter(date == .d, patch_order != 1) %>%
+              day_rows %>%
+              filter(patch_order != 1) %>%
               arrange(desc(patch_order)) %>%
               pull(patch_count)
 
             row <- filter(updates, date == .d)
 
             helper <- if (nrow(row) > 0) row$helper else NA
+
+            pred_rows <-
+              if (is.null(pred_data)) NULL else filter(pred_data, date == .d)
 
             tagList(
               tags$button(
@@ -226,6 +375,17 @@ schedule_panels <-
                     str_c("Helper: ", dash_blank(helper))
                   )
                 ),
+                morning_times_table(day_rows$arrive, day_rows$sunrise),
+                if (!is.null(pred_rows) && nrow(pred_rows) > 0) {
+                  tagList(
+                    tags$p(
+                      tags$strong(
+                        "Point count times, coverboards, and nests to check:"
+                      )
+                    ),
+                    pred_counts_table(pred_rows)
+                  )
+                },
                 tags$p(
                   tags$strong("Nest searching: "),
                   str_flatten(searched, collapse = " \u2192 ")
