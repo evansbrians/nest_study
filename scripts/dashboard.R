@@ -34,20 +34,6 @@ autopush_updates()
 
 quarto::quarto_render("outputs/nest_app/field_map.qmd")
 
-# I'm not sure which web apps are being used in the field, so I'll update all
-# of them:
-
-file.path(
-  "outputs",
-  c("map_sandbox", "field_map"),
-  "index.html"
-) %>% 
-  file.copy(
-    "outputs/nest_app/index.html",
-    .,
-    overwrite = TRUE
-  )
-
 autopush_updates()
 
 # update GE and map printouts ---------------------------------------------

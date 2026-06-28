@@ -56,19 +56,6 @@ source("scripts/spatial/update_google_earth.R")
 
 quarto::quarto_render("outputs/nest_app/field_map.qmd")
 
-# Publish the rendered map to both served locations.
-
-file.path(
-  "outputs",
-  c("map_sandbox", "field_map"),
-  "index.html"
-) %>%
-  file.copy(
-    "outputs/nest_app/index.html",
-    .,
-    overwrite = TRUE
-  )
-
 # update the printable PNG maps -------------------------------------------
 
 source("scripts/spatial/update_map_print-outs.R")
