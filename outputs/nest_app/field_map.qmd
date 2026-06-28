@@ -17,7 +17,7 @@ format:
 htmltools::tags$style(
   htmltools::HTML(
     paste(
-      readLines(here::here("scripts/nest_app/field_map_app.css")),
+      readLines(here::here("outputs/nest_app/field_map_app.css")),
       collapse = "\n"
     )
   )
@@ -29,7 +29,7 @@ htmltools::tags$style(
 #| message: false
 #| warning: false
 
-source(here::here("scripts/nest_app/make_field_map.R"))
+source(here::here("outputs/nest_app/make_field_map.R"))
 
 map_tracking
 ```
@@ -341,7 +341,7 @@ map_tracking
 #| warning: false
 #| message: false
 
-source(here::here("scripts/nest_app/species_info.R"))
+source(here::here("outputs/nest_app/species_info.R"))
 
 species_info_panels
 ```
@@ -364,7 +364,7 @@ species_info_panels
 #| warning: false
 #| message: false
 
-source(here::here("scripts/nest_app/nests.R"))
+source(here::here("outputs/nest_app/nests.R"))
 
 nest_panels
 ```
@@ -527,7 +527,7 @@ document.addEventListener("DOMContentLoaded", function () {
 #| warning: false
 #| message: false
 
-source(here::here("scripts/nest_app/schedule.R"))
+source(here::here("outputs/nest_app/schedule.R"))
 
 schedule_panels
 ```
@@ -567,7 +567,7 @@ schedule_panels
 htmltools::tags$script(
   htmltools::HTML(
     paste(
-      readLines(here::here("scripts/nest_app/field_map_app.js")),
+      readLines(here::here("outputs/nest_app/field_map_app.js")),
       collapse = "\n"
     )
   )
@@ -580,7 +580,7 @@ htmltools::tags$script(
 htmltools::tags$script(
   htmltools::HTML(
     paste(
-      readLines(here::here("outputs/test_pages/scripts/accordion.js")),
+      readLines(here::here("outputs/nest_app/accordion.js")),
       collapse = "\n"
     )
   )

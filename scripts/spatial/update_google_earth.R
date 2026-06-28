@@ -35,7 +35,7 @@ spatial_files <-
 
 icon_urls <-
   list.files(
-    "scripts/nest_app/icons",
+    "outputs/nest_app/icons",
     pattern = "png$"
   ) %>% 
   str_subset("app_icon|nest_old", negate = TRUE) %>% 
@@ -233,7 +233,7 @@ write_xml(
 
 local_icons <-
   list.files(
-    "scripts/nest_app/icons",
+    "outputs/nest_app/icons",
     pattern = "png$",
     full.names = TRUE
   ) %>% 

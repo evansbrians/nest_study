@@ -32,7 +32,7 @@ autopush_updates()
 # This part renders the phone apps (currently ios but soon to be in ios *and*
 # Android!) and web pages:
 
-quarto::quarto_render("scripts/nest_app/field_map.qmd")
+quarto::quarto_render("outputs/nest_app/field_map.qmd")
 
 # I'm not sure which web apps are being used in the field, so I'll update all
 # of them:
@@ -43,7 +43,7 @@ file.path(
   "index.html"
 ) %>% 
   file.copy(
-    "scripts/nest_app/index.html",
+    "outputs/nest_app/index.html",
     .,
     overwrite = TRUE
   )

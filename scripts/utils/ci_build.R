@@ -54,7 +54,7 @@ source("scripts/spatial/update_google_earth.R")
 
 # render the phone / web field map ----------------------------------------
 
-quarto::quarto_render("scripts/nest_app/field_map.qmd")
+quarto::quarto_render("outputs/nest_app/field_map.qmd")
 
 # Publish the rendered map to both served locations.
 
@@ -64,7 +64,7 @@ file.path(
   "index.html"
 ) %>%
   file.copy(
-    "scripts/nest_app/index.html",
+    "outputs/nest_app/index.html",
     .,
     overwrite = TRUE
   )
