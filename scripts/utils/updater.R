@@ -203,7 +203,11 @@ new_points <-
               ) %>% 
               bind_rows(point_template, .) %>% 
               mutate(
-                datetime = force_tz(as_datetime(time), "America/New_York"),
+                datetime = 
+                  force_tz(
+                    as_datetime(time), 
+                    "America/New_York"
+                  ),
                 
                 # Snake case except for point_names of nests:
                 
@@ -212,18 +216,7 @@ new_points <-
                   ~ tolower(.x) %>% 
                     str_to_snake()
                 ),
-                name = 
-                  case_when(
-                    point_class == "nest" ~ 
-                      point_name %>% 
-                      
-                      # A one-time fix:
-                      
-                      str_replace("Nn", "N"),
-                    .default = 
-                      tolower(point_name) %>% 
-                      str_to_snake()
-                  )
+                name = str_to_snake(point_name)
               ) %>% 
               
               # Align with template:
@@ -260,28 +253,28 @@ new_points %>%
   ) %>% 
   iwalk(
     \ (.x, .name) {
-
-        # Define the path:
-        
-        url <- 
-          str_c(.name, "_locations.geojson") %>% 
-          file.path("data/spatial", .)
-        
-        # New and updated points (drop the non-spatial class column):
-        
-        new_rows <-
-          .x %>%
-          select(!point_class) %>%
-          st_zm(drop = TRUE, what = "ZM")
-        
-        # Upsert by point_id: keep existing points that are not being updated,
-        # add the new and updated points, then overwrite the file:
-        
-        spatial_points[[.name]] %>%
-          st_zm(drop = TRUE, what = "ZM") %>%
-          filter(!point_id %in% new_rows$point_id) %>%
-          rbind(new_rows) %>%
-          st_write(url, delete_dsn = TRUE)
+      
+      # Define the path:
+      
+      url <- 
+        str_c(.name, "_locations.geojson") %>% 
+        file.path("data/spatial", .)
+      
+      # New and updated points (drop the non-spatial class column):
+      
+      new_rows <-
+        .x %>%
+        select(!point_class) %>%
+        st_zm(drop = TRUE, what = "ZM")
+      
+      # Upsert by point_id: keep existing points that are not being updated,
+      # add the new and updated points, then overwrite the file:
+      
+      spatial_points[[.name]] %>%
+        st_zm(drop = TRUE, what = "ZM") %>%
+        filter(!point_id %in% new_rows$point_id) %>%
+        rbind(new_rows) %>%
+        st_write(url, delete_dsn = TRUE)
     }
   )
 
@@ -510,12 +503,7 @@ current_nests <-
   filter(
     is.na(nest_fate),
     n_check_days <= 10,
-    always_empty,
-    
-    # Also had to add this because several nests haven't been checked for a 
-    # long time (probably old nests?):
-    
-    today() - last_check < 14
+    always_empty
   )
 
 ## output: the date of the next nest checks in the current week -----------
@@ -531,10 +519,14 @@ temp_nest_checking <-
     by = "patch",
     relationship = "many-to-many"
   ) %>% 
-  arrange(date, patch) %>% 
   
   # Re-arrange by patch and day to view the nests you have to check on a given
   # day:
+  
+  arrange(date, patch) %>% 
+  
+  # Make it flat so that nests to check on a given day are in a single column
+  # and row:
   
   summarize(
     check_nests = str_flatten(nest_id, collapse = ", "),
@@ -627,18 +619,23 @@ schedule_updates <-
 tryCatch(
   {
     source("scripts/utils/weather.R")
-
+    
     daily_forecast <-
       get_weather(.hourly = FALSE) %>%
       filter(is_daytime) %>%
-      mutate(date = as_date(start_time), .before = start_time) %>%
+      mutate(
+        date = as_date(start_time), 
+        .before = start_time
+      ) %>%
       select(!is_daytime)
-
+    
     hourly_forecast <-
       get_weather(.hourly = TRUE) %>%
-      mutate(date = as_date(start_time)) %>%
+      mutate(
+        date = as_date(start_time)
+      ) %>%
       nest(hourly = !date)
-
+    
     daily_forecast %>%
       left_join(hourly_forecast, by = "date") %>%
       write_rds("data/weather.rds")
