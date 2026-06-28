@@ -6,10 +6,12 @@ library(here)
 library(googlesheets4)
 library(googledrive)
 library(sf)
+library(httr)
 library(tidyverse)
 
 source("scripts/utils/functions/time_and_date_functions.R")
 source("scripts/utils/functions/utility_functions.R")
+source("scripts/utils/functions/scheduling_functions.R")
 
 # Define folder locations in Drive where waypoints are stored:
 
@@ -616,32 +618,69 @@ schedule_updates <-
 
 # weather forecast --------------------------------------------------------
 
-tryCatch(
-  {
-    source("scripts/utils/weather.R")
-    
-    daily_forecast <-
-      get_weather(.hourly = FALSE) %>%
-      filter(is_daytime) %>%
-      mutate(
-        date = as_date(start_time), 
-        .before = start_time
-      ) %>%
-      select(!is_daytime)
-    
-    hourly_forecast <-
-      get_weather(.hourly = TRUE) %>%
-      mutate(
-        date = as_date(start_time)
-      ) %>%
-      nest(hourly = !date)
-    
-    daily_forecast %>%
-      left_join(hourly_forecast, by = "date") %>%
-      write_rds("data/weather.rds")
-  },
-  error = function(.e) message("Skipping the weather update: ", conditionMessage(.e))
-)
+## set-up -----------------------------------------------------------------
+
+# Read in the existing weather data:
+
+old_weather <- 
+  read_rds("data/weather.rds")
+
+# Read in patches to determine the centroid of sampling locations:
+
+coords <-
+  read_sf("data/spatial/patches.geojson") %>% 
+  st_combine() %>%
+  st_centroid() %>% 
+  st_coordinates() %>% 
+  round(digits = 4) %>% 
+  rev() %>% 
+  str_c(collapse = ",")
+
+## urls for each forecast type --------------------------------------------
+
+weather_urls <-
+  str_c(
+    "https://api.weather.gov/points/",
+    coords
+  ) %>% 
+  query_api() %>% 
+  pluck("properties") %>% 
+  keep_at(
+    c("forecast", "forecastHourly")
+  ) %>% 
+  set_names("daily", "hourly")
+
+## read and write the data ------------------------------------------------
+
+# Download and process weather data:
+
+new_weather <- 
+  c("daily", "hourly") %>% 
+  set_names() %>% 
+  map(
+    ~ get_forecast(.x)
+  )
+
+# Update the existing weather data file:
+
+old_weather %>% 
+  names() %>%
+  set_names() %>% 
+  map(
+    \ (.forecast_type) {
+      new_weather <- 
+        new_weather %>% 
+        pluck(.forecast_type)
+      
+      old_weather %>% 
+        pluck(.forecast_type) %>% 
+        filter(
+          date < min(new_weather$date)
+        ) %>% 
+        bind_rows(new_weather)
+    }
+  ) %>% 
+  write_rds("data/weather.rds")
 
 # write to file -----------------------------------------------------------
 

@@ -102,6 +102,19 @@ summarize_me <-
       )
   }
 
+# Query an api:
+
+query_api <- 
+  function(.url) {
+    .url %>% 
+      GET() %>% 
+      content(
+        as = "text",
+        encoding = "UTF-8"
+      ) %>% 
+      jsonlite::fromJSON(simplifyVector = TRUE)
+  }
+
 ## visualization ----------------------------------------------------------
 
 # Plot theme:
