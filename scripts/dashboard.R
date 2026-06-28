@@ -24,6 +24,19 @@ source("scripts/spatial/convert_gpx_geojson.R")
 
 quarto::quarto_render("outputs/nest_app/field_map.qmd")
 
+file.path(
+  "outputs",
+  "map_sandbox",
+  "index.html"
+) %>% 
+  file.copy(
+    "outputs/nest_app/index.html",
+    .,
+    overwrite = TRUE
+  )
+
+autopush_updates()
+
 autopush_updates()
 
 # update the scheduling document ------------------------------------------
