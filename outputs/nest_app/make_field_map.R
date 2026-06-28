@@ -171,6 +171,9 @@ paths <-
   filter(
     !str_detect(name, "line")
   ) %>% 
+  {
+    .[map_int(st_geometry(.), ~ nrow(st_coordinates(.x))) >= 2, ]
+  } %>% 
   st_simplify(dTolerance = 0.00001, preserveTopology = TRUE)
 
 # nest status --------------------------------------------------------------
@@ -241,6 +244,7 @@ nests_mapping <-
   mutate(
     icon_id = 
       case_when(
+        str_detect(nest_id, "^NQ") ~ "nest_artificial",
         brood_status %in% c("Fledged", "Nestlings") ~ "nest_active_nestlings",
         brood_status == "Eggs" ~ "nest_active_eggs",
         brood_status == "Failed: Nestling stage" ~ "nest_failed_nestlings",

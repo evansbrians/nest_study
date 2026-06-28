@@ -73,9 +73,9 @@ pred_counts_table <-
         tags$tr(
           tags$th("Time"),
           tags$th("Patch"),
-          tags$th("Coverboards"),
-          tags$th("Check nests"),
-          tags$th("Predator cameras")
+          tags$th("Boards"),
+          tags$th("Nests"),
+          tags$th("Cams")
         )
       ),
       tags$tbody(
@@ -170,24 +170,27 @@ note_list <-
 # Weather summary and hourly forecast for a single day:
 
 weather_section <-
-  function(.wx) {
+  function(.daily, .hourly) {
     tryCatch(
       {
-        if (is.null(.wx) || nrow(.wx) == 0) return(NULL)
+        if (is.null(.daily) || nrow(.daily) == 0) return(NULL)
+        .daily <- slice_tail(.daily, n = 1)
 
         hourly <-
-          .wx %>%
-          select(hourly) %>%
-          unnest(hourly) %>%
-          distinct(start_time, .keep_all = TRUE) %>%
-          arrange(start_time) %>%
-          filter(
-            hour(start_time) >= 4,
-            hour(start_time) <= 17
-          )
+          if (is.null(.hourly) || nrow(.hourly) == 0) {
+            NULL
+          } else {
+            .hourly %>%
+              distinct(start_time, .keep_all = TRUE) %>%
+              arrange(start_time) %>%
+              filter(
+                hour(start_time) >= 4,
+                hour(start_time) <= 17
+              )
+          }
 
         hourly_block <-
-          if (nrow(hourly) > 0) {
+          if (!is.null(hourly) && nrow(hourly) > 0) {
             tags$div(
               class = "accordion-group",
               tags$button(
@@ -212,15 +215,12 @@ weather_section <-
                         function(.i) {
                           tags$tr(
                             tags$td(format(hourly$start_time[[.i]], "%H:%M")),
-                            tags$td(as.character(hourly$short_forecast[[.i]])),
+                            tags$td(as.character(hourly$description[[.i]])),
                             tags$td(
-                              str_c(
-                                str_extract(as.character(hourly$temperature[[.i]]), "[0-9]+"),
-                                "\u00b0"
-                              )
+                              str_c(hourly$temperature[[.i]], "\u00b0")
                             ),
                             tags$td(
-                              str_c(hourly$probability_of_precipitation_percent[[.i]], "%")
+                              str_c(hourly$chance_of_precip[[.i]], "%")
                             )
                           )
                         }
@@ -236,15 +236,15 @@ weather_section <-
         tagList(
           tags$p(
             tags$strong("Weather: "),
-            as.character(.wx$detailed_forecast[[1]])
+            as.character(.daily$detailed_description[[1]])
           ),
           tags$p(
             class = "weather-summary",
             str_c(
               "High ",
-              str_extract(as.character(.wx$temperature[[1]]), "[0-9]+"),
+              .daily$high_temp[[1]],
               "\u00b0F \u00b7 Chance of rain ",
-              .wx$probability_of_precipitation_percent[[1]], "%"
+              .daily$chance_of_precip[[1]], "%"
             )
           ),
           hourly_block
@@ -269,10 +269,20 @@ schedule_panels <-
 
       weather <-
         tryCatch(
-          read_rds(here::here("data/weather.rds")) %>%
-            mutate(wx_date = as_date(start_time)) %>%
-            split(.$wx_date),
+          read_rds(here::here("data/weather.rds")),
           error = function(e) list()
+        )
+
+      daily_wx <-
+        tryCatch(
+          mutate(weather$daily, date = as_date(date)),
+          error = function(e) NULL
+        )
+
+      hourly_wx <-
+        tryCatch(
+          mutate(weather$hourly, date = as_date(date)),
+          error = function(e) NULL
         )
 
       nest_checks <-
@@ -405,7 +415,10 @@ schedule_panels <-
                 note_list(
                   if (nrow(row) > 0) row$notes else NA
                 ),
-                weather_section(weather[[as.character(.d)]])
+                weather_section(
+                  if (is.null(daily_wx)) NULL else filter(daily_wx, date == .d),
+                  if (is.null(hourly_wx)) NULL else filter(hourly_wx, date == .d)
+                )
               )
             )
           }

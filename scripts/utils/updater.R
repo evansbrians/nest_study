@@ -497,15 +497,14 @@ current_nests <-
         patch = patch_id,
         nest_fate
       )
-  ) %>% 
+  ) %>%
   
   # Check if the fate is NA, the number of check days is less than or equal to
   # 10, and it's been empty at every check:
   
   filter(
     is.na(nest_fate),
-    n_check_days <= 10,
-    always_empty
+    !(n_check_days > 10 & always_empty)
   )
 
 ## output: the date of the next nest checks in the current week -----------
