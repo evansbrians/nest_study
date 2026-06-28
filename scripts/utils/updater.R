@@ -214,7 +214,12 @@ new_points <-
                 ),
                 name = 
                   case_when(
-                    point_class == "nest" ~ point_name,
+                    point_class == "nest" ~ 
+                      point_name %>% 
+                      
+                      # A one-time fix:
+                      
+                      str_replace("Nn", "N"),
                     .default = 
                       tolower(point_name) %>% 
                       str_to_snake()
@@ -246,28 +251,37 @@ new_points <-
 
 # Combine previous and new points:
 
-spatial_points %>% 
+new_points %>%
+  
+  # Subset to items with at least one row:
+  
+  keep(
+    ~ !is.null(.x) && nrow(.x) > 0
+  ) %>% 
   iwalk(
     \ (.x, .name) {
-      if (!is.null(new_points[[.name]])) {
-        
+
         # Define the path:
         
         url <- 
           str_c(.name, "_locations.geojson") %>% 
           file.path("data/spatial", .)
         
-        to_write <-
-          new_points[[.name]] %>%
-          filter(!point_id %in% .x$point_id) %>%
-          select(!point_class)
+        # New and updated points (drop the non-spatial class column):
         
-        # Write:
+        new_rows <-
+          .x %>%
+          select(!point_class) %>%
+          st_zm(drop = TRUE, what = "ZM")
         
-        if (nrow(to_write) > 0) {
-          st_write(to_write, url, append = TRUE)
-        }
-      }
+        # Upsert by point_id: keep existing points that are not being updated,
+        # add the new and updated points, then overwrite the file:
+        
+        spatial_points[[.name]] %>%
+          st_zm(drop = TRUE, what = "ZM") %>%
+          filter(!point_id %in% new_rows$point_id) %>%
+          rbind(new_rows) %>%
+          st_write(url, delete_dsn = TRUE)
     }
   )
 
