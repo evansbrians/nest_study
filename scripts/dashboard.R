@@ -17,6 +17,15 @@ source("scripts/utils/updater.R")
 
 source("scripts/spatial/convert_gpx_geojson.R")
 
+# update the app ----------------------------------------------------------
+
+# This part renders the phone apps (currently ios but soon to be in ios *and*
+# Android!) and web pages:
+
+quarto::quarto_render("outputs/nest_app/field_map.qmd")
+
+autopush_updates()
+
 # update the scheduling document ------------------------------------------
 
 # Update and render:
@@ -24,15 +33,6 @@ source("scripts/spatial/convert_gpx_geojson.R")
 quarto::quarto_render("outputs/print-outs/schedule_pdf.qmd")
 
 # Push changes:
-
-autopush_updates()
-
-# update the app ----------------------------------------------------------
-
-# This part renders the phone apps (currently ios but soon to be in ios *and*
-# Android!) and web pages:
-
-quarto::quarto_render("outputs/nest_app/field_map.qmd")
 
 autopush_updates()
 
