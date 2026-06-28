@@ -3,6 +3,7 @@
 "name": "landmark_locations",
 "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
 "features": [
-
+{ "type": "Feature", "properties": { "point_id": "be13a878-503e-4500-a692-a2c0f485a850", "name": "landmark_sycamore", "datetime": "2026-06-27T16:19:11Z", "elevation": 266.8, "bearing": 61.0, "accuracy": 2.6, "photo_name": null, "photo": null, "note": "Huge sycamore with y trunk" }, "geometry": { "type": "Point", "coordinates": [ -78.151335771764664, 38.898396789607858 ] } },
+{ "type": "Feature", "properties": { "point_id": "c6438d58-c0fd-4407-80a9-5b5402d3b177", "name": "landmark_concrete_blocks", "datetime": "2026-06-27T10:27:26Z", "elevation": 363.6, "bearing": 119.0, "accuracy": 2.7, "photo_name": null, "photo": null, "note": "Weird metal bars sticking out" }, "geometry": { "type": "Point", "coordinates": [ -78.159780792500001, 38.896742600681804 ] } }
 ]
 }
