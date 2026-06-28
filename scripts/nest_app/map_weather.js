@@ -53,14 +53,22 @@ function(el, x) {
   function scaleIconsForZoom() {
     var z = map.getZoom();
     var s = Math.min(1, Math.max(0.1, 1 - (19 - z) * 0.1));
-    var size = 20.25 * s, anchor = 10.125 * s;
-    var imgs = document.querySelectorAll(".leaflet-marker-pane img.leaflet-marker-icon");
-    for (var i = 0; i < imgs.length; i++) {
-      imgs[i].style.width = size + "px";
-      imgs[i].style.height = size + "px";
-      imgs[i].style.marginLeft = (-anchor) + "px";
-      imgs[i].style.marginTop = (-anchor) + "px";
-    }
+    var size = 20.25 * s;
+    var big = window.fieldNestBig || {};
+    eachPatchFeature(function (layer) {
+      var img = layer._icon;
+      if (!img || img.tagName !== "IMG" || typeof layer.getLatLng !== "function") return;
+      var ll = layer.getLatLng();
+      var mult = big[ll.lat.toFixed(6) + "," + ll.lng.toFixed(6)] ? 1.15 : 1;
+      // Fixed width; height follows each png's aspect ratio (no square stretch).
+      var w = size * mult;
+      var ratio = (img.naturalWidth > 0) ? (img.naturalHeight / img.naturalWidth) : 1;
+      var h = w * ratio;
+      img.style.width = w + "px";
+      img.style.height = h + "px";
+      img.style.marginLeft = (-w / 2) + "px";
+      img.style.marginTop = (-h / 2) + "px";
+    });
   }
   map.on("zoomend", scaleIconsForZoom);
   setTimeout(scaleIconsForZoom, 700);
@@ -387,7 +395,7 @@ function(el, x) {
 
       eachPatchFeature(function (layer) {
         if (!map.hasLayer(layer)) map.addLayer(layer);
-        setLayerOpacity(layer, 1);
+        setLayerOpacity(layer, fadeFor(layer, window.fieldNestFade));
       });
     } else {
       var ringsList = [];
@@ -416,7 +424,7 @@ function(el, x) {
         }
         if (show) {
           if (!map.hasLayer(layer)) map.addLayer(layer);
-          setLayerOpacity(layer, fadeFor(layer, fade));
+          setLayerOpacity(layer, Math.min(fadeFor(layer, window.fieldNestFade), fadeFor(layer, fade)));
         } else if (map.hasLayer(layer)) {
           map.removeLayer(layer);
         }

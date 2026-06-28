@@ -96,10 +96,10 @@ list.files(
         st_read(.file, quiet = TRUE) %>%
         st_transform(4326)
       
-      # Empty point files arrive without a name column to match on:
+      # Empty or nameless point files have no markers to assign icons to:
       
-      if (!"name" %in% names(points)) {
-        points <- mutate(points, name = character())
+      if (nrow(points) == 0 || !"name" %in% names(points)) {
+        return(points)
       }
       
       # Add icon ids:
@@ -128,6 +128,16 @@ nests_start <-
   ) %>%
   pluck("nests") %>% 
   unnest(interval_data)
+
+# Current nests render at full opacity on the map; old nests are faded:
+
+current_nest_ids <-
+  tryCatch(
+    here("data/current_nests.rds") %>% 
+      read_rds() %>% 
+      pull(nest_id),
+    error = function(e) character()
+  )
 
 # Icons for points:
 
@@ -237,7 +247,11 @@ nests_mapping <-
         brood_status == "Failed: Egg stage" ~ "nest_failed_eggs",
         brood_status == "Artificial" ~ "nest_artificial",
         .default = "nest_inactive"
-      )
+      ),
+    current = 
+      length(current_nest_ids) == 0 |
+      nest_id %in% current_nest_ids |
+      brood_status %in% c("Eggs", "Nestlings", "Artificial")
   ) %>% 
 
   
@@ -267,7 +281,7 @@ nests_mapping <-
   
   # Grab just the columns of interest:
   
-  select(name, icon_id:nest_popup)
+  select(name, icon_id, current, nest_popup)
 
 # build map ----------------------------------------------------------------
 
@@ -571,6 +585,45 @@ window.fieldToday = (function () {
 })();
 '
 
+# Old nests (not in current_nests) fade to 50% on the map; keyed by "lat,lng"
+# (6 dp) to match the coordinates map_weather.js reads from each marker.
+
+nest_fade_json <-
+  tryCatch(
+    {
+      keys <-
+        nests_mapping %>% 
+        filter(!current) %>% 
+        st_transform(4326) %>% 
+        st_coordinates() %>% 
+        { sprintf("%.6f,%.6f", .[, "Y"], .[, "X"]) }
+      keys %>% 
+        map(~ 0.5) %>% 
+        set_names(keys) %>% 
+        jsonlite::toJSON(auto_unbox = TRUE)
+    },
+    error = function(e) "{}"
+  )
+
+# Current/active nests render 15% larger on the map; same "lat,lng" keys.
+
+nest_big_json <-
+  tryCatch(
+    {
+      keys <-
+        nests_mapping %>% 
+        filter(current) %>% 
+        st_transform(4326) %>% 
+        st_coordinates() %>% 
+        { sprintf("%.6f,%.6f", .[, "Y"], .[, "X"]) }
+      keys %>% 
+        map(~ TRUE) %>% 
+        set_names(keys) %>% 
+        jsonlite::toJSON(auto_unbox = TRUE)
+    },
+    error = function(e) "{}"
+  )
+
 map_tracking <-
   map_tracking %>%
   appendContent(
@@ -578,6 +631,8 @@ map_tracking <-
       HTML(
         str_c(
           "window.fieldSchedule = ", field_schedule_json, ";\n",
+          "window.fieldNestFade = ", nest_fade_json, ";\n",
+          "window.fieldNestBig = ", nest_big_json, ";\n",
           field_today_selector
         )
       )
@@ -820,7 +875,7 @@ map_points_json <-
   tryCatch(
     {
       map_points_df <-
-        function(sfobj, fallback_icon = NA_character_) {
+        function(sfobj, group, fallback_icon = NA_character_) {
           cc <- st_coordinates(st_transform(sfobj, 4326))
           ic <-
             if (!is.null(sfobj$icon_id)) {
@@ -828,19 +883,27 @@ map_points_json <-
             } else {
               fallback_icon
             }
+          pop <-
+            if (!is.null(sfobj$nest_popup)) {
+              as.character(sfobj$nest_popup)
+            } else {
+              as.character(sfobj$name)
+            }
           tibble(
             name = as.character(sfobj$name),
             lat = cc[, "Y"],
             lng = cc[, "X"],
-            icon_id = ic
+            icon_id = ic,
+            popup = pop,
+            group = group
           )
         }
 
       list(
-        map_points_df(nests_mapping),
-        map_points_df(coverboards),
-        map_points_df(trailcams),
-        map_points_df(point_counts, "pc")
+        map_points_df(nests_mapping, "Nests"),
+        map_points_df(coverboards, "Coverboards"),
+        map_points_df(trailcams, "Trail Cameras"),
+        map_points_df(point_counts, "Point Counts", "pc")
       ) %>%
         list_rbind() %>%
         jsonlite::toJSON(dataframe = "rows", digits = NA)
