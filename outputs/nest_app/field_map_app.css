@@ -1043,3 +1043,48 @@ input[type="file"].field-input {
 .show-current-only .patch-count-all {
   display: none;
 }
+
+/* Full-screen "uploaded to Drive" confirmation modal */
+
+.field-upload-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.field-upload-modal-overlay.is-visible {
+  display: flex;
+}
+
+.field-upload-modal {
+  background: #1b7f3b;
+  color: #fff;
+  border-radius: 18px;
+  padding: 36px 28px;
+  max-width: 86%;
+  text-align: center;
+  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.45);
+}
+
+.field-upload-modal-check {
+  font-size: 68px;
+  line-height: 1;
+  margin-bottom: 14px;
+}
+
+.field-upload-modal-text {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.field-upload-modal-hint {
+  margin-top: 18px;
+  font-size: 14px;
+  opacity: 0.85;
+}

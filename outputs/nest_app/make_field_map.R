@@ -255,7 +255,8 @@ nests_mapping <-
     current = 
       length(current_nest_ids) == 0 |
       nest_id %in% current_nest_ids |
-      brood_status %in% c("Eggs", "Nestlings", "Artificial")
+      brood_status %in% c("Eggs", "Nestlings", "Artificial") |
+      str_detect(nest_id, "^NQ")
   ) %>% 
 
   
@@ -285,7 +286,8 @@ nests_mapping <-
   
   # Grab just the columns of interest:
   
-  select(name, icon_id, current, nest_popup)
+  select(name, icon_id, current, nest_popup) %>% 
+  filter(!name %in% str_replace(name[str_detect(name, "^NQ")], "^NQ", "N"))
 
 # build map ----------------------------------------------------------------
 
@@ -321,7 +323,8 @@ map <-
     data = nests_mapping,
     icon = ~ icons[icon_id],
     popup = ~ nest_popup,
-    group = "Nests"
+    group = "Nests",
+    options = markerOptions(zIndexOffset = 1000)
   ) %>% 
   
   # Coverboards:
@@ -500,6 +503,18 @@ field_schedule_json <-
       schedule <- sched_env$schedule
       cam      <- sched_env$next_pred_cam_maintenance
       checks   <- sched_env$next_checks
+
+      current_names <-
+        nests_mapping %>%
+        filter(current) %>%
+        pull(name) %>%
+        as.character()
+
+      current_names <-
+        c(
+          current_names,
+          str_replace(str_subset(current_names, "^NQ"), "^NQ", "N")
+        )
       
       # "lat,lng" key (6 dp) for every feature in a layer -- matches the keys
       # map_weather.js builds from the marker coordinates.
@@ -543,7 +558,7 @@ field_schedule_json <-
           not_scheduled <-
             c(
               fade_keys(coverboards, tb),
-              fade_keys(nests, tn),
+              fade_keys(nests, c(tn, current_names)),
               fade_keys(trailcams, tcam)
             )
           

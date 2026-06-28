@@ -254,7 +254,7 @@ function init() {
   function syncTimestamp() {
     return new Date().toISOString().replace(/[:.]/g, "-");
   }
-  function uploadToDrive(target, filename, fc, onStatus) {
+  function uploadToDrive(target, filename, fc, onStatus, onSuccess) {
     function say(m) { if (typeof onStatus === "function") onStatus(m); }
     if (!WP_SYNC.relayUrl || WP_SYNC.relayUrl.indexOf("PASTE") === 0) {
       say("Drive sync not set up yet.");
@@ -276,8 +276,56 @@ function init() {
         filename: filename,
         geojson: JSON.stringify(fc)
       })
-    }).then(function () { say("Sent to Drive."); })
+    }).then(function () {
+      say("Sent to Drive.");
+      if (typeof onSuccess === "function") onSuccess();
+    })
       .catch(function () { say("Drive upload failed -- data saved locally."); });
+  }
+
+  // Once a waypoint's GeoJSON has reached Drive, flag it uploaded: it drops out
+  // of the manager list (renderWaypoints filters these) but keeps its map marker
+  // and stays in storage as a local backup.
+
+  function markUploaded(ids) {
+    var idset = {};
+    ids.forEach(function (id) { idset[id] = true; });
+    var arr = loadWaypoints();
+    arr.forEach(function (x) { if (idset[x.point_id]) x.uploaded = true; });
+    storeWaypoints(arr);
+    renderWaypoints();
+  }
+
+  // Full-screen "uploaded to Drive" confirmation; blocks until tapped.
+
+  function showUploadModal(msg) {
+    var overlay = document.getElementById("fieldUploadModal");
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.id = "fieldUploadModal";
+      overlay.className = "field-upload-modal-overlay";
+      var box = document.createElement("div");
+      box.className = "field-upload-modal";
+      var check = document.createElement("div");
+      check.className = "field-upload-modal-check";
+      check.innerHTML = "&#x2714;";
+      var text = document.createElement("div");
+      text.className = "field-upload-modal-text";
+      var hint = document.createElement("div");
+      hint.className = "field-upload-modal-hint";
+      hint.textContent = "Tap anywhere to dismiss";
+      box.appendChild(check);
+      box.appendChild(text);
+      box.appendChild(hint);
+      overlay.appendChild(box);
+      overlay.addEventListener("click", function () {
+        overlay.classList.remove("is-visible");
+      });
+      document.body.appendChild(overlay);
+      overlay._textEl = text;
+    }
+    overlay._textEl.textContent = msg;
+    overlay.classList.add("is-visible");
   }
 
   function downloadGeojson(filename, ws) {
@@ -787,7 +835,10 @@ function init() {
           isoClean(now).replace(/:/g, "-") + ".jpg";
       }
       storeWaypoints(arr);
-      uploadToDrive("individual_points", w.point_name + "_" + syncTimestamp() + ".geojson", waypointsFC([w]));
+      uploadToDrive("individual_points", w.point_name + "_" + syncTimestamp() + ".geojson", waypointsFC([w]), null, function () {
+        markUploaded([w.point_id]);
+        showUploadModal(w.point_name + " uploaded to Drive.");
+      });
       refreshWaypointMarker(w);
       renderWaypoints();
       resetAddForm();
@@ -825,7 +876,10 @@ function init() {
 
     arr.push(wp);
     storeWaypoints(arr);
-    uploadToDrive("individual_points", wp.point_name + "_" + syncTimestamp() + ".geojson", waypointsFC([wp]));
+    uploadToDrive("individual_points", wp.point_name + "_" + syncTimestamp() + ".geojson", waypointsFC([wp]), null, function () {
+      markUploaded([wp.point_id]);
+      showUploadModal(wp.point_name + " uploaded to Drive.");
+    });
     addWaypointMarker(wp);
     renderWaypoints();
     resetAddForm();
@@ -868,7 +922,7 @@ function init() {
 
   function renderWaypoints() {
     if (!listEl) return;
-    var arr = loadWaypoints();
+    var arr = loadWaypoints().filter(function (w) { return !w.uploaded; });
     listEl.innerHTML = "";
 
     if (!arr.length) {
@@ -1149,13 +1203,17 @@ function init() {
   function syncStatus(m) { if (syncStatusEl) syncStatusEl.textContent = m || ""; }
   if (saveAllBtn) {
     saveAllBtn.addEventListener("click", function () {
-      var arr = loadWaypoints();
+      var arr = loadWaypoints().filter(function (w) { return !w.uploaded; });
       if (!arr.length) { syncStatus("No waypoints to save."); return; }
       uploadToDrive(
         "bundled_points",
         WP_SYNC.study + "_bundled_" + syncTimestamp() + ".geojson",
         waypointsFC(arr),
-        syncStatus
+        syncStatus,
+        function () {
+          markUploaded(arr.map(function (w) { return w.point_id; }));
+          showUploadModal(arr.length + (arr.length > 1 ? " waypoints" : " waypoint") + " uploaded to Drive.");
+        }
       );
     });
   }
