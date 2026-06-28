@@ -439,42 +439,7 @@ nests <-
     interval_data = date:notes
   )
 
-## camera_maintenance -----------------------------------------------------
-
-predator_cameras <- 
-  
-  # Read data:
-  
-  urls$predator_cameras %>% 
-  read_sheet() %>% 
-  mutate(
-    date = as_date(date)
-  ) %>% 
-  
-  # Process data:
-  
-  nest(maintenance_activities = date:notes)
-
-# output -----------------------------------------------------------
-
-field_data <-
-  lst(
-    point_counts,
-    coverboards,
-    visits,
-    nests,
-    predator_cameras
-  )
-
-# Remove files we will not pass on:
-
-rm(
-  point_counts,
-  coverboards,
-  visits
-)
-
-# nests to check ----------------------------------------------------------
+### nests to check --------------------------------------------------------
 
 # Process nest data and determine the earliest next nest check:
 
@@ -516,7 +481,7 @@ current_nests <-
     !(n_check_days > 10 & always_empty)
   )
 
-## output: the date of the next nest checks in the current week -----------
+### output: the date of the next nest checks in the current week ----------
 
 temp_nest_checking <- 
   current_nests %>% 
@@ -542,6 +507,41 @@ temp_nest_checking <-
     check_nests = str_flatten(nest_id, collapse = ", "),
     .by = c(date, patch)
   ) 
+
+## camera_maintenance -----------------------------------------------------
+
+predator_cameras <- 
+  
+  # Read data:
+  
+  urls$predator_cameras %>% 
+  read_sheet() %>% 
+  mutate(
+    date = as_date(date)
+  ) %>% 
+  
+  # Process data:
+  
+  nest(maintenance_activities = date:notes)
+
+# output -----------------------------------------------------------
+
+field_data <-
+  lst(
+    point_counts,
+    coverboards,
+    visits,
+    nests,
+    predator_cameras
+  )
+
+# Remove files we will not pass on:
+
+rm(
+  point_counts,
+  coverboards,
+  visits
+)
 
 # camera maintenance schedule ---------------------------------------------
 
