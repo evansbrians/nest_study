@@ -477,6 +477,7 @@ rm(
 current_nests <- 
   nests %>% 
   unnest(interval_data) %>%
+  
   # It's probably safest to turn the NA values into 0s:
   
   mutate(
@@ -503,19 +504,18 @@ current_nests <-
       )
   ) %>% 
   
-  # Do not check if the nest fate is "Success", "Failure", or if the nest has
-  # been empty for 12 or more days:
+  # Check if the fate is NA, the number of check days is less than or equal to
+  # 10, and it's been empty at every check:
   
-  filter_out(
-    when_any(
-      nest_fate %in% c("Success", "Failure"),
-      n_check_days >= 12 & always_empty,
-      
-      # Also had to add this because several nests haven't been checked for a 
-      # long time (probably old nests?):
-      
-      today() - last_check > 14
-    )
+  filter(
+    is.na(nest_fate),
+    n_check_days <= 10,
+    always_empty,
+    
+    # Also had to add this because several nests haven't been checked for a 
+    # long time (probably old nests?):
+    
+    today() - last_check < 14
   )
 
 ## output: the date of the next nest checks in the current week -----------
