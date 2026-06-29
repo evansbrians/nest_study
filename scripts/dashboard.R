@@ -26,7 +26,10 @@ quarto::quarto_render("outputs/nest_app/field_map.qmd")
 
 # Re-externalize the data files (direct-serve from outputs/nest_app/):
 
-source(here::here("scripts/utils/externalize_field_data.R"))
+source(
+  here("scripts/utils/externalize_field_data.R")
+)
+
 externalize_field_data()
 
 autopush_updates()
