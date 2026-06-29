@@ -126,6 +126,12 @@ function init() {
 
   var patchSelect = document.getElementById("patchSelect");
   var todayToggle = document.getElementById("todayToggle");
+  var patchPickerBtn = document.getElementById("patchPickerBtn");
+
+  function prettyPatch(n) {
+    n = String(n).replace(/_/g, " ");
+    return n.charAt(0).toUpperCase() + n.slice(1);
+  }
 
   function rebuildPatchDropdown() {
     if (!patchSelect) return;
@@ -144,9 +150,10 @@ function init() {
     names.sort().forEach(function (n) {
       var o = document.createElement("option");
       o.value = n;
-      o.textContent = n;
+      o.textContent = prettyPatch(n);
       patchSelect.appendChild(o);
     });
+    patchButtonLabel();
   }
 
   // The embedded data may load a beat after this script; wait for it.
@@ -181,6 +188,55 @@ function init() {
         window.postMessage({ type: "setPatch", name: "__all__" }, "*");
       }
     });
+  }
+
+  // Large, near-full-screen patch picker. The native <select> dropdown is tiny
+  // and OS-controlled; this overlay is readable for low-vision use. The hidden
+  // <select> stays the source of truth and drives setPatch via its change event.
+
+  function patchButtonLabel() {
+    if (!patchSelect || !patchPickerBtn) return;
+    var opt = patchSelect.options[patchSelect.selectedIndex];
+    patchPickerBtn.textContent = opt ? opt.textContent : "All patches";
+  }
+
+  function openPatchPicker() {
+    if (!patchSelect) return;
+    var overlay = document.createElement("div");
+    overlay.className = "field-patch-overlay";
+    var inner = document.createElement("div");
+    inner.className = "field-patch-overlay-inner";
+    var title = document.createElement("div");
+    title.className = "field-patch-overlay-title";
+    title.textContent = "Choose a patch";
+    inner.appendChild(title);
+    Array.prototype.forEach.call(patchSelect.options, function (opt) {
+      var row = document.createElement("button");
+      row.type = "button";
+      row.className = "field-patch-overlay-row";
+      if (opt.value === patchSelect.value) row.className += " is-selected";
+      row.textContent = opt.textContent;
+      row.addEventListener("click", function () {
+        patchSelect.value = opt.value;
+        patchSelect.dispatchEvent(new Event("change"));
+        patchButtonLabel();
+        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        closeMenu();
+      });
+      inner.appendChild(row);
+    });
+    overlay.appendChild(inner);
+    overlay.addEventListener("click", function (e) {
+      if (e.target === overlay && overlay.parentNode) {
+        overlay.parentNode.removeChild(overlay);
+      }
+    });
+    document.body.appendChild(overlay);
+  }
+
+  if (patchPickerBtn) {
+    patchPickerBtn.addEventListener("click", openPatchPicker);
+    patchButtonLabel();
   }
 
   // waypoints -------------------------------------------------------------
@@ -694,12 +750,15 @@ function init() {
     if (wpName) wpName.value = "";
     if (wpNote) wpNote.value = "";
     if (wpClass) wpClass.selectedIndex = 0;
+    var clab = (wpClass && wpClass.closest) ? wpClass.closest(".field-field-label") : null;
+    if (clab) clab.style.display = "";
     syncNamePrefix();
     if (wpPhoto) wpPhoto.value = "";
     if (wpPhotoPreview) wpPhotoPreview.innerHTML = "";
     currentPhoto = null;
     currentColor = WP_DEFAULT_COLOR;
     editWp = null;
+    if (modifyControls) modifyControls.hidden = true;
     refreshAddColorRow();
   }
 
@@ -707,30 +766,167 @@ function init() {
   // "replace" (new average overwrites the location) or "average" (new average
   // is combined with the stored one). The form is pre-filled from the waypoint.
 
-  function startRemeasure(w, mode) {
-    editWp = { id: w.point_id, mode: mode };
-    if (wpClass) wpClass.value = w.point_class || "Other";
-    syncNamePrefix();
-    if (wpName) {
-      var remeasurePrefix = currentPrefix();
-      wpName.value = (remeasurePrefix && (w.point_name || "").indexOf(remeasurePrefix) === 0)
-        ? w.point_name.slice(remeasurePrefix.length) : (w.point_name || "");
-    }
-    if (wpNote) wpNote.value = w.note || "";
-    currentColor = wpColorHex(w);
-    
-    // keep the existing photo unless replaced
-    
-    currentPhoto = w.photo || null;     
-    if (wpPhoto) wpPhoto.value = "";
-    if (wpPhotoPreview) wpPhotoPreview.innerHTML = "";
-    refreshAddColorRow();
-    // Starts a fresh averaging run
+  // ---- unified Modify flow (own waypoints + official map points) ---------
 
+  // editWp, when set, means the Add screen is editing an existing point:
+  //   { id, source: "waypoint"|"nav", point: <record>, mode: "keep"|"replace"|"average" }
+  // mode "keep" leaves the location untouched (edit note/name/photo only).
+
+  var modifyControls = null;
+
+  function ensureModifyControls() {
+    if (modifyControls) return modifyControls;
+    if (!addSaveBtn || !addSaveBtn.parentNode) return null;
+    var box = document.createElement("div");
+    box.className = "field-modify-controls";
+    box.hidden = true;
+    var lab = document.createElement("div");
+    lab.className = "field-field-label";
+    lab.textContent = "Location";
+    box.appendChild(lab);
+    var modeRow = document.createElement("div");
+    modeRow.className = "field-mgr-actions";
+    [["keep", "Keep"], ["replace", "Re-record"], ["average", "Average with current"]]
+      .forEach(function (m) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "field-button field-mode-btn";
+        b.setAttribute("data-mode", m[0]);
+        b.textContent = m[1];
+        b.addEventListener("click", function () { setMode(m[0]); });
+        modeRow.appendChild(b);
+      });
+    box.appendChild(modeRow);
+    var actRow = document.createElement("div");
+    actRow.className = "field-mgr-actions";
+    var del = document.createElement("button");
+    del.type = "button";
+    del.className = "field-button field-button--danger field-modify-delete";
+    del.textContent = "Delete";
+    del.addEventListener("click", function () {
+      if (!editWp || editWp.source !== "waypoint") return;
+      var cur = loadWaypoints().filter(function (x) { return x.point_id !== editWp.id; });
+      storeWaypoints(cur);
+      removeWaypointMarker(editWp.id);
+      resetAddForm();
+      renderWaypoints();
+      showScreen("main");
+    });
+    actRow.appendChild(del);
+    box.appendChild(actRow);
+    addSaveBtn.parentNode.insertBefore(box, addSaveBtn);
+    modifyControls = box;
+    return box;
+  }
+
+  function setMode(mode) {
+    if (editWp) editWp.mode = mode;
+    if (modifyControls) {
+      var bs = modifyControls.querySelectorAll(".field-mode-btn");
+      for (var i = 0; i < bs.length; i++) {
+        bs[i].classList.toggle("is-selected", bs[i].getAttribute("data-mode") === mode);
+      }
+    }
+    addStatus(mode === "keep"
+      ? "Location kept — edit the fields and Save."
+      : mode === "replace"
+        ? "Re-recording — hold still; Save replaces the location."
+        : "Averaging — hold still; Save blends with the existing location.");
+  }
+
+  function startModify(point, source) {
+    editWp = { id: point.point_id, source: source, point: point, mode: "keep" };
+    if (wpName) wpName.value = point.point_name || "";
+    if (wpNamePrefix) wpNamePrefix.style.display = "none";
+    var clab = (wpClass && wpClass.closest) ? wpClass.closest(".field-field-label") : null;
+    if (clab) clab.style.display = "none";
+    if (wpNote) wpNote.value = point.note || "";
+    currentColor = point.color || WP_DEFAULT_COLOR;
+    currentPhoto = point.photo || null;
+    if (wpPhoto) wpPhoto.value = "";
+    if (wpPhotoPreview) {
+      wpPhotoPreview.innerHTML = "";
+      if (currentPhoto) {
+        var im = document.createElement("img");
+        im.src = currentPhoto;
+        im.className = "field-photo-thumb";
+        wpPhotoPreview.appendChild(im);
+      }
+    }
+    refreshAddColorRow();
+    var mc = ensureModifyControls();
+    if (mc) {
+      mc.hidden = false;
+      var d = mc.querySelector(".field-modify-delete");
+      if (d) d.style.display = (source === "waypoint") ? "" : "none";
+    }
+    setMode("keep");
     showScreen("addwaypoint");
-    addStatus(mode === "average"
-      ? "Re-measuring — will average with the existing point."
-      : "Re-measuring — will replace the location.");
+  }
+
+  function editLocation(a) {
+    var p = editWp.point;
+    if (editWp.mode === "keep" || !a) {
+      return { lat: p.latitude, lng: p.longitude,
+               accuracy: p.horizontal_accuracy, elevation: p.elevation };
+    }
+    if (editWp.mode === "average") {
+      var c = combineLocation(p, a);
+      return { lat: c.lat, lng: c.lng, accuracy: c.accuracy,
+               elevation: (a.elevation != null) ? a.elevation : p.elevation };
+    }
+    return { lat: a.lat, lng: a.lng, accuracy: a.accuracy,
+             elevation: (a.elevation != null) ? a.elevation : p.elevation };
+  }
+
+  function saveModify() {
+    if (editWp.mode !== "keep" && (!avg || !samples.length)) {
+      addStatus("No location samples yet -- give it a moment, or choose Keep.");
+      return;
+    }
+    var a = avg;
+    stopAveraging();
+    var now = new Date();
+    var p = editWp.point;
+    var src = editWp.source;
+    var loc = editLocation(a);
+    var nm = (wpName && wpName.value.trim()) || p.point_name;
+    var w = {
+      point_id: p.point_id,
+      point_name: nm,
+      point_class: p.point_class,
+      time: fmtTime(now),
+      latitude: loc.lat,
+      longitude: loc.lng,
+      horizontal_accuracy: (loc.accuracy != null) ? Math.round(loc.accuracy * 10) / 10 : null,
+      elevation: (loc.elevation != null) ? Math.round(loc.elevation * 10) / 10 : null,
+      bearing: (p.bearing != null) ? p.bearing : null,
+      note: (wpNote && wpNote.value.trim()) || "",
+      color: currentColor,
+      photo: currentPhoto || null,
+      visible: true
+    };
+    w.photo_name = w.photo
+      ? String(nm).replace(/[^\w-]+/g, "_") + "_" + isoClean(now).replace(/:/g, "-") + ".jpg"
+      : null;
+    if (src === "waypoint") {
+      var arr = loadWaypoints();
+      var idx = -1;
+      for (var k = 0; k < arr.length; k++) {
+        if (arr[k].point_id === w.point_id) { idx = k; break; }
+      }
+      if (idx >= 0) arr[idx] = w; else arr.push(w);
+      storeWaypoints(arr);
+      refreshWaypointMarker(w);
+    }
+    uploadToDrive("individual_points", w.point_name + "_" + syncTimestamp() + ".geojson", waypointsFC([w]), null, function () {
+      if (src === "waypoint") markUploaded([w.point_id]);
+      showUploadModal(w.point_name + " uploaded to Drive.");
+    });
+    renderWaypoints();
+    resetAddForm();
+    addStatus("");
+    closeMenu();
   }
 
   function startAveraging() {
@@ -797,6 +993,7 @@ function init() {
   }
 
   function saveAveraged() {
+    if (editWp) { saveModify(); return; }
     if (!avg || !samples.length) {
       addStatus("No location samples yet -- give it a moment.");
       return;
@@ -807,45 +1004,6 @@ function init() {
     var now = new Date();
     var t = fmtTime(now);
     var arr = loadWaypoints();
-
-    if (editWp) {
-
-      // Re-measuring an existing waypoint: replace or average the location.
-
-      var idx = -1;
-      for (var k = 0; k < arr.length; k++) {
-        if (arr[k].point_id === editWp.id) { idx = k; break; }
-      }
-      if (idx < 0) { editWp = null; addStatus("That waypoint no longer exists."); return; }
-      var w = arr[idx];
-      var loc = (editWp.mode === "average") ? combineLocation(w, a)
-        : { lat: a.lat, lng: a.lng, accuracy: a.accuracy };
-      w.latitude = loc.lat;
-      w.longitude = loc.lng;
-      w.horizontal_accuracy = Math.round(loc.accuracy * 10) / 10;
-      if (a.elevation != null) w.elevation = Math.round(a.elevation * 10) / 10;
-      w.time = t;
-      w.point_name = currentName(w.point_name);
-      w.point_class = (wpClass && wpClass.value) || w.point_class;
-      w.note = (wpNote && wpNote.value.trim()) || "";
-      w.color = currentColor;
-      w.photo = currentPhoto || null;
-      if (w.photo) {
-        w.photo_name = w.point_name.replace(/[^\w-]+/g, "_") + "_" +
-          isoClean(now).replace(/:/g, "-") + ".jpg";
-      }
-      storeWaypoints(arr);
-      uploadToDrive("individual_points", w.point_name + "_" + syncTimestamp() + ".geojson", waypointsFC([w]), null, function () {
-        markUploaded([w.point_id]);
-        showUploadModal(w.point_name + " uploaded to Drive.");
-      });
-      refreshWaypointMarker(w);
-      renderWaypoints();
-      resetAddForm();
-      addStatus("");
-      closeMenu();
-      return;
-    }
 
     var wp = {
       point_id: newId(),
@@ -920,6 +1078,50 @@ function init() {
     return found;
   }
 
+  // One manager row: name (+ optional show toggle / color dot) with two
+  // actions, Navigate and Modify. Used for both own waypoints and map points.
+
+  function makePointLi(nameText, color, showState, onNav, onModify) {
+    var li = document.createElement("li");
+    li.className = "field-mgr-item";
+    var row = document.createElement("div");
+    row.className = "field-mgr-summary";
+    if (showState) {
+      var show = document.createElement("input");
+      show.type = "checkbox";
+      show.className = "field-mgr-check";
+      show.checked = showState.checked;
+      show.title = "Show on map";
+      show.addEventListener("change", function () { showState.onToggle(show.checked); });
+      row.appendChild(show);
+    }
+    if (color) {
+      var dot = document.createElement("span");
+      dot.className = "field-swatch-dot";
+      dot.style.background = color;
+      row.appendChild(dot);
+    }
+    var nm = document.createElement("span");
+    nm.className = "field-mgr-name";
+    nm.textContent = nameText;
+    row.appendChild(nm);
+    var acts = document.createElement("div");
+    acts.className = "field-mgr-actions";
+    var nav = document.createElement("button");
+    nav.type = "button"; nav.className = "field-button";
+    nav.textContent = "Navigate";
+    nav.addEventListener("click", onNav);
+    var mod = document.createElement("button");
+    mod.type = "button"; mod.className = "field-button";
+    mod.textContent = "Modify";
+    mod.addEventListener("click", onModify);
+    acts.appendChild(nav);
+    acts.appendChild(mod);
+    row.appendChild(acts);
+    li.appendChild(row);
+    return li;
+  }
+
   function renderWaypoints() {
     if (!listEl) return;
     var arr = loadWaypoints().filter(function (w) { return !w.uploaded; });
@@ -933,196 +1135,20 @@ function init() {
     }
 
     arr.forEach(function (w) {
-      var li = document.createElement("li");
-      li.className = "field-mgr-item";
-
-      // summary row: show-on-map + name + color dot + expand caret --------
-
-      var row = document.createElement("div");
-      row.className = "field-mgr-summary";
-
-      var show = document.createElement("input");
-      show.type = "checkbox";
-      show.className = "field-mgr-check";
-      show.checked = w.visible !== false;
-      show.title = "Show on map";
-      show.addEventListener("click", function (e) { e.stopPropagation(); });
-      show.addEventListener("change", function () {
-        updateWaypoint(w.point_id, function (x) { x.visible = show.checked; });
-        if (show.checked) {
-          w.visible = true; addWaypointMarker(w);
-        } else {
-          removeWaypointMarker(w.point_id);
-        }
-      });
-
-      var dot = document.createElement("span");
-      dot.className = "field-swatch-dot";
-      dot.style.background = wpColorHex(w);
-
-      var nameSpan = document.createElement("span");
-      nameSpan.className = "field-mgr-name";
-      nameSpan.textContent = w.point_name + " (" + w.point_class + ")";
-
-      var caret = document.createElement("span");
-      caret.className = "field-accordion-caret";
-      caret.innerHTML = "&#x25B8;";
-
-      row.appendChild(show);
-      row.appendChild(dot);
-      row.appendChild(nameSpan);
-      row.appendChild(caret);
-
-      // edit panel (collapsed by default) ---------------------------------
-
-      var edit = document.createElement("div");
-      edit.className = "field-mgr-edit";
-      edit.hidden = true;
-
-      row.addEventListener("click", function () {
-        edit.hidden = !edit.hidden;
-        caret.classList.toggle("is-open", !edit.hidden);
-      });
-
-      // Rename
-
-      var nameLbl = document.createElement("label");
-      nameLbl.className = "field-field-label";
-      nameLbl.textContent = "Name";
-      var nameInput = document.createElement("input");
-      nameInput.type = "text";
-      nameInput.className = "field-input";
-      nameInput.value = w.point_name;
-      nameInput.addEventListener("change", function () {
-        var nm = nameInput.value.trim() || w.point_name;
-        var u = updateWaypoint(w.point_id, function (x) { x.point_name = nm; });
-        w.point_name = nm;
-        nameSpan.textContent = nm + " (" + w.point_class + ")";
-        if (u) refreshWaypointMarker(u);
-      });
-      nameLbl.appendChild(nameInput);
-
-      // Color swatches
-
-      var colorLbl = document.createElement("div");
-      colorLbl.className = "field-field-label";
-      colorLbl.textContent = "Color";
-      var colorRow = document.createElement("div");
-      colorRow.className = "field-color-row";
-      buildSwatches(colorRow, wpColorHex(w), function (hex) {
-        var u = updateWaypoint(w.point_id, function (x) { x.color = hex; });
-        w.color = hex;
-        dot.style.background = hex;
-        if (u) refreshWaypointMarker(u);
-      });
-
-      // Add / replace photo
-
-      var photoLbl = document.createElement("label");
-      photoLbl.className = "field-field-label";
-      photoLbl.textContent = "Photo";
-      var photoInput = document.createElement("input");
-      photoInput.type = "file";
-      photoInput.className = "field-input";
-      photoInput.accept = "image/*";
-      var photoPrev = document.createElement("div");
-      photoPrev.className = "field-photo-preview";
-      if (w.photo) {
-        var pim = document.createElement("img");
-        pim.src = w.photo; pim.className = "field-photo-thumb";
-        photoPrev.appendChild(pim);
-      }
-      photoInput.addEventListener("change", function () {
-        var f = photoInput.files && photoInput.files[0];
-        if (!f) return;
-        compressImage(f, 1024, 0.55, function (dataUrl) {
-          if (!dataUrl) return;
-          var u = updateWaypoint(w.point_id, function (x) {
-            x.photo = dataUrl;
-            x.photo_name = (x.point_name || "waypoint").replace(/[^\w-]+/g, "_") +
-              "_" + isoClean(new Date()).replace(/:/g, "-") + ".jpg";
-          });
-          w.photo = dataUrl;
-          photoPrev.innerHTML = "";
-          var im = document.createElement("img");
-          im.src = dataUrl; im.className = "field-photo-thumb";
-          photoPrev.appendChild(im);
-          if (u) refreshWaypointMarker(u);
-        });
-      });
-      photoLbl.appendChild(photoInput);
-
-      // Re-measure
-
-      var remLbl = document.createElement("div");
-      remLbl.className = "field-field-label";
-      remLbl.textContent = "Re-measure location";
-      var remRow = document.createElement("div");
-      remRow.className = "field-mgr-actions";
-      var newBtn = document.createElement("button");
-      newBtn.type = "button"; newBtn.className = "field-button";
-      newBtn.textContent = "New point";
-      newBtn.addEventListener("click", function (e) {
-        e.stopPropagation(); startRemeasure(w, "replace");
-      });
-      var avgBtn = document.createElement("button");
-      avgBtn.type = "button"; avgBtn.className = "field-button";
-      avgBtn.textContent = "Average with existing";
-      avgBtn.addEventListener("click", function (e) {
-        e.stopPropagation(); startRemeasure(w, "average");
-      });
-      remRow.appendChild(newBtn);
-      remRow.appendChild(avgBtn);
-
-      // Navigate to this waypoint
-
-      var navBtn = document.createElement("button");
-      navBtn.type = "button"; navBtn.className = "field-button";
-      navBtn.textContent = "Navigate to waypoint";
-      navBtn.addEventListener("click", function (e) {
-        e.stopPropagation(); startNavigation(w);
-      });
-      var navRow = document.createElement("div");
-      navRow.className = "field-mgr-actions";
-      navRow.appendChild(navBtn);
-
-      // Download / delete
-
-      var actions = document.createElement("div");
-      actions.className = "field-mgr-actions";
-      var dlOne = document.createElement("button");
-      dlOne.type = "button"; dlOne.className = "field-button";
-      dlOne.textContent = "Download";
-      dlOne.addEventListener("click", function (e) {
-        e.stopPropagation();
-        downloadGeojson("waypoint_" + w.point_name.replace(/[^\w-]+/g, "_") + ".geojson", [w]);
-      });
-      var delBtn = document.createElement("button");
-      delBtn.type = "button"; delBtn.className = "field-button field-button--danger";
-      delBtn.textContent = "Delete";
-      delBtn.addEventListener("click", function (e) {
-        e.stopPropagation();
-        var cur = loadWaypoints().filter(function (x) { return x.point_id !== w.point_id; });
-        storeWaypoints(cur);
-        removeWaypointMarker(w.point_id);
-        renderWaypoints();
-      });
-      actions.appendChild(dlOne);
-      actions.appendChild(delBtn);
-
-      edit.appendChild(nameLbl);
-      edit.appendChild(colorLbl);
-      edit.appendChild(colorRow);
-      edit.appendChild(photoLbl);
-      edit.appendChild(photoPrev);
-      edit.appendChild(remLbl);
-      edit.appendChild(remRow);
-      edit.appendChild(navRow);
-      edit.appendChild(actions);
-
-      li.appendChild(row);
-      li.appendChild(edit);
-      listEl.appendChild(li);
+      listEl.appendChild(makePointLi(
+        w.point_name + " (" + w.point_class + ")",
+        wpColorHex(w),
+        {
+          checked: w.visible !== false,
+          onToggle: function (on) {
+            updateWaypoint(w.point_id, function (x) { x.visible = on; });
+            if (on) { w.visible = true; addWaypointMarker(w); }
+            else removeWaypointMarker(w.point_id);
+          }
+        },
+        function () { startNavigation(w); },
+        function () { startModify(w, "waypoint"); }
+      ));
     });
 
     renderNavPoints();
@@ -1165,21 +1191,26 @@ function init() {
       });
 
       list.forEach(function (p) {
-        var prow = document.createElement("li");
-        prow.className = "field-navpt";
-        var nm = document.createElement("span");
-        nm.className = "field-navpt-name";
-        nm.textContent = p.name;
-        var go = document.createElement("button");
-        go.type = "button";
-        go.className = "field-button";
-        go.textContent = "Navigate";
-        go.addEventListener("click", function () {
-          startNavigation({ latitude: p.lat, longitude: p.lng, point_name: p.name });
-        });
-        prow.appendChild(nm);
-        prow.appendChild(go);
-        body.appendChild(prow);
+        var navAsPoint = {
+          point_id: p.point_id,
+          point_name: p.name,
+          point_class: p.point_class,
+          latitude: p.lat,
+          longitude: p.lng,
+          note: p.note,
+          photo: p.photo,
+          color: WP_DEFAULT_COLOR,
+          elevation: p.elevation,
+          horizontal_accuracy: p.horizontal_accuracy,
+          bearing: p.bearing
+        };
+        body.appendChild(makePointLi(
+          p.name,
+          null,
+          null,
+          function () { startNavigation({ latitude: p.lat, longitude: p.lng, point_name: p.name }); },
+          function () { startModify(navAsPoint, "nav"); }
+        ));
       });
 
       li.appendChild(btn);
@@ -1298,6 +1329,7 @@ function init() {
 
   var TRACK_STYLE = { color: "#ffff00", weight: 3, opacity: 0.95 };
   var SAVED_STYLE = { color: "#ff8c00", weight: 3, opacity: 0.9 };
+  var TRACK_ACC_MAX = 15;
   var ERR_STYLE = {
     color: "#136aec", weight: 1, fillColor: "#136aec",
     fillOpacity: 0.15, interactive: false
@@ -1351,6 +1383,63 @@ function init() {
   function trackStatus(msg) {
     if (trackStatusEl) trackStatusEl.textContent = msg || "";
   }
+
+  var trackActivityEl = document.getElementById("trackActivity");
+  var trackPatchId = "patch-none";
+  var trackAutoName = "";
+
+  function trkPatchDist(lat, lng, rings) {
+    var kx = 111320 * Math.cos(lat * Math.PI / 180), ky = 110540;
+    var inside = false, minD = Infinity;
+    rings.forEach(function (ring) {
+      var n = ring.length;
+      for (var i = 0, j = n - 1; i < n; j = i++) {
+        var ax = (ring[i][1] - lng) * kx, ay = (ring[i][0] - lat) * ky;
+        var bx = (ring[j][1] - lng) * kx, by = (ring[j][0] - lat) * ky;
+        if (((ay > 0) !== (by > 0)) && (0 < (bx - ax) * (0 - ay) / (by - ay) + ax)) inside = !inside;
+        var dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+        var u = L2 ? ((0 - ax) * dx + (0 - ay) * dy) / L2 : 0;
+        u = Math.max(0, Math.min(1, u));
+        var cx = ax + u * dx, cy = ay + u * dy;
+        var d = Math.sqrt(cx * cx + cy * cy);
+        if (d < minD) minD = d;
+      }
+    });
+    return inside ? 0 : minD;
+  }
+
+  function closestPatch(lat, lng, maxM) {
+    if (!window.fieldPatches) return "patch-none";
+    var best = null, bestD = Infinity;
+    Object.keys(window.fieldPatches).forEach(function (name) {
+      var d = trkPatchDist(lat, lng, window.fieldPatches[name]);
+      if (d < bestD) { bestD = d; best = name; }
+    });
+    return (best != null && bestD <= maxM) ? best : "patch-none";
+  }
+
+  function trackStamp(d) {
+    function p(n) { return (n < 10 ? "0" : "") + n; }
+    return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "_" +
+      p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+  }
+
+  function trackActivity() { return (trackActivityEl && trackActivityEl.value) || "other"; }
+
+  function syncTrackNameLock() {
+    if (!trackNameEl) return;
+    var other = trackActivity() === "other";
+    trackNameEl.disabled = !other;
+    trackNameEl.placeholder = other ? "Track name" : "Auto-named on Start";
+    if (!other) trackNameEl.value = trackAutoName || "";
+  }
+  if (trackActivityEl) {
+    trackActivityEl.addEventListener("change", function () {
+      if (trackActivity() === "other" && trackNameEl) trackNameEl.value = "";
+      syncTrackNameLock();
+    });
+  }
+  syncTrackNameLock();
 
   // The map is created by an htmlwidget onRender, which may run after this
   // script. Wait for it (map_weather.js sets window.fieldMap + fires the
@@ -1465,6 +1554,8 @@ function init() {
           type: "Feature",
           properties: {
             track: t.name,
+            activity: t.activity || null,
+            patch_id: t.patch_id || null,
             i: i,
             time: p.t || null,
             accuracy_m: (p.acc != null ? Math.round(p.acc * 10) / 10 : null)
@@ -1660,6 +1751,12 @@ function init() {
       bestAcc = Infinity;
       recentFixes = [];
       startMs = Date.now();
+      var trkStart = window.fieldLatLng;
+      trackPatchId = trkStart ? closestPatch(trkStart.lat, trkStart.lng, 75) : "patch-none";
+      if (trackActivity() !== "other") {
+        trackAutoName = trackActivity() + "_" + trackPatchId + "_" + trackStamp(new Date(startMs));
+        if (trackNameEl) trackNameEl.value = trackAutoName;
+      }
       activeLine = window.L.polyline([], TRACK_STYLE).addTo(map);
       tracking = true;
 
@@ -1745,10 +1842,17 @@ function init() {
     if (t.note) html += "<br>" + escapeHtml(t.note);
     return html;
   }
+  function trackLatLngs(t) {
+    var pts = (t.points || []).filter(function (p) {
+      return p.acc == null || p.acc <= TRACK_ACC_MAX;
+    });
+    if (pts.length < 30) pts = t.points || [];
+    return pts.map(function (p) { return [p.lat, p.lng]; });
+  }
   function drawSavedTrack(t) {
     if (savedLayers[t.id] || !window.fieldMap || !window.L) return;
     savedLayers[t.id] = window.L.polyline(
-      t.points.map(function (p) { return [p.lat, p.lng]; }), SAVED_STYLE
+      trackLatLngs(t), SAVED_STYLE
     ).addTo(window.fieldMap).bindPopup(trackPopupHtml(t));
   }
   // Update an on-map track's popup after edits
@@ -1800,7 +1904,14 @@ function init() {
       trackListEl.appendChild(empty);
       return;
     }
+    var groups = {}, order = [];
     arr.forEach(function (t) {
+      var k = t.activity || "other";
+      if (!groups[k]) { groups[k] = []; order.push(k); }
+      groups[k].push(t);
+    });
+
+    function buildTrackLi(t) {
       var li = document.createElement("li");
       li.className = "field-mgr-item";
 
@@ -1937,7 +2048,27 @@ function init() {
       li.appendChild(row);
       li.appendChild(trackMenu);
       li.appendChild(edit);
-      trackListEl.appendChild(li);
+      return li;
+    }
+
+    var ACT_LABEL = { nest_searching: "Nest searching", new_path: "New path", distributary: "Distributary", other: "Other" };
+    order.forEach(function (k) {
+      var gli = document.createElement("li");
+      gli.className = "field-mgr-item";
+      var gbtn = document.createElement("button");
+      gbtn.type = "button"; gbtn.className = "field-accordion";
+      gbtn.innerHTML = '<span class="field-accordion-caret">&#x25B8;</span> ' +
+        (ACT_LABEL[k] || k) + " (" + groups[k].length + ")";
+      var gbody = document.createElement("ul");
+      gbody.className = "field-navpts-body";
+      gbody.hidden = true;
+      gbtn.addEventListener("click", function () {
+        gbody.hidden = !gbody.hidden;
+        gbtn.classList.toggle("is-open", !gbody.hidden);
+      });
+      groups[k].forEach(function (t) { gbody.appendChild(buildTrackLi(t)); });
+      gli.appendChild(gbtn); gli.appendChild(gbody);
+      trackListEl.appendChild(gli);
     });
   }
 
@@ -1993,7 +2124,9 @@ function init() {
         }
       }
 
-      var name = (trackNameEl && trackNameEl.value.trim()) ? toSnakeCase(trackNameEl.value.trim()) : isoClean(new Date());
+      var name = (trackActivity() !== "other" && trackAutoName)
+        ? trackAutoName
+        : ((trackNameEl && trackNameEl.value.trim()) ? toSnakeCase(trackNameEl.value.trim()) : isoClean(new Date()));
       var t = {
         id: newId(),
         name: name,
@@ -2001,12 +2134,17 @@ function init() {
         note: note,
         points: pts,
         length: trackDistance(pts),
-        visible: true
+        visible: true,
+        activity: trackActivity(),
+        patch_id: trackPatchId
       };
       if (activeLine && window.fieldMap) window.fieldMap.removeLayer(activeLine);
       activeLine = null;
       committed = [];
       commitSavedTrack(t);
+      uploadToDrive("tracks", safeName(t.name) + ".geojson", trackPointsFC(t), trackStatus, function () {
+        showUploadModal("Track " + t.name + " uploaded.");
+      });
       if (replaceTarget) {
         hideSavedTrack(replaceTarget);
         var keepTracks = loadTracks().filter(function (x) { return x.id !== replaceTarget; });
@@ -2056,6 +2194,224 @@ function init() {
   renderTrackList();
   updateReadout();
   updateTrackUI();
+
+  // ---- Concealment photos ------------------------------------------------
+
+  // Nest-concealment photos at ~1 m, free-form cardinal directions. The bearing
+  // is grabbed from the app compass the instant Capture is tapped (iOS+Android),
+  // then the native camera opens; the returned photo opens in a canvas editor to
+  // circle the nest in yellow. Two files go to Drive: the untouched original
+  // (full quality) and a JSON whose photo is the circled image as a reduced WebP
+  // (JPEG fallback where the canvas can't encode WebP, e.g. iOS).
+
+  (function () {
+    var nestBtn = document.getElementById("concealNestBtn");
+    var bearingEl = document.getElementById("concealBearing");
+    var captureBtn = document.getElementById("concealCaptureBtn");
+    var camera = document.getElementById("concealCamera");
+    var statusEl = document.getElementById("concealStatus");
+    var editor = document.getElementById("concealEditor");
+    var canvas = document.getElementById("concealCanvas");
+    var undoBtn = document.getElementById("concealUndoBtn");
+    var clearBtn = document.getElementById("concealClearBtn");
+    var saveBtn = document.getElementById("concealSaveBtn");
+    var discardBtn = document.getElementById("concealDiscardBtn");
+    var listEl = document.getElementById("concealList");
+    if (!captureBtn || !camera || !canvas) return;
+
+    var selectedNest = null;
+    var capturedBearing = null;
+    var originalFile = null;
+    var img = null;
+    var strokes = [];
+    var drawing = false;
+    var ctx = canvas.getContext("2d");
+
+    function status(m) { if (statusEl) statusEl.textContent = m || ""; }
+
+    function distM(a, b, c, d) {
+      var m = (a + c) / 2 * Math.PI / 180;
+      var dy = (c - a) * 110540, dx = (d - b) * 111320 * Math.cos(m);
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function nestsWithin(meters) {
+      var here = window.fieldLatLng;
+      var pts = window.fieldNavPoints || [];
+      if (!here) return null;
+      return pts.filter(function (p) { return p.type === "Nest"; })
+        .map(function (p) { return { p: p, d: distM(here.lat, here.lng, p.lat, p.lng) }; })
+        .filter(function (x) { return x.d <= meters; })
+        .sort(function (x, y) { return x.d - y.d; });
+    }
+
+    function openNestPicker() {
+      var within = nestsWithin(25);
+      var overlay = document.createElement("div");
+      overlay.className = "field-patch-overlay";
+      var inner = document.createElement("div");
+      inner.className = "field-patch-overlay-inner";
+      var title = document.createElement("div");
+      title.className = "field-patch-overlay-title";
+      title.textContent = (within === null) ? "Waiting for GPS…"
+        : (!within.length) ? "No nests within 25 m" : "Nests within 25 m";
+      inner.appendChild(title);
+      (within || []).forEach(function (x) {
+        var row = document.createElement("button");
+        row.type = "button";
+        row.className = "field-patch-overlay-row";
+        row.textContent = x.p.name + "  (" + Math.round(x.d) + " m)";
+        row.addEventListener("click", function () {
+          selectedNest = x.p;
+          if (nestBtn) nestBtn.textContent = x.p.name;
+          if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+          status("");
+        });
+        inner.appendChild(row);
+      });
+      overlay.appendChild(inner);
+      overlay.addEventListener("click", function (e) {
+        if (e.target === overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      });
+      document.body.appendChild(overlay);
+    }
+    if (nestBtn) nestBtn.addEventListener("click", openNestPicker);
+
+    setInterval(function () {
+      if (!bearingEl) return;
+      bearingEl.textContent = (typeof window.fieldBearing === "number")
+        ? "Bearing: " + window.fieldBearing + "°" : "Bearing: --";
+    }, 250);
+
+    captureBtn.addEventListener("click", function () {
+      if (!selectedNest) { status("Choose a nest first."); return; }
+      capturedBearing = (typeof window.fieldBearing === "number") ? window.fieldBearing : null;
+      camera.value = "";
+      camera.click();
+    });
+
+    function redraw() {
+      if (!img) return;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "#ffeb00";
+      ctx.lineWidth = Math.max(3, canvas.width / 180);
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      strokes.forEach(function (s) {
+        if (s.length < 2) return;
+        ctx.beginPath();
+        ctx.moveTo(s[0].x, s[0].y);
+        for (var i = 1; i < s.length; i++) ctx.lineTo(s[i].x, s[i].y);
+        ctx.stroke();
+      });
+    }
+
+    camera.addEventListener("change", function () {
+      var f = camera.files && camera.files[0];
+      if (!f) return;
+      originalFile = f;
+      var url = URL.createObjectURL(f);
+      img = new Image();
+      img.onload = function () {
+        var scale = Math.min(1, 1024 / img.width);
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        strokes = [];
+        redraw();
+        URL.revokeObjectURL(url);
+        if (editor) editor.hidden = false;
+        status("Circle the nest, then Save.");
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); status("Couldn't read that photo."); };
+      img.src = url;
+    });
+
+    function canvasXY(e) {
+      var r = canvas.getBoundingClientRect();
+      var t = (e.touches && e.touches[0]) || e;
+      return { x: (t.clientX - r.left) * (canvas.width / r.width),
+               y: (t.clientY - r.top) * (canvas.height / r.height) };
+    }
+    function startStroke(e) { drawing = true; strokes.push([canvasXY(e)]); e.preventDefault(); }
+    function moveStroke(e) { if (!drawing) return; strokes[strokes.length - 1].push(canvasXY(e)); redraw(); e.preventDefault(); }
+    function endStroke() { drawing = false; }
+    canvas.addEventListener("mousedown", startStroke);
+    canvas.addEventListener("mousemove", moveStroke);
+    window.addEventListener("mouseup", endStroke);
+    canvas.addEventListener("touchstart", startStroke, { passive: false });
+    canvas.addEventListener("touchmove", moveStroke, { passive: false });
+    canvas.addEventListener("touchend", endStroke);
+
+    if (undoBtn) undoBtn.addEventListener("click", function () { strokes.pop(); redraw(); });
+    if (clearBtn) clearBtn.addEventListener("click", function () { strokes = []; redraw(); });
+    if (discardBtn) discardBtn.addEventListener("click", function () {
+      if (editor) editor.hidden = true; originalFile = null; img = null; strokes = []; status("");
+    });
+
+    function ts() { return new Date().toISOString().replace(/[:.]/g, "-"); }
+    function ext(f) {
+      var n = (f && f.name) || "";
+      var m = n.match(/\.([A-Za-z0-9]+)$/);
+      if (m) return m[1].toLowerCase();
+      var t = (f && f.type) || "";
+      if (t.indexOf("heic") >= 0) return "heic";
+      if (t.indexOf("png") >= 0) return "png";
+      return "jpg";
+    }
+
+    function uploadRaw(target, filename, kind, data, onDone) {
+      if (!WP_SYNC.relayUrl || WP_SYNC.relayUrl.indexOf("PASTE") === 0) { status("Drive sync not set up."); return; }
+      if (!navigator.onLine) { status("No signal -- try again when online."); return; }
+      fetch(WP_SYNC.relayUrl, {
+        method: "POST", mode: "no-cors",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ secret: WP_SYNC.secret, study: WP_SYNC.study,
+          target: target, filename: filename, kind: kind, data: data })
+      }).then(function () { if (onDone) onDone(); }).catch(function () { status("Upload failed."); });
+    }
+
+    if (saveBtn) saveBtn.addEventListener("click", function () {
+      if (!selectedNest || !originalFile) { status("Nothing to save."); return; }
+      var brg = (capturedBearing != null) ? Math.round(capturedBearing) : "NA";
+      var base = selectedNest.name + "_" + ts() + "_" + brg;
+      status("Saving…");
+
+      var fr = new FileReader();
+      fr.onload = function () {
+        var b64 = String(fr.result).split(",")[1] || "";
+        uploadRaw("concealment_photos", base + "." + ext(originalFile), "image", b64);
+      };
+      fr.readAsDataURL(originalFile);
+
+      var ref = canvas.toDataURL("image/webp", 0.9);
+      if (ref.indexOf("image/webp") < 0) ref = canvas.toDataURL("image/jpeg", 0.85);
+      var meta = JSON.stringify({
+        nest_id: selectedNest.name,
+        datetime: new Date().toISOString(),
+        bearing: (capturedBearing != null) ? Math.round(capturedBearing) : null,
+        photo: ref
+      });
+      uploadRaw("concealment_meta", base + ".json", "json", meta, function () {
+        showUploadModal(selectedNest.name + " photo uploaded.");
+      });
+
+      if (listEl) {
+        var li = document.createElement("li");
+        li.className = "field-mgr-item conceal-list-item";
+        var im = document.createElement("img");
+        im.src = ref; im.className = "field-photo-thumb";
+        var sp = document.createElement("span");
+        sp.className = "field-mgr-name";
+        sp.textContent = selectedNest.name + " · " + brg + "°";
+        li.appendChild(im); li.appendChild(sp);
+        listEl.insertBefore(li, listEl.firstChild);
+      }
+
+      if (editor) editor.hidden = true;
+      originalFile = null; img = null; strokes = [];
+      status("");
+    });
+  })();
 
 }
 

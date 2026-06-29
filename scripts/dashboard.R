@@ -24,16 +24,10 @@ source("scripts/spatial/convert_gpx_geojson.R")
 
 quarto::quarto_render("outputs/nest_app/field_map.qmd")
 
-file.path(
-  "outputs",
-  "map_sandbox",
-  "index.html"
-) %>% 
-  file.copy(
-    "outputs/nest_app/index.html",
-    .,
-    overwrite = TRUE
-  )
+# Re-externalize the data files (direct-serve from outputs/nest_app/):
+
+source(here::here("scripts/utils/externalize_field_data.R"))
+externalize_field_data()
 
 autopush_updates()
 

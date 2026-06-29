@@ -84,7 +84,7 @@ pred_counts_table <-
             function(.i) {
               tags$tr(
                 tags$td(.rows$time_label[[.i]]),
-                tags$td(as.character(.rows$patch_count[[.i]])),
+                tags$td(pretty_patch(as.character(.rows$patch_count[[.i]]))),
                 tags$td(as.character(.rows$boards[[.i]])),
                 tags$td(as.character(.rows$check_nests[[.i]])),
                 tags$td(as.character(.rows$camera_id[[.i]]))
@@ -108,7 +108,7 @@ searching_table <-
             tags$td(
               class = "sched-patch",
               rowspan = if (has_helper) "2" else "1",
-              as.character(.patches[[.i]])
+              pretty_patch(as.character(.patches[[.i]]))
             )
           if (has_helper) {
             tagList(

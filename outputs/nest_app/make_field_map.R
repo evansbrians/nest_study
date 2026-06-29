@@ -171,6 +171,7 @@ paths <-
   filter(
     !str_detect(name, "line")
   ) %>% 
+  st_cast("LINESTRING", warn = FALSE) %>% 
   {
     .[map_int(st_geometry(.), ~ nrow(st_coordinates(.x))) >= 2, ]
   } %>% 
@@ -294,69 +295,6 @@ nests_mapping <-
 map <-
   basemap %>% 
   
-  # Patches drawn first so point layers render on top:
-  
-  addPolygons(
-    data = patches,
-    fillColor = "#ffffff",
-    fillOpacity = 0.2,
-    color = "#0000ff",
-    weight = 1.5,
-    opacity = 0.5,
-    popup = ~ name,
-    label = ~ name,
-    group = "Patches"
-  ) %>%
-  
-  addPolylines(
-    data = paths,
-    weight = 3,
-    opacity = 0.7,
-    dashArray = "2, 5",
-    color = "#ffff00",
-    group = "Paths"
-  ) %>%
-  
-  # Nests
-  
-  addMarkers(
-    data = nests_mapping,
-    icon = ~ icons[icon_id],
-    popup = ~ nest_popup,
-    group = "Nests",
-    options = markerOptions(zIndexOffset = 1000)
-  ) %>% 
-  
-  # Coverboards:
-  
-  addMarkers(
-    data = coverboards,
-    icon = ~ icons[icon_id],
-    popup = ~ name,
-    label = ~ name,
-    group = "Coverboards"
-  ) %>%
-  
-  # Trail cameras:
-  
-  addMarkers(
-    data = trailcams,
-    icon = ~ icons[icon_id],
-    popup = ~ name,
-    label = ~ name,
-    group = "Trail Cameras"
-  ) %>%
-  
-  # Point counts:
-  
-  addMarkers(
-    data = point_counts,
-    icon = icons["pc"],
-    popup = ~ name,
-    label = ~ name,
-    group = "Point Counts"
-  ) %>%
-  
   # Layer control:
   
   addLayersControl(
@@ -472,15 +410,8 @@ patch_geo_json <-
     error = function(e) "{}"
   )
 
-map_tracking <-
-  map_tracking %>%
-  appendContent(
-    tags$script(
-      HTML(
-        str_c("window.fieldPatches = ", patch_geo_json, ";")
-      )
-    )
-  )
+field_patches_js <-
+  str_c("window.fieldPatches = ", patch_geo_json, ";")
 
 # embed the schedule, keyed by date ----------------------------------------
 
@@ -650,19 +581,12 @@ nest_big_json <-
     error = function(e) "{}"
   )
 
-map_tracking <-
-  map_tracking %>%
-  appendContent(
-    tags$script(
-      HTML(
-        str_c(
-          "window.fieldSchedule = ", field_schedule_json, ";\n",
-          "window.fieldNestFade = ", nest_fade_json, ";\n",
-          "window.fieldNestBig = ", nest_big_json, ";\n",
-          field_today_selector
-        )
-      )
-    )
+field_schedule_js <-
+  str_c(
+    "window.fieldSchedule = ", field_schedule_json, ";\n",
+    "window.fieldNestFade = ", nest_fade_json, ";\n",
+    "window.fieldNestBig = ", nest_big_json, ";\n",
+    field_today_selector
   )
 
 # embed offline satellite tiles --------------------------------------------
@@ -830,15 +754,7 @@ offline_tiles_json <-
     error = function(e) "{}"
   )
 
-map_tracking <-
-  map_tracking %>%
-  appendContent(
-    tags$script(
-      HTML(
-        str_c("window.fieldOfflineTiles = ", offline_tiles_json, ";")
-      )
-    )
-  )
+field_offline_tiles_js <- str_c("window.fieldOfflineTiles = ", offline_tiles_json, ";")
 
 # embed navigable map points -----------------------------------------------
 
@@ -849,37 +765,38 @@ nav_points_json <-
   tryCatch(
     {
       nav_df <-
-        function(sfobj, type) {
+        function(sfobj, type, point_class) {
           cc <- st_coordinates(st_transform(sfobj, 4326))
+          col <- function(nm) if (nm %in% names(sfobj)) sfobj[[nm]] else NA
           tibble(
+            point_id = as.character(col("point_id")),
             name = as.character(sfobj$name),
             lat  = cc[, "Y"],
             lng  = cc[, "X"],
-            type = type
+            type = type,
+            point_class = point_class,
+            note = as.character(col("note")),
+            elevation = as.numeric(col("elevation")),
+            horizontal_accuracy = as.numeric(col("accuracy")),
+            bearing = as.numeric(col("bearing")),
+            photo_name = as.character(col("photo_name")),
+            photo = as.character(col("photo"))
           )
         }
-      
+
       list(
-        Nest = nests,
-        Coverboard = coverboards,
-        `Trail camera` = trailcams
+        nav_df(nests, "Nest", "nest"),
+        nav_df(coverboards, "Coverboard", "coverboard"),
+        nav_df(trailcams, "Trail camera", "trailcam")
       ) %>%
-        imap(nav_df) %>%
         list_rbind() %>%
         jsonlite::toJSON(dataframe = "rows")
     },
     error = function(e) "[]"
   )
 
-map_tracking <-
-  map_tracking %>%
-  appendContent(
-    tags$script(
-      HTML(
-        str_c("window.fieldNavPoints = ", nav_points_json, ";")
-      )
-    )
-  )
+field_nav_points_js <-
+  str_c("window.fieldNavPoints = ", nav_points_json, ";")
 
 icons_json <-
   tryCatch(
@@ -945,26 +862,64 @@ paths_json <-
       map(
         function(.geom) {
           co <- st_coordinates(.geom)
-          unname(cbind(co[, "Y"], co[, "X"]))
+          key <-
+            if ("L1" %in% colnames(co)) co[, "L1"] else rep(1, nrow(co))
+          as.data.frame(co) %>%
+            split(key) %>%
+            map(
+              function(r) map2(r$Y, r$X, ~ c(.x, .y))
+            ) %>%
+            unname()
         }
       ) %>%
-      jsonlite::toJSON(digits = NA),
+      jsonlite::toJSON(auto_unbox = TRUE, digits = NA),
     error = function(e) "[]"
   )
 
-map_tracking <-
-  map_tracking %>%
-  appendContent(
-    tags$script(
-      HTML(
-        str_c(
-          "window.fieldIcons = ", icons_json, ";\n",
-          "window.fieldMapPoints = ", map_points_json, ";\n",
-          "window.fieldPaths = ", paths_json, ";"
-        )
-      )
-    )
-  )
+field_icons_js <-
+  str_c("window.fieldIcons = ", icons_json, ";")
+
+field_map_points_js <-
+  str_c("window.fieldMapPoints = ", map_points_json, ";")
+
+field_paths_js <-
+  str_c("window.fieldPaths = ", paths_json, ";")
+
+# externalize map data payloads --------------------------------------------
+
+# Phase 1 of the data/shell decoupling: the same window.field* assignments that
+# are embedded above are also written to two external JS files loaded by the
+# shell via <script src>. field_static.js holds the rarely-changing payloads
+# (patches, icons); field_data.js holds the frequently-changing ones (points,
+# paths, nav points, schedule/today, nest fade/big). The embedded chunks are
+# kept for now; the external files overwrite with identical data. Offline tiles
+# stay embedded (deferred to a later phase).
+
+writeLines(
+  c("/* field_patches.js */", field_patches_js),
+  here("outputs/nest_app/field_patches.js")
+)
+
+writeLines(
+  c("/* field_icons.js */", field_icons_js),
+  here("outputs/nest_app/field_icons.js")
+)
+
+writeLines(
+  c("/* field_offline_tiles.js */", field_offline_tiles_js),
+  here("outputs/nest_app/field_offline_tiles.js")
+)
+
+writeLines(
+  c(
+    "/* field_data.js */",
+    field_map_points_js,
+    field_paths_js,
+    field_nav_points_js,
+    field_schedule_js
+  ),
+  here("outputs/nest_app/field_data.js")
+)
 
 # return the widget --------------------------------------------------------
 

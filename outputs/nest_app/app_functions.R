@@ -68,7 +68,7 @@ make_nest_popup <-
       <div style='font-family: Times;'>
         <h3><strong>{nest_id}</strong>. Species: {species}</h3>
         <ul>
-          <li><strong>Patch</strong>: {patch_id}</li>
+          <li><strong>Patch</strong>: {pretty_patch(patch_id)}</li>
           <li><strong>Plant species</strong>: {substrate}</li>
           <li><strong>Height</strong>: {height}</li>
           <li><strong>Location description</strong>: {location_description}</li>
@@ -83,3 +83,12 @@ make_nest_popup <-
     )
   }
 
+# Patch names are snake_case in the data; display them in sentence case
+# (spaces, not underscores) wherever shown -- never alters the data.
+
+pretty_patch <-
+  function(.x) {
+    .x %>%
+      str_replace_all("_", " ") %>%
+      str_to_sentence()
+  }

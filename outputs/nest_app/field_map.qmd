@@ -6,6 +6,8 @@ output-file: index.html
 format:
   html:
     embed-resources: true
+    include-in-header:
+      text: '<link rel="icon" type="image/png" href="icons/favicon.png">'
 ---
 
 ```{r}
@@ -32,6 +34,17 @@ htmltools::tags$style(
 source(here::here("outputs/nest_app/make_field_map.R"))
 
 map_tracking
+```
+
+```{=html}
+<!-- Phase 1 data/shell decoupling: load the externalized map-data payloads.
+     These run after the embedded window.field* assignments above (identical
+     data, harmless overwrite) and before field_map_app.js / map_weather.js
+     consume the globals. -->
+<script src="field_patches.js"></script>
+<script src="field_icons.js"></script>
+<script src="field_offline_tiles.js"></script>
+<script src="field_data.js"></script>
 ```
 
 ```{=html}
@@ -82,9 +95,10 @@ map_tracking
            Options are populated from the patch names by field_map_app.js.
            The "Patch" label text is omitted -- context makes it obvious. -->
       <label class="field-field-label">
-        <select id="patchSelect" class="field-input">
+        <select id="patchSelect" class="field-patch-select">
           <option value="__all__">All patches</option>
         </select>
+        <button type="button" id="patchPickerBtn" class="field-input field-patch-picker-btn">All patches</button>
       </label>
 
       <div class="field-tilegrid">
@@ -120,7 +134,44 @@ map_tracking
           <img class="field-tile-icon" src="icons/bunting.png" alt="">
           <span>Species info</span>
         </button>
+        <button type="button" class="field-tile" data-screen="concealment">
+          <img class="field-tile-icon" src="icons/my_camera.png" alt="">
+          <span>Concealment photos</span>
+        </button>
       </div>
+    </div>
+```
+:::
+
+::: {.field-screen data-name="concealment"}
+```{=html}
+    <div class="field-menu-panel">
+      <div class="field-menu-title">Concealment photos</div>
+
+      <label class="field-field-label">Nest (within 25 m)</label>
+      <button type="button" id="concealNestBtn" class="field-input field-patch-picker-btn">Choose a nest</button>
+
+      <div class="conceal-bearing" id="concealBearing">Bearing: --</div>
+
+      <button type="button" id="concealCaptureBtn" class="field-button conceal-capture">Capture photo</button>
+      <input type="file" id="concealCamera" accept="image/*" capture="environment" class="field-hidden-input">
+
+      <div id="concealStatus" class="conceal-status"></div>
+
+      <div id="concealEditor" class="conceal-editor" hidden>
+        <div class="conceal-canvas-wrap"><canvas id="concealCanvas"></canvas></div>
+        <div class="field-mgr-actions">
+          <button type="button" id="concealUndoBtn" class="field-button">Undo</button>
+          <button type="button" id="concealClearBtn" class="field-button">Clear</button>
+        </div>
+        <div class="field-mgr-actions">
+          <button type="button" id="concealSaveBtn" class="field-button">Save photo</button>
+          <button type="button" id="concealDiscardBtn" class="field-button field-button--danger">Discard</button>
+        </div>
+      </div>
+
+      <div class="field-field-label">This session</div>
+      <ul id="concealList" class="field-mgr-list"></ul>
     </div>
 ```
 :::
@@ -280,6 +331,14 @@ map_tracking
     <div class="field-menu-panel">
       <div class="field-menu-title">Track</div>
 
+      <label class="field-field-label">Activity
+        <select id="trackActivity" class="field-input">
+          <option value="nest_searching">Nest searching</option>
+          <option value="new_path">New path</option>
+          <option value="distributary">Distributary</option>
+          <option value="other">Other</option>
+        </select>
+      </label>
       <label class="field-field-label">Track name
         <input type="text" id="trackName" class="field-input"
                placeholder="Track name" autocomplete="off">
@@ -343,12 +402,24 @@ map_tracking
 
 source(here::here("outputs/nest_app/species_info.R"))
 
-species_info_panels
+cat(
+  str_c(
+    "window.fieldSpeciesHTML = ",
+    jsonlite::toJSON(
+      paste(as.character(species_info_panels), collapse = ""),
+      auto_unbox = TRUE
+    ),
+    ";\n"
+  ),
+  file = here::here("outputs/nest_app/field_data.js"),
+  append = TRUE
+)
 ```
 
 ```{=html}
       </div>
     </div>
+<script>(function(){var el=document.getElementById("speciesInfoDoc");if(el&&window.fieldSpeciesHTML)el.innerHTML=window.fieldSpeciesHTML;})();</script>
 ```
 :::
 
@@ -366,12 +437,24 @@ species_info_panels
 
 source(here::here("outputs/nest_app/nests.R"))
 
-nest_panels
+cat(
+  str_c(
+    "window.fieldNestsHTML = ",
+    jsonlite::toJSON(
+      paste(as.character(nest_panels), collapse = ""),
+      auto_unbox = TRUE
+    ),
+    ";\n"
+  ),
+  file = here::here("outputs/nest_app/field_data.js"),
+  append = TRUE
+)
 ```
 
 ```{=html}
       </div>
     </div>
+<script>(function(){var el=document.getElementById("nestsDoc");if(el&&window.fieldNestsHTML)el.innerHTML=window.fieldNestsHTML;})();</script>
 <script>
 document.addEventListener("DOMContentLoaded", function () {
   var doc = document.getElementById("nestsDoc");
@@ -529,12 +612,24 @@ document.addEventListener("DOMContentLoaded", function () {
 
 source(here::here("outputs/nest_app/schedule.R"))
 
-schedule_panels
+cat(
+  str_c(
+    "window.fieldScheduleHTML = ",
+    jsonlite::toJSON(
+      paste(as.character(schedule_panels), collapse = ""),
+      auto_unbox = TRUE
+    ),
+    ";\n"
+  ),
+  file = here::here("outputs/nest_app/field_data.js"),
+  append = TRUE
+)
 ```
 
 ```{=html}
       </div>
     </div>
+<script>(function(){var el=document.getElementById("scheduleDoc");if(el&&window.fieldScheduleHTML)el.innerHTML=window.fieldScheduleHTML;})();</script>
 ```
 :::
 

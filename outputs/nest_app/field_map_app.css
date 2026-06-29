@@ -1088,3 +1088,99 @@ input[type="file"].field-input {
   font-size: 14px;
   opacity: 0.85;
 }
+
+
+/* Large near-full-screen patch picker (accessibility) */
+
+.field-patch-select { display: none; }
+
+.field-patch-picker-btn {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  text-align: left;
+  padding-right: 2rem;
+  cursor: pointer;
+}
+
+.field-patch-picker-btn::after {
+  content: "\25BE";
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text);
+  pointer-events: none;
+}
+
+.field-patch-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 4vh 4vw;
+}
+
+.field-patch-overlay-inner {
+  background: #fff;
+  width: 100%;
+  max-width: 640px;
+  border-radius: 14px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px;
+}
+
+.field-patch-overlay-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #555;
+  text-align: center;
+  padding: 14px;
+}
+
+.field-patch-overlay-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-size: 1.6rem;
+  padding: 1.05rem 1.2rem;
+  border: none;
+  border-bottom: 1px solid #eee;
+  background: #fff;
+  cursor: pointer;
+}
+
+.field-patch-overlay-row.is-selected {
+  background: #e8f0fe;
+  font-weight: 700;
+}
+
+/* Modify-screen location/mode controls */
+
+.field-modify-controls {
+  margin-top: 12px;
+}
+
+.field-mode-btn.is-selected {
+  background: var(--accent, #1b7f3b);
+  color: #fff;
+  border-color: var(--accent, #1b7f3b);
+}
+
+/* Concealment photos screen */
+
+.conceal-bearing { font-size: 1.4rem; font-weight: 700; text-align: center; margin: 12px 0; }
+.conceal-capture { display: block; width: 100%; font-size: 1.2rem; padding: 0.9rem; }
+.field-hidden-input { display: none; }
+.conceal-status { min-height: 1.2em; margin: 8px 0; color: #555; }
+.conceal-editor { margin-top: 14px; }
+.conceal-canvas-wrap { width: 100%; overflow: hidden; }
+.conceal-canvas-wrap canvas {
+  max-width: 100%; height: auto; display: block;
+  border: 1px solid var(--border, #ccc); border-radius: 8px; touch-action: none;
+}
+.conceal-list-item img.field-photo-thumb { width: 48px; height: 48px; object-fit: cover; margin-right: 8px; }

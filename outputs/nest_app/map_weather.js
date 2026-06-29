@@ -73,6 +73,86 @@ function(el, x) {
   map.on("zoomend", scaleIconsForZoom);
   setTimeout(scaleIconsForZoom, 700);
 
+  // JS marker rendering (step B4) -----------------------------------------
+
+  // Build Leaflet markers from window.fieldMapPoints (the data the R
+  // addMarkers() calls used to consume) and add each into the SAME
+  // layerManager FeatureGroup the layers-control and patch/today filter
+  // already drive -- that group is created by addLayersControl in
+  // make_field_map.R. Because the markers now live in those real groups
+  // (Nests / Coverboards / Trail Cameras / Point Counts, all in PATCH_GROUPS),
+  // applyFilter owns their opacity (fieldNestFade + today-fade) and
+  // scaleIconsForZoom owns their size (fieldNestBig + zoom + aspect ratio):
+  // one styler, no parallel "(JS)" groups.
+
+  function renderMapPoints() {
+    if (!window.fieldMapPoints || !window.fieldIcons || !window.L ||
+        !map.layerManager) return;
+    var idx = 0;
+    window.fieldMapPoints.forEach(function (p) {
+      if (p.lat == null || p.lng == null || isNaN(p.lat) || isNaN(p.lng)) return;
+      if (!p.group) return;
+      var ic = window.fieldIcons[p.icon_id];
+      if (!ic) return;
+      var marker = window.L.marker([p.lat, p.lng], {
+        icon: window.L.icon({
+          iconUrl: ic.iconUrl,
+          iconSize: [ic.iconWidth, ic.iconHeight],
+          iconAnchor: [ic.iconAnchorX, ic.iconAnchorY]
+        })
+      });
+      marker.bindPopup(p.popup);
+      if (p.group === "Nests") marker.setZIndexOffset(1000);
+      map.layerManager.addLayer(marker, "marker", p.group + "-" + (idx++), p.group);
+    });
+  }
+  renderMapPoints();
+
+  // patches + paths (step B5) ---------------------------------------------
+
+  // Draw patch boundaries (window.fieldPatches) and Garmin paths
+  // (window.fieldPaths) in JS, into the same "Patches" / "Paths" layerManager
+  // groups the layers control and patch/today filter already drive -- so the R
+  // addPolygons/addPolylines are no longer needed.
+
+  function prettyPatch(n) {
+    n = String(n).replace(/_/g, " ");
+    return n.charAt(0).toUpperCase() + n.slice(1);
+  }
+
+  function renderShapes() {
+    if (!window.L || !map.layerManager) return;
+    if (window.fieldPatches) {
+      Object.keys(window.fieldPatches).forEach(function (name) {
+        var rings = window.fieldPatches[name];
+        if (!rings || !rings.length) return;
+        var poly = window.L.polygon(rings, {
+          fillColor: "#ffffff",
+          fillOpacity: 0.2,
+          color: "#0000ff",
+          weight: 1.5,
+          opacity: 0.5
+        });
+        poly.bindPopup(prettyPatch(name));
+        poly.bindTooltip(prettyPatch(name));
+        map.layerManager.addLayer(poly, "shape", "patch-" + name, "Patches");
+      });
+    }
+    if (window.fieldPaths) {
+      window.fieldPaths.forEach(function (path, i) {
+        if (!path || !path.length) return;
+        var line = window.L.polyline(path, {
+          weight: 3,
+          opacity: 0.7,
+          dashArray: "2, 5",
+          color: "#ffff00"
+        });
+        map.layerManager.addLayer(line, "shape", "path-" + i, "Paths");
+      });
+    }
+  }
+  renderShapes();
+
   // bottom-bar readouts ---------------------------------------------------
 
   // Mirror GPS accuracy and compass bearing into the bottom bar:
