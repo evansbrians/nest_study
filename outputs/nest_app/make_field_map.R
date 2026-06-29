@@ -504,16 +504,16 @@ field_schedule_json <-
       cam      <- sched_env$next_pred_cam_maintenance
       checks   <- sched_env$next_checks
 
-      current_names <-
+      artificial_names <-
         nests_mapping %>%
-        filter(current) %>%
+        filter(str_detect(name, "^NQ")) %>%
         pull(name) %>%
         as.character()
 
-      current_names <-
+      artificial_names <-
         c(
-          current_names,
-          str_replace(str_subset(current_names, "^NQ"), "^NQ", "N")
+          artificial_names,
+          str_replace(artificial_names, "^NQ", "N")
         )
       
       # "lat,lng" key (6 dp) for every feature in a layer -- matches the keys
@@ -558,7 +558,7 @@ field_schedule_json <-
           not_scheduled <-
             c(
               fade_keys(coverboards, tb),
-              fade_keys(nests, c(tn, current_names)),
+              fade_keys(nests, c(tn, artificial_names)),
               fade_keys(trailcams, tcam)
             )
           

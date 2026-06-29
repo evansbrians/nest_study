@@ -37,8 +37,6 @@ file.path(
 
 autopush_updates()
 
-autopush_updates()
-
 # update the scheduling document ------------------------------------------
 
 # Update and render:
