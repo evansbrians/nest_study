@@ -1368,6 +1368,8 @@ function init() {
   var trkLenEl = document.getElementById("trkLen");
   var trkStartEl = document.getElementById("trkStart");
   var trkClockEl = document.getElementById("trkClock");
+  var trkRmsEl = document.getElementById("trkRms");
+  var rmsShownAt = 0;
   var trackMgrToggle = document.getElementById("trackMgrToggle");
   var trackMgrBody = document.getElementById("trackMgrBody");
   var trackListEl = document.getElementById("trackList");
@@ -1728,6 +1730,10 @@ function init() {
     for (i = 0; i < n; i++) { var d = accBuf[i].m - mean; sq += d * d; }
     accRms = Math.sqrt(sq / n);
     updateMotionState(now);
+    if (trkRmsEl && now - rmsShownAt > 250) {
+      rmsShownAt = now;
+      trkRmsEl.textContent = accRms.toFixed(2) + " " + (stationary ? "still" : "moving");
+    }
   }
 
   function updateMotionState(now) {
@@ -1771,7 +1777,8 @@ function init() {
 
   function startMotion() {
     accBuf = []; accRms = 0; stationary = false; stillSince = 0; moveSince = 0; still = null;
-    if (typeof DeviceMotionEvent === "undefined") { motionOn = false; return; }
+    if (trkRmsEl) trkRmsEl.textContent = "sensing\u2026";
+    if (typeof DeviceMotionEvent === "undefined") { motionOn = false; if (trkRmsEl) trkRmsEl.textContent = "n/a"; return; }
     function attach() {
       motionHandler = onMotion;
       window.addEventListener("devicemotion", motionHandler);
@@ -1779,8 +1786,8 @@ function init() {
     }
     if (typeof DeviceMotionEvent.requestPermission === "function") {
       DeviceMotionEvent.requestPermission()
-        .then(function (r) { if (r === "granted") attach(); else motionOn = false; })
-        .catch(function () { motionOn = false; });
+        .then(function (r) { if (r === "granted") attach(); else { motionOn = false; if (trkRmsEl) trkRmsEl.textContent = "denied"; } })
+        .catch(function () { motionOn = false; if (trkRmsEl) trkRmsEl.textContent = "n/a"; });
     } else {
       attach();
     }
@@ -1790,6 +1797,7 @@ function init() {
     if (motionHandler) window.removeEventListener("devicemotion", motionHandler);
     motionHandler = null;
     motionOn = false;
+    if (trkRmsEl) trkRmsEl.textContent = "--";
     if (stillDot && window.fieldMap) { window.fieldMap.removeLayer(stillDot); stillDot = null; }
   }
 
