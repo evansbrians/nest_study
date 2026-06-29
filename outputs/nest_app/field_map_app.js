@@ -1350,6 +1350,11 @@ function init() {
   var GATE_MULT = 1.8; // gate ~ best-seen accuracy * this (down to ACC_FLOOR)
   var WIN_MS = 3000;   // ms: averaging window (longer = more averaging but lag)
   var SEG_MIN = 1.5;   // m: net movement before a new vertex commits
+  var STILL_RMS = 0.3;
+  var STILL_ENTER_MS = 3000;
+  var STILL_EXIT_MS = 1200;
+  var ACC_WIN_MS = 1200;
+  var STILL_DOT = { radius: 6, color: "#136aec", weight: 2, fillColor: "#8ec5ff", fillOpacity: 0.9 };
 
   var TRACKS_KEY = "fieldTracks";
 
@@ -1363,6 +1368,8 @@ function init() {
   var trkLenEl = document.getElementById("trkLen");
   var trkStartEl = document.getElementById("trkStart");
   var trkClockEl = document.getElementById("trkClock");
+  var trkRmsEl = document.getElementById("trkRms");
+  var rmsShownAt = 0;
   var trackMgrToggle = document.getElementById("trackMgrToggle");
   var trackMgrBody = document.getElementById("trackMgrBody");
   var trackListEl = document.getElementById("trackList");
@@ -1379,6 +1386,15 @@ function init() {
   var startMs = 0;
   var clockIv = null;
   var onTrackLoc = null;
+  var motionOn = false;
+  var motionHandler = null;
+  var accBuf = [];
+  var accRms = 0;
+  var stationary = false;
+  var stillSince = 0;
+  var moveSince = 0;
+  var still = null;
+  var stillDot = null;
 
   function trackStatus(msg) {
     if (trackStatusEl) trackStatusEl.textContent = msg || "";
@@ -1558,7 +1574,9 @@ function init() {
             patch_id: t.patch_id || null,
             i: i,
             time: p.t || null,
-            accuracy_m: (p.acc != null ? Math.round(p.acc * 10) / 10 : null)
+            accuracy_m: (p.acc != null ? Math.round(p.acc * 10) / 10 : null),
+            averaged: !!p.avg,
+            samples: p.n || 1
           },
           geometry: { type: "Point", coordinates: [p.lng, p.lat] }
         };
@@ -1667,6 +1685,13 @@ function init() {
         else errPoly.setLatLngs(ring);
       }
     }
+    if (stationary && live && window.fieldMap) {
+      if (!stillDot) stillDot = window.L.circleMarker([live.lat, live.lng], STILL_DOT).addTo(window.fieldMap);
+      else stillDot.setLatLng([live.lat, live.lng]);
+    } else if (stillDot && window.fieldMap) {
+      window.fieldMap.removeLayer(stillDot);
+      stillDot = null;
+    }
   }
 
   // Meters / minute over the sliding window
@@ -1692,6 +1717,90 @@ function init() {
       : (trkClockEl.textContent || "00:00");
   }
 
+  function onMotion(ev) {
+    var g = ev.accelerationIncludingGravity || ev.acceleration;
+    if (!g || g.x == null) return;
+    var mag = Math.sqrt(g.x * g.x + g.y * g.y + g.z * g.z);
+    var now = Date.now();
+    accBuf.push({ m: mag, ts: now });
+    while (accBuf.length > 1 && now - accBuf[0].ts > ACC_WIN_MS) accBuf.shift();
+    var n = accBuf.length, s = 0, i;
+    for (i = 0; i < n; i++) s += accBuf[i].m;
+    var mean = s / n, sq = 0;
+    for (i = 0; i < n; i++) { var d = accBuf[i].m - mean; sq += d * d; }
+    accRms = Math.sqrt(sq / n);
+    updateMotionState(now);
+    if (trkRmsEl && now - rmsShownAt > 250) {
+      rmsShownAt = now;
+      trkRmsEl.textContent = accRms.toFixed(2) + " " + (stationary ? "still" : "moving");
+    }
+  }
+
+  function updateMotionState(now) {
+    if (!tracking) return;
+    if (accRms < STILL_RMS) {
+      moveSince = 0;
+      if (!stillSince) stillSince = now;
+      if (!stationary && now - stillSince >= STILL_ENTER_MS) enterStationary();
+    } else {
+      stillSince = 0;
+      if (!moveSince) moveSince = now;
+      if (stationary && now - moveSince >= STILL_EXIT_MS) exitStationary();
+    }
+  }
+
+  function enterStationary() {
+    stationary = true;
+    still = { sw: 0, sLat: 0, sLng: 0, accMin: Infinity, n: 0, t0: Date.now() };
+    trackStatus("Holding still \u2014 averaging this point\u2026");
+  }
+
+  function finalizeStill() {
+    if (!still || !still.n) { still = null; return; }
+    var lat = still.sLat / still.sw, lng = still.sLng / still.sw;
+    var acc = Math.max(still.accMin, 1 / Math.sqrt(still.sw));
+    var last = committed[committed.length - 1];
+    var v = { lat: lat, lng: lng, t: new Date(still.t0).toISOString(), acc: acc, n: still.n, avg: true };
+    if (last && metersBetween(last.lat, last.lng, lat, lng) <= 0.5) committed[committed.length - 1] = v;
+    else committed.push(v);
+  }
+
+  function exitStationary() {
+    finalizeStill();
+    stationary = false;
+    still = null;
+    fwin = [];
+    recentFixes = [];
+    live = null;
+    trackStatus("Moving \u2014 recording.");
+  }
+
+  function startMotion() {
+    accBuf = []; accRms = 0; stationary = false; stillSince = 0; moveSince = 0; still = null;
+    if (trkRmsEl) trkRmsEl.textContent = "sensing\u2026";
+    if (typeof DeviceMotionEvent === "undefined") { motionOn = false; if (trkRmsEl) trkRmsEl.textContent = "n/a"; return; }
+    function attach() {
+      motionHandler = onMotion;
+      window.addEventListener("devicemotion", motionHandler);
+      motionOn = true;
+    }
+    if (typeof DeviceMotionEvent.requestPermission === "function") {
+      DeviceMotionEvent.requestPermission()
+        .then(function (r) { if (r === "granted") attach(); else { motionOn = false; if (trkRmsEl) trkRmsEl.textContent = "denied"; } })
+        .catch(function () { motionOn = false; if (trkRmsEl) trkRmsEl.textContent = "n/a"; });
+    } else {
+      attach();
+    }
+  }
+
+  function stopMotion() {
+    if (motionHandler) window.removeEventListener("devicemotion", motionHandler);
+    motionHandler = null;
+    motionOn = false;
+    if (trkRmsEl) trkRmsEl.textContent = "--";
+    if (stillDot && window.fieldMap) { window.fieldMap.removeLayer(stillDot); stillDot = null; }
+  }
+
   function onFix(e) {
     if (!tracking) return;
     var acc0 = (e.accuracy != null ? e.accuracy : 15);
@@ -1704,6 +1813,26 @@ function init() {
     if (acc0 > gate) return;
 
     var now = Date.now();
+
+    if (stationary && still) {
+      var w = 1 / (acc0 * acc0);
+      still.sw += w;
+      still.sLat += w * e.latlng.lat;
+      still.sLng += w * e.latlng.lng;
+      if (acc0 < still.accMin) still.accMin = acc0;
+      still.n++;
+      live = {
+        lat: still.sLat / still.sw,
+        lng: still.sLng / still.sw,
+        acc: Math.max(still.accMin, 1 / Math.sqrt(still.sw))
+      };
+      recentFixes.push({ lat: e.latlng.lat, lng: e.latlng.lng, ts: now });
+      while (recentFixes.length > 1 && now - recentFixes[0].ts > 15000) recentFixes.shift();
+      redrawLive();
+      updateReadout();
+      return;
+    }
+
     fwin.push({ lat: e.latlng.lat, lng: e.latlng.lng, acc: acc0, ts: now });
     while (fwin.length > 1 && now - fwin[0].ts > WIN_MS) fwin.shift();
     recentFixes.push({ lat: e.latlng.lat, lng: e.latlng.lng, ts: now });
@@ -1744,6 +1873,7 @@ function init() {
   }
 
   function startTrack() {
+    startMotion();
     whenMapReady(function (map) {
       committed = [];
       live = null;
@@ -1775,6 +1905,8 @@ function init() {
   function stopTrack() {
     if (window.fieldMap && onTrackLoc) window.fieldMap.off("locationfound", onTrackLoc);
     onTrackLoc = null;
+    stopMotion();
+    if (stationary) { finalizeStill(); stationary = false; still = null; live = null; }
     // Finalize the working vertex
 
     finalizeLive();

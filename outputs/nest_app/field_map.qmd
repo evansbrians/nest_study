@@ -358,6 +358,7 @@ map_tracking
         <div>Length: <span id="trkLen">--</span></div>
         <div>Start: <span id="trkStart">--</span></div>
         <div>Elapsed: <span id="trkClock">00:00</span></div>
+        <div>Motion: <span id="trkRms">--</span></div>
       </div>
 
       <div id="trackStatus" class="field-status" role="status"
