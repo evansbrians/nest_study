@@ -285,6 +285,15 @@ new_points %>%
         st_zm(drop = TRUE, what = "ZM") %>%
         filter(!point_id %in% new_rows$point_id) %>%
         rbind(new_rows) %>%
+        mutate(
+          name =
+            case_when(
+              str_detect(name, "^(N|n_)") ~ str_replace(name, "^(N|n_)", "N"),
+              .default = name
+            )
+        ) %>%
+        arrange(desc(datetime)) %>%
+        distinct(name, .keep_all = TRUE) %>%
         st_write(url, delete_dsn = TRUE)
     }
   )
