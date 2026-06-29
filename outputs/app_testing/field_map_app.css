@@ -1,0 +1,1186 @@
+/* field map host page ----------------------------------------------------
+
+The controls layout + bottom menu bar. Map controls are styled 
+separately by map_styles.css. */
+
+/* full-screen field map --------------------------------------------------
+
+This bit hides the Quarto chrome and strip every margin, padding and max-width
+so the map + bar own the whole viewport with no surrounding white space. */
+
+.quarto-title-block { display: none !important; }
+
+html:has(.field-menu-bar),
+body:has(.field-menu-bar) {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+body:has(.field-menu-bar) #quarto-content,
+body:has(.field-menu-bar) main.content,
+body:has(.field-menu-bar) .page-columns,
+body:has(.field-menu-bar) .quarto-container,
+body:has(.field-menu-bar) .column-body,
+body:has(.field-menu-bar) .column-page,
+body:has(.field-menu-bar) .content {
+  margin: 0 !important;
+  padding: 0 !important;
+  max-width: none !important;
+  gap: 0 !important;
+}
+
+/* design ---------------------------------------------------------------
+
+This controls the base styling of the page. Changing something here will modify
+it across the page.*/
+
+:root {
+  --field-bar-h: 56px;
+
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+          Arial, sans-serif;
+
+  --accent: #136aec;            /* primary blue */
+  --accent-tint: #e9f1fd;       /* light wash of the accent */
+  --bg: #f3f4f6;                /* light app background (the menu surface) */
+  --surface: #ffffff;           /* cards, tiles, inputs */
+  --text: #1c2024;              /* primary text */
+  --text-muted: #5c6670;        /* secondary text */
+  --border: #dfe3e8;            /* hairline borders */
+  --success: #1f9d55;           /* toggle "on" */
+  --danger: #d23b3b;            /* destructive */
+  --track: #e7e9ec;             /* empty progress/track fill */
+
+  --radius: 12px;
+  --radius-sm: 8px;
+
+  /* Soft, layered elevation (low opacity -> reads light, not heavy). */
+  
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.08);
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 8px 24px rgba(16, 24, 40, 0.10);
+}
+
+/* the Leaflet container lives in this document ----------------------------
+
+`!important` overrides the htmlwidget's inline sizing and height/width:auto 
+lets top/right/bottom/left define the box. (map_weather.js calls invalidateSize
+so Leaflet redraws to the new size.) */
+
+.leaflet-container,
+.html-widget {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: var(--field-bar-h) !important;
+  width: auto !important;
+  height: auto !important;
+  margin: 0 !important;
+  z-index: 1;
+}
+
+/* the bottom bar ---------------------------------------------------------
+
+The bar is pinned to the bottom strip, above the Leaflet controls. It holds the
+Menu button (left), the Accuracy readout (centered), and the Bearing readout
+(right).*/
+
+.field-menu-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--field-bar-h);
+
+  margin: 0;
+  padding: 0 14px;
+  border: none;
+  background: #1c2024f2;
+  z-index: 1200;
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Utility: hide a bar element for the current context (set from JS). */
+
+.field-hide { display: none !important; }
+
+/* Pill button that opens the main menu. */
+
+.field-bar-menu-btn {
+  flex: 0 0 auto;
+  font-family: var(--font);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  border: none;
+  border-radius: 999px;
+  padding: 8px 22px;
+  cursor: pointer;
+}
+
+/* Accuracy and bearing readouts. */
+
+.field-bar-readout {
+  font-family: var(--font);
+  color: #fff;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+/* Accuracy is centered in the bar; bearing sits at the right. */
+
+#barAccuracy {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+#barBearing {
+  margin-left: auto;
+}
+
+/* The map's own accuracy control is hidden -- accuracy lives in the bar. */
+
+.location-accuracy-control {
+  display: none !important;
+}
+
+/* main menu ------------------------------------------------------------*/
+
+/* Menu surface: Covers the map area only (above the bar), so the bar stays 
+   visible and can toggle the menu closed.*/
+
+.field-menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: var(--field-bar-h);
+  background: var(--bg);
+  color: var(--text);
+  z-index: 1100;   
+  display: none;
+  overflow-y: auto;
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+
+.field-menu-overlay.is-open { display: block; }
+
+.field-menu-panel { padding: 18px 16px 24px; }
+
+.field-menu-title {
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 16px;
+}
+
+/* Screens within the menu overlay: only the active one is shown. Each fills
+   the overlay so its background covers the whole area. */
+
+.field-screen {
+  display: none;
+  min-height: 100%;
+  box-sizing: border-box;
+}
+.field-screen.is-active { display: block; }
+
+/* All screens share the one light surface (the overlay's --bg); the white
+   tiles, inputs and dropdown read as elements on top of it. */
+   
+.field-screen[data-name="main"] { background: transparent; }
+
+/* Full-width navigation buttons on the main menu (Waypoints / Tracks). */
+
+.field-nav {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin: 8px 0 0;
+}
+
+/* "‹ Menu" back link at the top of a sub-screen. */
+
+.field-back {
+  font: inherit;
+  font-size: 1.1rem;
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 6px 0;
+  margin-bottom: 6px;
+}
+
+/* Toggle switch (e.g. "Show weather"). */
+
+.field-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  font-size: 1.15rem;
+  user-select: none;
+  margin-bottom: 1.2em;
+}
+
+/* Visually hidden checkbox; the track/thumb are the visible control. */
+
+.field-toggle-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.field-toggle-track {
+  position: relative;
+  flex: 0 0 auto;
+  width: 52px;
+  height: 30px;
+  border-radius: 15px;
+  background: #c7ccd1;
+  transition: background 0.15s ease;
+}
+
+.field-toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.15s ease;
+}
+
+.field-toggle-input:checked + .field-toggle-track {
+  background: var(--success);
+}
+
+.field-toggle-input:checked + .field-toggle-track .field-toggle-thumb {
+  transform: translateX(22px);
+}
+
+.field-toggle-input:focus-visible + .field-toggle-track {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* waypoints section in the menu ----------------------------------------*/
+
+.field-section {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.field-section-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.field-button {
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 600;
+  padding: 11px 18px;
+  margin: 4px 6px 4px 0;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: filter 0.12s ease, box-shadow 0.12s ease, transform 0.05s ease;
+}
+
+.field-button:active {
+  filter: brightness(0.95);
+  box-shadow: none;
+  transform: translateY(1px);
+}
+
+/* Secondary (destructive) -- quiet until pressed. */
+
+.field-button--danger {
+  background: var(--surface);
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.field-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+  box-shadow: none;
+}
+
+.field-track-actions {
+  margin-top: 12px;
+}
+
+/* Spacing for the notes field */
+
+#trackToggleBtn {
+  margin-top: 14px;
+}
+
+/* Live longitude/latitude/bearing readout on the Add Waypoint screen. */
+
+.field-live-readout {
+  margin: 6px 0 14px;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+/* Live track recording readout (speed / length / start / elapsed). */
+
+.field-track-readout {
+  margin: 10px 0 6px;
+  font-size: 1.05rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+/* Track manager accordion. */
+
+.field-accordion {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-top: 18px;
+  padding: 12px 0;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+  color: var(--accent);
+}
+
+.field-accordion-caret {
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+
+.field-accordion.is-open .field-accordion-caret {
+  transform: rotate(90deg);
+}
+
+.field-accordion-body { padding: 4px 0 8px; }
+
+.field-track-check {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  accent-color: var(--accent);
+}
+
+/* Manager rows (waypoints + tracks): a summary line that expands to an edit
+   panel with show-on-map, rename, color, photo, re-measure / walk-again. */
+
+.field-mgr-item {
+  list-style: none;
+  border-bottom: 1px solid var(--border);
+}
+
+.field-mgr-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  cursor: pointer;
+}
+
+.field-mgr-check {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  accent-color: var(--accent);
+}
+
+.field-mgr-name {
+  flex: 1 1 auto;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.field-mgr-edit {
+  padding: 4px 0 16px 32px;
+}
+
+.field-mgr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* Color swatches (ROYGBIV) for waypoint markers. */
+
+.field-color-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 6px 0 4px;
+}
+
+.field-swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+  cursor: pointer;
+  padding: 0;
+}
+
+.field-swatch.is-selected {
+  box-shadow: 0 0 0 3px var(--accent);
+}
+
+/* Small color dot next to a waypoint's name in the manager. */
+
+.field-swatch-dot {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+/* 2x2 grid of square icon tiles on the main menu. */
+
+.field-tilegrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 8px 0 18px;
+}
+
+.field-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  aspect-ratio: 1 / 1;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  box-shadow: var(--shadow);
+  transition: box-shadow 0.12s ease, transform 0.05s ease;
+}
+
+/* Pressed state: settle the tile for a tactile feel. */
+
+.field-tile:active {
+  box-shadow: var(--shadow-sm);
+  transform: translateY(1px);
+}
+
+/* Tile icons are loaded from icons/*.svg (editable in Inkscape) as <img>;
+   embed-resources inlines them into the page at render time. */
+   
+.field-tile .field-tile-icon {
+  width: 46%;
+  height: 46%;
+  object-fit: contain;
+}
+
+.field-tile span {
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.15;
+}
+
+/* Accuracy bar: full = worst accuracy, shrinks as the estimate improves. */
+
+.field-acc {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 8px;
+}
+
+.field-acc-track {
+  flex: 1;
+  height: 24px;
+  background: var(--track);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.field-acc-fill {
+  height: 100%;
+  width: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.field-acc-num {
+  min-width: 72px;
+  text-align: right;
+  font-weight: 700;
+}
+
+/* Sample-confidence bar */
+
+.field-conf { margin: 6px 0 12px; }
+
+.field-conf-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.field-conf-title { font-weight: 700; font-size: 1.1rem; }
+
+.field-conf-stats {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  text-align: right;
+}
+
+.field-conf-track {
+  height: 24px;
+  background: var(--track);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.field-conf-fill {
+  height: 100%;
+  width: 3%;
+  background: #d11a1a;
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+.field-conf-foot { margin-top: 5px; font-size: 1rem; }
+
+/* Add-waypoint form fields. */
+
+.field-field-label {
+  display: block;
+  font-weight: 600;
+  margin-top: 14px;
+}
+
+.field-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 1rem;
+  padding: 10px 12px;
+  margin-top: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.field-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-tint);
+}
+
+textarea.field-input { resize: vertical; }
+
+input[type="file"].field-input {
+  padding: 8px 0;
+  border: none;
+  box-shadow: none;
+}
+
+.field-photo-preview { margin: 8px 0; }
+
+.field-photo-thumb {
+  display: block;
+  max-width: 100%;
+  max-height: 180px;
+  border-radius: var(--radius-sm);
+}
+
+.field-status {
+  margin: 10px 0;
+  min-height: 1.2em;
+  font-size: 1rem;
+  color: var(--text-muted);
+}
+
+.field-waypoint-list {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+}
+
+.field-waypoint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.field-waypoint-name {
+  flex: 0 1 auto;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.field-waypoint-meta {
+  flex: 1 1 auto;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.field-waypoint-del {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--danger);
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.field-waypoint-empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.field-waypoint-actions {
+  margin-top: 12px;
+}
+
+/* Map points (data layers) in the Waypoint manager: grouped, navigate-only. */
+
+.field-navpts-head {
+  list-style: none;
+  font-weight: 700;
+  font-size: 1.1rem;
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.field-navpts-body {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0 8px 16px;
+}
+
+.field-navpt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.field-navpt-name {
+  flex: 1 1 auto;
+  word-break: break-word;
+}
+
+/* Waypoint navigation: top banner (while navigating) + arrival popup. */
+
+.nav-banner {
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;      
+  max-width: calc(100% - 130px);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 8px 7px 16px;
+  background: #1c2024f2;
+  color: #fff;
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  font-family: var(--font);
+}
+
+.nav-banner-info {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.nav-banner-target {
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-banner-stats { font-size: 0.95rem; }
+
+.nav-banner-cancel {
+  flex: 0 0 auto;
+  font: inherit;
+  font-weight: 600;
+  color: #fff;
+  background: var(--danger);
+  border: none;
+  border-radius: 999px;
+  padding: 6px 16px;
+  cursor: pointer;
+}
+
+.nav-arrived {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.nav-arrived-box {
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 24px 28px;
+  text-align: center;
+  max-width: 320px;
+  font-family: var(--font);
+}
+
+.nav-arrived-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 6px; }
+
+.nav-arrived-name {
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  word-break: break-word;
+}
+
+/* [hidden] must beat the display:flex above. */
+
+.nav-banner[hidden],
+.nav-arrived[hidden] { display: none; }
+
+.rotate-notice { display: none; }
+
+@media (orientation: landscape) and (pointer: coarse) {
+  .rotate-notice {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    background: rgba(0, 0, 0, 0.4);
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 24px;
+  }
+  .rotate-notice-inner {
+    background: #1c2024f2;
+    color: #fff;
+    padding: 22px 28px;
+    border-radius: var(--radius);
+    max-width: 82%;
+    font-family: var(--font);
+    font-size: 1.3rem;
+    line-height: 1.4;
+  }
+  .rotate-notice-icon { font-size: 2.8rem; margin-bottom: 8px; }
+}
+
+.field-name-input {
+  display: flex;
+  align-items: stretch;
+}
+
+.field-name-prefix {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  background: var(--track, #e7e9ec);
+  color: var(--text-muted, #5c6670);
+  border: 1px solid var(--border, #dfe3e8);
+  border-right: none;
+  border-radius: var(--radius-sm, 8px) 0 0 var(--radius-sm, 8px);
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.field-name-input .field-input {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.field-doc-content {
+  font-size: 0.95rem;
+  line-height: 1.4;
+  color: var(--text-muted, #5c6670);
+}
+
+.field-mgr-name-link {
+  color: var(--accent, #006CA9);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.field-track-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 10px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border, #dfe3e8);
+  border-radius: var(--radius-sm, 8px);
+}
+
+.field-screen[data-name="main"] .field-menu-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  box-sizing: border-box;
+}
+
+.field-screen[data-name="main"] .field-tilegrid {
+  flex: 1 1 auto;
+  grid-auto-rows: 1fr;
+  margin-top: 24px;
+  margin-bottom: 0;
+}
+
+.field-screen[data-name="main"] .field-tile {
+  aspect-ratio: auto;
+}
+
+.species-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+}
+
+.species-table th,
+.species-table td {
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border, #dfe3e8);
+  vertical-align: top;
+}
+
+.species-table th {
+  width: 45%;
+  color: var(--text-muted, #5c6670);
+  font-weight: 600;
+}
+
+.schedule-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+}
+
+.schedule-table th,
+.schedule-table td {
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border, #dfe3e8);
+  vertical-align: top;
+}
+
+.schedule-table th {
+  color: var(--text-muted, #5c6670);
+  font-weight: 600;
+}
+
+.schedule-table .sched-patch {
+  white-space: nowrap;
+  font-weight: 600;
+  border-right: 1px solid var(--border, #dfe3e8);
+}
+
+.schedule-notes {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+
+.morning-table th,
+.morning-table td {
+  text-align: center;
+}
+
+.weather-summary {
+  font-weight: 600;
+}
+
+.panel .accordion-group {
+  margin-top: 8px;
+}
+
+.panel h4 {
+  margin: 10px 0 4px;
+}
+
+.panel ul {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+
+.accordion {
+  margin-top: 4px;
+  background-color: #e6f0ff;
+  color: #000000;
+  cursor: pointer;
+  padding: 18px;
+  width: 100%;
+  border-style: solid;
+  border-width: 2px;
+  border-color: #ffffff;
+  text-align: left;
+  outline: none;
+  font-size: 1.15em;
+  transition: 0.4s;
+}
+
+.accordion.active,
+.accordion:hover {
+  background-color: #80b3ff;
+  color: #ffffff;
+  font-weight: bold;
+}
+
+.panel {
+  padding: 4px 4px;
+  margin-top: 1em;
+  margin-bottom: 1em;
+  display: none;
+  background-color: #fff;
+  overflow: hidden;
+}
+
+.patch-accordion {
+  background-color: #d9ead3;
+  font-size: 1.2em;
+}
+
+.patch-accordion.active,
+.patch-accordion:hover {
+  background-color: #93c47d;
+  color: #ffffff;
+}
+
+.nest-accordion-group {
+  margin-left: 1em;
+  margin-top: 0.5em;
+}
+
+.patch-panel {
+  padding: 0.5em 0.75em;
+}
+
+.nest-toggles {
+  margin-bottom: 1em;
+}
+
+.show-current-only .accordion[data-current="false"],
+.show-current-only .panel[data-current="false"] {
+  display: none !important;
+}
+
+.nest-detail-map {
+  height: 300px;
+  margin: 8px 6px;
+  border-radius: var(--radius-sm, 8px);
+  overflow: hidden;
+}
+
+.nest-detail-map.leaflet-container {
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: auto !important;
+  height: 300px !important;
+  margin: 8px 6px !important;
+  z-index: 0;
+}
+
+.patch-count-current {
+  display: none;
+}
+
+.show-current-only .patch-count-current {
+  display: inline;
+}
+
+.show-current-only .patch-count-all {
+  display: none;
+}
+
+/* Full-screen "uploaded to Drive" confirmation modal */
+
+.field-upload-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.field-upload-modal-overlay.is-visible {
+  display: flex;
+}
+
+.field-upload-modal {
+  background: #1b7f3b;
+  color: #fff;
+  border-radius: 18px;
+  padding: 36px 28px;
+  max-width: 86%;
+  text-align: center;
+  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.45);
+}
+
+.field-upload-modal-check {
+  font-size: 68px;
+  line-height: 1;
+  margin-bottom: 14px;
+}
+
+.field-upload-modal-text {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.field-upload-modal-hint {
+  margin-top: 18px;
+  font-size: 14px;
+  opacity: 0.85;
+}
+
+
+/* Large near-full-screen patch picker (accessibility) */
+
+.field-patch-select { display: none; }
+
+.field-patch-picker-btn {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  text-align: left;
+  padding-right: 2rem;
+  cursor: pointer;
+}
+
+.field-patch-picker-btn::after {
+  content: "\25BE";
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text);
+  pointer-events: none;
+}
+
+.field-patch-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 4vh 4vw;
+}
+
+.field-patch-overlay-inner {
+  background: #fff;
+  width: 100%;
+  max-width: 640px;
+  border-radius: 14px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px;
+}
+
+.field-patch-overlay-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #555;
+  text-align: center;
+  padding: 14px;
+}
+
+.field-patch-overlay-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-size: 1.6rem;
+  padding: 1.05rem 1.2rem;
+  border: none;
+  border-bottom: 1px solid #eee;
+  background: #fff;
+  cursor: pointer;
+}
+
+.field-patch-overlay-row.is-selected {
+  background: #e8f0fe;
+  font-weight: 700;
+}
+
+/* Modify-screen location/mode controls */
+
+.field-modify-controls {
+  margin-top: 12px;
+}
+
+.field-mode-btn.is-selected {
+  background: var(--accent, #1b7f3b);
+  color: #fff;
+  border-color: var(--accent, #1b7f3b);
+}
+
+/* Concealment photos screen */
+
+.conceal-bearing { font-size: 1.4rem; font-weight: 700; text-align: center; margin: 12px 0; }
+.conceal-capture { display: block; width: 100%; font-size: 1.2rem; padding: 0.9rem; }
+.field-hidden-input { display: none; }
+.conceal-status { min-height: 1.2em; margin: 8px 0; color: #555; }
+.conceal-editor { margin-top: 14px; }
+.conceal-canvas-wrap { width: 100%; overflow: hidden; }
+.conceal-canvas-wrap canvas {
+  max-width: 100%; height: auto; display: block;
+  border: 1px solid var(--border, #ccc); border-radius: 8px; touch-action: none;
+}
+.conceal-list-item img.field-photo-thumb { width: 48px; height: 48px; object-fit: cover; margin-right: 8px; }
