@@ -716,6 +716,13 @@ lst(
     }
   )
 
+# render the field map app and re-externalize its data --------------------
+
+quarto::quarto_render("outputs/nest_app/field_map.qmd")
+
+source("scripts/utils/externalize_field_data.R")
+externalize_field_data()
+
 # Let's hold onto field data and clear the rest from the global environment:
 
 ls() %>%

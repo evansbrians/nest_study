@@ -1184,3 +1184,14 @@ input[type="file"].field-input {
   border: 1px solid var(--border, #ccc); border-radius: 8px; touch-action: none;
 }
 .conceal-list-item img.field-photo-thumb { width: 48px; height: 48px; object-fit: cover; margin-right: 8px; }
+
+.field-popup-btn {
+  margin-top: 8px;
+  padding: 8px 14px;
+  font-size: 1rem;
+  font-family: inherit;
+  color: #fff;
+  background: #136aec;
+  border: none;
+  border-radius: 6px;
+}

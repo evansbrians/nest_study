@@ -7,12 +7,10 @@ name: Daily field build
 # the bot's own commits so it never loops.
 
 on:
-  # PAUSED for a heavy-commit day to stop the bot pushing on top of us.
-  # Re-enable by uncommenting the schedule and push triggers below.
-  # schedule:
-  #   - cron: "59 3 * * *"
-  # push:
-  #   branches: [main]
+  schedule:
+    - cron: "59 3 * * *"
+  push:
+    branches: [main]
   workflow_dispatch:
 
 jobs:

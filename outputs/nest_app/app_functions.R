@@ -78,6 +78,7 @@ make_nest_popup <-
           <li><strong>N eggs (last check)</strong>: {last_eggs}</li>
           <li><strong>N young (last check)</strong>: {last_young}</li>
         </ul>
+        <button type='button' class='field-popup-btn' onclick='window.fieldModifyNavPoint(\"{nest_id}\")'>Modify</button>
       </div>
       "
     )

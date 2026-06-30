@@ -9,28 +9,13 @@ library(tidyverse)
 
 system("git pull")
 
-# download and pre-process field data -------------------------------------
-
-source("scripts/utils/updater.R")
-
 # download data points from garmin ----------------------------------------
 
 source("scripts/spatial/convert_gpx_geojson.R")
 
-# update the app ----------------------------------------------------------
+# download and pre-process field data, render app, externalize ------------
 
-# This part renders the phone apps (currently ios but soon to be in ios *and*
-# Android!) and web pages:
-
-quarto::quarto_render("outputs/nest_app/field_map.qmd")
-
-# Re-externalize the data files (direct-serve from outputs/nest_app/):
-
-source(
-  here("scripts/utils/externalize_field_data.R")
-)
-
-externalize_field_data()
+source("scripts/utils/updater.R")
 
 autopush_updates()
 

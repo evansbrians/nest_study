@@ -1158,6 +1158,22 @@ function init() {
   // make_field_map.R) to the manager, grouped by type in collapsible sections.
   // Each point has a Navigate button -- these are navigate-only (not editable).
 
+  function navPointToPoint(p) {
+    return {
+      point_id: p.point_id,
+      point_name: p.name,
+      point_class: p.point_class,
+      latitude: p.lat,
+      longitude: p.lng,
+      note: p.note,
+      photo: p.photo,
+      color: WP_DEFAULT_COLOR,
+      elevation: p.elevation,
+      horizontal_accuracy: p.horizontal_accuracy,
+      bearing: p.bearing
+    };
+  }
+
   function renderNavPoints() {
     if (!listEl) return;
     var pts = window.fieldNavPoints;
@@ -1191,19 +1207,7 @@ function init() {
       });
 
       list.forEach(function (p) {
-        var navAsPoint = {
-          point_id: p.point_id,
-          point_name: p.name,
-          point_class: p.point_class,
-          latitude: p.lat,
-          longitude: p.lng,
-          note: p.note,
-          photo: p.photo,
-          color: WP_DEFAULT_COLOR,
-          elevation: p.elevation,
-          horizontal_accuracy: p.horizontal_accuracy,
-          bearing: p.bearing
-        };
+        var navAsPoint = navPointToPoint(p);
         body.appendChild(makePointLi(
           p.name,
           null,
@@ -1218,6 +1222,17 @@ function init() {
       listEl.appendChild(li);
     });
   }
+
+  window.fieldModifyNavPoint = function (key) {
+    var pts = window.fieldNavPoints || [];
+    var p = null;
+    for (var i = 0; i < pts.length; i++) {
+      if (pts[i].point_id === key || pts[i].name === key) { p = pts[i]; break; }
+    }
+    if (!p) return;
+    if (window.fieldMap) window.fieldMap.closePopup();
+    startModify(navPointToPoint(p), "nav");
+  };
 
   if (clearBtn) {
     clearBtn.addEventListener("click", function () {

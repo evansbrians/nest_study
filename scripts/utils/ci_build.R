@@ -52,16 +52,6 @@ tryCatch(
 
 source("scripts/spatial/update_google_earth.R")
 
-# render the phone / web field map ----------------------------------------
-
-quarto::quarto_render("outputs/nest_app/field_map.qmd")
-
-# Re-externalize the data files so the served shell stays small and the daily
-# diff is just field_data.js:
-
-source("scripts/utils/externalize_field_data.R")
-externalize_field_data()
-
 # update the printable PNG maps -------------------------------------------
 
 source("scripts/spatial/update_map_print-outs.R")
