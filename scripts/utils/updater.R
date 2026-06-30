@@ -681,7 +681,7 @@ ls() %>%
 
 ## render pdf schedule ----------------------------------------------------
 
-quarto::quarto_render("outputs/print-outs/schedule_pdf.qmd")
+# quarto::quarto_render("outputs/print-outs/schedule_pdf.qmd")
 
 ## update GE and map printouts --------------------------------------------
 
