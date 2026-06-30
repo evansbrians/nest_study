@@ -563,6 +563,7 @@ function init() {
   var addStatusEl = document.getElementById("addWaypointStatus");
   var currentPhoto = null;
   var currentColor = WP_DEFAULT_COLOR;
+  var newNestId = null;
 
   // When set, the Add-waypoint screen is re-measuring an existing waypoint:
   // { id, mode } where mode is "replace" or "average".
@@ -747,7 +748,8 @@ function init() {
   }
 
   function resetAddForm() {
-    if (wpName) wpName.value = "";
+    newNestId = null;
+    if (wpName) { wpName.value = ""; wpName.readOnly = false; }
     if (wpNote) wpNote.value = "";
     if (wpClass) wpClass.selectedIndex = 0;
     var clab = (wpClass && wpClass.closest) ? wpClass.closest(".field-field-label") : null;
@@ -760,6 +762,17 @@ function init() {
     editWp = null;
     if (modifyControls) modifyControls.hidden = true;
     refreshAddColorRow();
+  }
+
+  function startNewNestPoint(nestId) {
+    resetAddForm();
+    newNestId = nestId;
+    if (wpName) { wpName.value = nestId; wpName.readOnly = true; }
+    if (wpNamePrefix) wpNamePrefix.style.display = "none";
+    var clab = (wpClass && wpClass.closest) ? wpClass.closest(".field-field-label") : null;
+    if (clab) clab.style.display = "none";
+    showScreen("addwaypoint");
+    addStatus("No saved location for " + nestId + " \u2014 hold still; Save when the bar settles.");
   }
 
   // Open the Add-waypoint screen to re-measure an existing waypoint. mode is
@@ -974,6 +987,7 @@ function init() {
       stopAveraging();
       samples = [];
       avg = null;
+      newNestId = null;
       renderLive();
     }
   }
@@ -1000,6 +1014,8 @@ function init() {
     }
     var a = avg;               // snapshot the average before restarting
     stopAveraging();
+    var forNest = newNestId;
+    newNestId = null;
 
     var now = new Date();
     var t = fmtTime(now);
@@ -1007,8 +1023,8 @@ function init() {
 
     var wp = {
       point_id: newId(),
-      point_name: currentName(t),
-      point_class: (wpClass && wpClass.value) || "Other",
+      point_name: forNest ? forNest : currentName(t),
+      point_class: forNest ? "Nest" : ((wpClass && wpClass.value) || "Other"),
       time: t,
       elevation: (a.elevation != null) ? Math.round(a.elevation * 10) / 10 : null,
       horizontal_accuracy: Math.round(a.accuracy * 10) / 10,
@@ -1036,7 +1052,7 @@ function init() {
     storeWaypoints(arr);
     uploadToDrive("individual_points", wp.point_name + "_" + syncTimestamp() + ".geojson", waypointsFC([wp]), null, function () {
       markUploaded([wp.point_id]);
-      showUploadModal(wp.point_name + " uploaded to Drive.");
+      showUploadModal(forNest ? ("Location saved for " + forNest + ".") : (wp.point_name + " uploaded to Drive."));
     });
     addWaypointMarker(wp);
     renderWaypoints();
@@ -1229,9 +1245,9 @@ function init() {
     for (var i = 0; i < pts.length; i++) {
       if (pts[i].point_id === key || pts[i].name === key) { p = pts[i]; break; }
     }
-    if (!p) return;
     if (window.fieldMap) window.fieldMap.closePopup();
-    startModify(navPointToPoint(p), "nav");
+    if (p) startModify(navPointToPoint(p), "nav");
+    else startNewNestPoint(key);
   };
 
   if (clearBtn) {

@@ -23,6 +23,12 @@ nest_accordion <-
           tags$li(tags$strong("Last checked on"), ": ", as.character(.x$last_check[[1]])),
           tags$li(tags$strong("Current status"), ": ", .x$last_status[[1]])
         ),
+        tags$button(
+          type = "button",
+          class = "field-popup-btn",
+          onclick = paste0("window.fieldModifyNavPoint('", .x$nest_id[[1]], "')"),
+          "Modify"
+        ),
         tags$div(
           class = "nest-detail-map",
           `data-nest` = .x$nest_id[[1]]
