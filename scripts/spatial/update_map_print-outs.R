@@ -58,15 +58,3 @@ names(background_images) %>%
           )
       )
   )
-
-# end session -------------------------------------------------------------
-
-# Update git:
-
-autopush_updates()
-
-# Clear global environment:
-
-rm(
-  list = ls()
-)

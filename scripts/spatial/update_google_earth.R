@@ -270,15 +270,3 @@ withr::with_dir(
   )
 )
 
-# end session -------------------------------------------------------------
-
-# Update git:
-
-autopush_updates()
-
-# Clear global environment:
-
-rm(
-  list = ls()
-)
-
