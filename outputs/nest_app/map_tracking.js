@@ -269,7 +269,7 @@ function(el, x) {
       typeof event.alpha === "number" &&
       (forceAbsolute || event.absolute === true)
     ) {
-      heading = (360 + event.alpha) % 360;
+      heading = (360 - event.alpha) % 360;
     } else {
       return;
     }
