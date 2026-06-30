@@ -11,33 +11,15 @@ system("git pull")
 
 # download data points from garmin ----------------------------------------
 
+# This is just a fail safe in case you are still using the Garmin:
+
 source("scripts/spatial/convert_gpx_geojson.R")
 
-# download and pre-process field data, render app, externalize ------------
+# download and pre-process field data and process outputs -----------------
 
 source("scripts/utils/updater.R")
 
 autopush_updates()
-
-# update the scheduling document ------------------------------------------
-
-# Update and render:
-
-quarto::quarto_render("outputs/print-outs/schedule_pdf.qmd")
-
-# Push changes:
-
-autopush_updates()
-
-# update GE and map printouts ---------------------------------------------
-
-# Google Earth:
-
-source("scripts/spatial/update_google_earth.R")
-
-# PNG maps (printed maps):
-
-source("scripts/spatial/update_map_print-outs.R")
 
 # printing ----------------------------------------------------------------
 

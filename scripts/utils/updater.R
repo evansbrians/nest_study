@@ -716,7 +716,7 @@ lst(
     }
   )
 
-# render the field map app and re-externalize its data --------------------
+## render the field map app and re-externalize its data -------------------
 
 quarto::quarto_render("outputs/nest_app/field_map.qmd")
 
@@ -735,6 +735,20 @@ ls() %>%
       envir = .GlobalEnv
     )
   )
+
+## render pdf schedule ----------------------------------------------------
+
+quarto::quarto_render("outputs/print-outs/schedule_pdf.qmd")
+
+## update GE and map printouts --------------------------------------------
+
+# Google Earth:
+
+source("scripts/spatial/update_google_earth.R")
+
+# PNG maps (printed maps):
+
+source("scripts/spatial/update_map_print-outs.R")
 
 # Add, commit, and push to github:
 
