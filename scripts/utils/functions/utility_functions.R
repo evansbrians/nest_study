@@ -115,6 +115,51 @@ query_api <-
       jsonlite::fromJSON(simplifyVector = TRUE)
   }
 
+## logical validity tests -------------------------------------------------
+
+# These simplify our various logical tests (e.g., within `if ()`).
+
+# Simplify logical validity tests on a value with a function:
+
+is_valid_value <-
+  function(.x) {
+    !is.null(.x) &&
+      length(.x) == 1 &&
+      !is.na(.x) &&
+      str_trim(.x) != ""
+  }
+
+# Simplify logical validity tests on a vector of values:
+
+is_valid_vector <-
+  function(.x) {
+    !is.null(.x) &&
+      length(.x) > 0 &&
+      any(
+        !is.na(.x) & 
+          str_trim(.x) != ""
+      )
+  }
+
+# Simplify logical validity tests on a data frame with a function:
+
+is_valid_frame <-
+  function(.x) {
+    is.data.frame(.x) &&
+      nrow(.x) > 0
+  }
+
+# Turn a blank or missing value into a dash:
+
+dash_blank <-
+  function(.x) {
+    if (is_valid_value(.x)) {
+      str_trim(.x)
+    } else {
+      "-"
+    } 
+  }
+
 ## visualization ----------------------------------------------------------
 
 # Plot theme:

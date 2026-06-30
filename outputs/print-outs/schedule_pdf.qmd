@@ -12,7 +12,8 @@ format:
         \setlength{\parindent}{0pt}
         \usepackage{titlesec}
         \titleformat{\subsection}[block]{\normalfont\large\bfseries}{}{0em}{}[\titlerule]
-        \titlespacing*{\subsection}{0pt}{1.5em}{0.5em}
+        \titlespacing*{\subsection}{0pt}{0.8em}{0.3em}
+        \renewcommand{\arraystretch}{0.92}
 editor: source
 editor_options: 
   chunk_output_type: console
@@ -54,36 +55,12 @@ schedule_updates <-
 
 # list set-up -------------------------------------------------------------
 
-day_names <- 
-  c(
-    Mon = "Monday",
-    Tue = "Tuesday",
-    Wed = "Wednesday",
-    Thu = "Thursday",
-    Fri = "Friday",
-    Sat = "Saturday"
-  )
-
-days_ordered <- 
-  intersect(
-    names(day_names),
-    names(schedule_list)
-  )
-
-day_data <- 
-  days_ordered %>% 
-  set_names() %>% 
-  map(
-    \(day) {
-      day_data <- 
-        schedule_list[[day]] %>% 
-        select(
-          date,
-          arrive:helper
-        ) %>% 
-        distinct()
-    }
-  )
+days_ordered <-
+  schedule %>% 
+  filter(day != "Sun") %>% 
+  arrange(date) %>% 
+  distinct(day) %>% 
+  pull(day)
 
 ```
 
