@@ -13,6 +13,7 @@ source("scripts/utils/functions/time_and_date_functions.R")
 source("scripts/utils/functions/utility_functions.R")
 source("scripts/utils/functions/scheduling_functions.R")
 source("scripts/utils/functions/weather_functions.R")
+source("scripts/utils/externalize_field_data.R")
 
 # Define folder locations in Drive where waypoints are stored:
 
@@ -247,10 +248,12 @@ new_points <-
     }
   ) %>% 
   
-  # Combine both sets of files and remove duplicates:
+  # Combine both sets of files and keep the newest upload per point (so a
+  # re-averaged / edited point wins even if the original hasn't been ingested):
   
-  rbind_sf() %>% 
-  distinct(point_id, .keep_all = TRUE) %>% 
+  rbind_sf() %>%
+  arrange(desc(datetime)) %>%
+  distinct(point_id, .keep_all = TRUE) %>%
   
   # Split by point_class:
   
@@ -312,19 +315,24 @@ ingested_ids <-
   pull(id)
 
 if (length(ingested_ids) > 0) {
-
+  
   archive_folder <-
     scbi_point_folders %>%
     filter(name == "_archive")
-
+  
   if (nrow(archive_folder) == 0) {
     archive_folder <-
       drive_mkdir("_archive", path = scbi_folder)
   }
-
+  
   walk(
     ingested_ids,
-    \ (.id) drive_mv(as_id(.id), path = archive_folder)
+    \ (.id) {
+      drive_mv(
+        as_id(.id), 
+        path = archive_folder
+      )
+    }
   )
 }
 
@@ -692,7 +700,6 @@ lst(
 
 quarto::quarto_render("outputs/nest_app/field_map.qmd")
 
-source("scripts/utils/externalize_field_data.R")
 externalize_field_data()
 
 # Let's hold onto field data and clear the rest from the global environment:
