@@ -1699,9 +1699,9 @@ function init() {
   var GATE_MULT = 1.8; // gate ~ best-seen accuracy * this (down to ACC_FLOOR)
   var WIN_MS = 3000;   // ms: averaging window (longer = more averaging but lag)
   var SEG_MIN = 1.5;   // m: net movement before a new vertex commits
-  var STILL_RMS = 0.3;
+  var STILL_RMS = 0.5;
   var STILL_ENTER_MS = 3000;
-  var STILL_EXIT_MS = 1200;
+  var STILL_EXIT_MS = 1800;
   var ACC_WIN_MS = 1200;
   var STILL_DOT = { radius: 6, color: "#136aec", weight: 2, fillColor: "#8ec5ff", fillOpacity: 0.9 };
 
