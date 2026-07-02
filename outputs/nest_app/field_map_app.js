@@ -153,6 +153,21 @@ function init() {
       o.textContent = prettyPatch(n);
       patchSelect.appendChild(o);
     });
+
+    // Test patches (home testing) sit after the real patches, and only when the
+    // "Subset to today's data" switch is off.
+
+    if (!today) {
+      [
+        { value: "test_snedgen_park", label: "Test: Snedgen Park" },
+        { value: "test_long_branch", label: "Test: Long branch" }
+      ].forEach(function (t) {
+        var o = document.createElement("option");
+        o.value = t.value;
+        o.textContent = t.label;
+        patchSelect.appendChild(o);
+      });
+    }
     patchButtonLabel();
   }
 

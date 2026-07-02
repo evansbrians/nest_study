@@ -838,7 +838,13 @@ map_points_json <-
             lng = cc[, "X"],
             icon_id = ic,
             popup = pop,
-            group = group
+            group = group,
+            patch =
+              if (!is.null(sfobj$patch_id)) {
+                as.character(sfobj$patch_id)
+              } else {
+                NA_character_
+              }
           )
         }
 

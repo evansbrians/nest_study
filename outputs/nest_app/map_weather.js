@@ -102,7 +102,11 @@ function(el, x) {
         })
       });
       marker.bindPopup(p.popup);
-      if (p.group === "Nests") marker.setZIndexOffset(1000);
+      if (p.group === "Nests") {
+        marker.setZIndexOffset(1000);
+        marker._nestId = p.name;
+        marker._patch = p.patch;
+      }
       map.layerManager.addLayer(marker, "marker", p.group + "-" + (idx++), p.group);
     });
   }
@@ -465,15 +469,46 @@ function(el, x) {
     return null;
   }
 
+  // Test patches (home testing): filtered by patch_id, not geometry. Their nests
+  // have a nest number >= 999 and are hidden from the "All patches" view.
+
+  var TEST_PATCHES = { test_snedgen_park: true, test_long_branch: true };
+  function isTestPatch(name) { return !!TEST_PATCHES[name]; }
+  function nestNumber(name) {
+    var m = /^N(\d+)$/.exec(name || "");
+    return m ? parseInt(m[1], 10) : null;
+  }
+  function isTestNestLayer(layer) {
+    var n = nestNumber(layer._nestId);
+    return n != null && n >= 999;
+  }
+
+  // Fixed home view for each test patch (they have no polygon to fit to).
+
+  var TEST_PATCH_VIEW = {
+    test_snedgen_park: { lat: 38.799230, lng: -77.632596, zoom: 18 },
+    test_long_branch:  { lat: 38.995412, lng: -76.999844, zoom: 18 }
+  };
+  function activeTestView(names) {
+    for (var i = 0; i < names.length; i++) {
+      if (TEST_PATCH_VIEW[names[i]]) return TEST_PATCH_VIEW[names[i]];
+    }
+    return null;
+  }
+
   function applyFilter() {
     var names = activePatchNames();
     var fade = (filterToday && window.fieldToday && window.fieldToday.fade) || null;
 
     if (names === null) {
 
-      // Show everything at full opacity.
+      // Show everything at full opacity, except test nests (nest number >= 999).
 
-      eachPatchFeature(function (layer) {
+      eachPatchFeature(function (layer, gname) {
+        if (gname === "Nests" && isTestNestLayer(layer)) {
+          if (map.hasLayer(layer)) map.removeLayer(layer);
+          return;
+        }
         if (!map.hasLayer(layer)) map.addLayer(layer);
         setLayerOpacity(layer, fadeFor(layer, window.fieldNestFade));
       });
@@ -501,6 +536,13 @@ function(el, x) {
           show = ringsList.some(function (rings) {
             return featureWithin(layer, rings, 50);
           });
+
+          // Test patches have no polygon: match their nests by patch_id.
+
+          if (!show && gname === "Nests" &&
+              layer._patch && nameSet[layer._patch] && isTestPatch(layer._patch)) {
+            show = true;
+          }
         }
         if (show) {
           if (!map.hasLayer(layer)) map.addLayer(layer);
@@ -511,8 +553,13 @@ function(el, x) {
       });
     }
 
-    var b = patchBounds(names);
-    if (b) map.fitBounds(b, { padding: [25, 25], maxZoom: 19 });
+    var tv = activeTestView(names || []);
+    if (tv) {
+      map.setView([tv.lat, tv.lng], tv.zoom);
+    } else {
+      var b = patchBounds(names);
+      if (b) map.fitBounds(b, { padding: [25, 25], maxZoom: 19 });
+    }
 
     // Re-apply icon sizes after the move.
 

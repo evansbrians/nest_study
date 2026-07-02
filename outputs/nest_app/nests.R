@@ -98,16 +98,34 @@ nest_panels <-
           ~ replace_na(.x, "Unknown")
         ),
         is_current =
-          if (is.null(current_nest_ids)) TRUE else nest_id %in% current_nest_ids
+          str_starts(patch_id, "test_") |
+          (if (is.null(current_nest_ids)) TRUE else nest_id %in% current_nest_ids)
       )
 
     nest_list <-
       nests_start %>%
       split(.$nest_id)
 
+    test_patch_labels <-
+      c(
+        test_snedgen_park = "Test: Snedgen Park",
+        test_long_branch = "Test: Long branch"
+      )
+
     patch_list <-
       nests_start %>%
       split(.$patch_id)
+
+    patch_list[setdiff(names(test_patch_labels), names(patch_list))] <-
+      list(nests_start[0, ])
+
+    patch_list <-
+      patch_list[
+        c(
+          setdiff(names(patch_list), names(test_patch_labels)),
+          intersect(names(test_patch_labels), names(patch_list))
+        )
+      ]
 
     tagList(
       tags$div(
@@ -132,12 +150,13 @@ nest_panels <-
           imap(
             patch_list,
             function(.x, .y) {
-              patch_dc <- if (any(.x$is_current)) "true" else "false"
+              patch_dc <-
+                if (any(.x$is_current) || str_starts(.y, "test_")) "true" else "false"
               tagList(
                 tags$button(
                   class = "accordion patch-accordion",
                   `data-current` = patch_dc,
-                  tags$strong(.y),
+                  tags$strong(coalesce(unname(test_patch_labels[.y]), .y)),
                   " (",
                   tags$span(class = "patch-count-current", sum(.x$is_current)),
                   tags$span(class = "patch-count-all", nrow(.x)),
