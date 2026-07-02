@@ -156,6 +156,7 @@ nest_panels <-
                 tags$button(
                   class = "accordion patch-accordion",
                   `data-current` = patch_dc,
+                  `data-patch` = .y,
                   tags$strong(coalesce(unname(test_patch_labels[.y]), .y)),
                   " (",
                   tags$span(class = "patch-count-current", sum(.x$is_current)),

@@ -92,6 +92,9 @@ function init() {
           resetAddForm();
           suggestNestId();
         }
+        if (b.dataset.screen === "nests" && typeof injectLocalNests === "function") {
+          injectLocalNests();
+        }
         showScreen(b.dataset.screen);
       });
     })(navButtons[i]);
@@ -872,23 +875,28 @@ function init() {
 
   function fetchLiveNestIds(cb) {
     if (!navigator.onLine || !WP_SYNC.relayUrl || WP_SYNC.relayUrl.indexOf("PASTE") === 0) {
-      cb(null);
+      cb(null, null);
       return;
     }
     var name = "__nestIds_" + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
     var s = document.createElement("script");
-    var done = false;
-    function finish(ids) {
-      if (done) return;
-      done = true;
+    var settled = false;
+    function settle(ids, nests) {
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
-      try { delete window[name]; } catch (e) { window[name] = undefined; }
       if (s.parentNode) s.parentNode.removeChild(s);
-      cb(ids);
+      cb(ids, nests);
     }
-    var timer = setTimeout(function () { finish(null); }, 4000);
-    window[name] = function (data) { finish((data && data.nest_ids) || []); };
-    s.onerror = function () { finish(null); };
+    // The relay reads each file, so it can be slow. Don't delete the callback on
+    // timeout -- a late JSONP response must still find it or it throws a
+    // ReferenceError. The callback removes itself once it actually fires.
+    var timer = setTimeout(function () { settle(null, null); }, 10000);
+    window[name] = function (data) {
+      settle((data && data.nest_ids) || [], (data && data.nests) || []);
+      try { delete window[name]; } catch (e) { window[name] = function () {}; }
+    };
+    s.onerror = function () { settle(null, null); };
     s.src = WP_SYNC.relayUrl + "?action=nest_ids&secret=" +
       encodeURIComponent(WP_SYNC.secret) + "&callback=" + name;
     (document.body || document.documentElement).appendChild(s);
@@ -1397,6 +1405,17 @@ function init() {
     });
   }
 
+  // An app-created nest that lives only in the local cache (not yet in the
+  // baked-in map data).
+
+  function localNestByName(key) {
+    var arr = loadWaypoints();
+    for (var i = 0; i < arr.length; i++) {
+      if (arr[i].point_class === "Nest" && arr[i].point_name === key) return arr[i];
+    }
+    return null;
+  }
+
   window.fieldModifyNavPoint = function (key) {
     var pts = window.fieldNavPoints || [];
     var p = null;
@@ -1404,8 +1423,10 @@ function init() {
       if (pts[i].point_id === key || pts[i].name === key) { p = pts[i]; break; }
     }
     if (window.fieldMap) window.fieldMap.closePopup();
-    if (p) startModify(navPointToPoint(p), "nav");
-    else startNewNestPoint(key);
+    if (p) { startModify(navPointToPoint(p), "nav"); return; }
+    var w = localNestByName(key);
+    if (w) { startModify(w, "waypoint"); return; }
+    startNewNestPoint(key);
   };
 
   window.fieldNavigateNavPoint = function (key) {
@@ -1415,9 +1436,121 @@ function init() {
       if (pts[i].point_id === key || pts[i].name === key) { p = pts[i]; break; }
     }
     if (window.fieldMap) window.fieldMap.closePopup();
-    if (p) startNavigation({ latitude: p.lat, longitude: p.lng, point_name: p.name });
-    else window.alert("No saved location for " + key + " yet -- use Modify to add one.");
+    if (p) { startNavigation({ latitude: p.lat, longitude: p.lng, point_name: p.name }); return; }
+    var w = localNestByName(key);
+    if (w) { startNavigation(w); return; }
+    var c = liveNestCoords[key];
+    if (c && c.lat != null && c.lng != null) {
+      startNavigation({ latitude: c.lat, longitude: c.lng, point_name: key });
+      return;
+    }
+    window.alert("No saved location for " + key + " yet -- use Modify to add one.");
   };
+
+  // Test nests created in the app go straight to Drive; the (server-rendered)
+  // Nests page won't include them until the pipeline ingests them. Inject them
+  // into their test-patch group client-side from the live Drive list (with
+  // coords, so Navigate works on any device), merged with this device's cache.
+
+  var liveNestCoords = {};   // nest_id -> { lat, lng } from the relay
+
+  function testPatchForName(nm) {
+    if (/^N-Snedgen_Park-\d+$/.test(nm)) return "test_snedgen_park";
+    if (/^N-Long_Branch-\d+$/.test(nm)) return "test_long_branch";
+    return null;
+  }
+
+  function injectLocalNests() {
+    var merged = {};   // name -> { name, lat, lng, time }
+    loadWaypoints().forEach(function (w) {
+      if (w.point_class === "Nest" && testPatchForName(w.point_name)) {
+        merged[w.point_name] =
+          { name: w.point_name, lat: w.latitude, lng: w.longitude, time: w.time };
+      }
+    });
+    renderTestNests(merged);   // show whatever the cache has right away
+
+    fetchLiveNestIds(function (liveIds, liveNests) {
+      if (!liveNests) return;   // offline / unavailable -- keep the cache view
+      liveNests.forEach(function (n) {
+        if (!testPatchForName(n.id)) return;
+        if (n.lat != null && n.lng != null) liveNestCoords[n.id] = { lat: n.lat, lng: n.lng };
+        if (!merged[n.id]) merged[n.id] = { name: n.id, lat: n.lat, lng: n.lng, time: null };
+      });
+      renderTestNests(merged);
+    });
+  }
+
+  function renderTestNests(merged) {
+    var byPatch = { test_snedgen_park: [], test_long_branch: [] };
+    Object.keys(merged).forEach(function (name) {
+      var patch = testPatchForName(name);
+      if (patch) byPatch[patch].push(merged[name]);
+    });
+    Object.keys(byPatch).forEach(function (patch) {
+      var head = document.querySelector('.patch-accordion[data-patch="' + patch + '"]');
+      var panel = head && head.nextElementSibling;
+      var group = panel && panel.querySelector('.nest-accordion-group');
+      if (!group) return;
+
+      // Drop any earlier injection, then note which nests are already rendered.
+      Array.prototype.forEach.call(
+        group.querySelectorAll('[data-local-nest]'),
+        function (el) { el.parentNode.removeChild(el); }
+      );
+      var existing = {};
+      Array.prototype.forEach.call(
+        group.querySelectorAll(':scope > .accordion'),
+        function (a) {
+          var st = a.querySelector('strong');
+          if (st) existing[st.textContent.replace(/\.\s*$/, "")] = true;
+        }
+      );
+
+      byPatch[patch]
+        .filter(function (n) { return !existing[n.name]; })
+        .sort(function (a, b) { return a.name < b.name ? -1 : 1; })
+        .forEach(function (n) { appendLocalNest(group, n); });
+
+      var total = group.querySelectorAll(':scope > .accordion').length;
+      var cc = head.querySelector('.patch-count-current');
+      var ca = head.querySelector('.patch-count-all');
+      if (cc) cc.textContent = total;
+      if (ca) ca.textContent = total;
+    });
+  }
+
+  function appendLocalNest(group, n) {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "accordion";
+    btn.setAttribute("data-current", "true");
+    btn.setAttribute("data-local-nest", n.name);
+    btn.innerHTML = "<strong>" + escapeHtml(n.name) + ".</strong> Created in app";
+
+    var panel = document.createElement("div");
+    panel.className = "panel";
+    panel.setAttribute("data-current", "true");
+    panel.setAttribute("data-local-nest", n.name);
+    panel.style.display = "none";
+    panel.innerHTML =
+      "<ul><li><strong>Status</strong>: created in app — awaiting field data</li>" +
+      "<li><strong>Recorded</strong>: " + escapeHtml(n.time || "—") + "</li></ul>" +
+      '<button type="button" class="field-popup-btn" onclick="window.fieldNavigateNavPoint(\'' +
+        escapeHtml(n.name) + '\')">Navigate to</button>' +
+      '<button type="button" class="field-popup-btn" onclick="window.fieldModifyNavPoint(\'' +
+        escapeHtml(n.name) + '\')">Modify</button>';
+
+    group.appendChild(btn);
+    group.appendChild(panel);
+
+    btn.addEventListener("click", function () {
+      this.classList.toggle("active");
+      var pnl = this.nextElementSibling;
+      if (!pnl || !pnl.classList.contains("panel")) return;
+      pnl.style.display = (pnl.style.display === "block") ? "none" : "block";
+    });
+  }
 
   // Non-Temp waypoints that haven't reached Drive yet (saved offline, or a send
   // that failed). Kept in the cache -- even through a Clear -- until uploaded.

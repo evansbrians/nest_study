@@ -219,15 +219,15 @@ new_points <-
                   ~ tolower(.x) %>% 
                     str_to_snake()
                 ),
-                name = 
+                name =
                   case_when(
-                    str_detect(name, "^(N|n_)") ~ 
+                    str_detect(name, "^(N|n_)") ~
                       str_replace(
                         name,
                         "^(N|n_)",
                         "N"
                       ),
-                    .default = str_to_snake(point_name)
+                    .default = str_to_snake(as.character(point_name))
                   )
               ) %>% 
               
