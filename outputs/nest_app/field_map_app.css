@@ -521,6 +521,7 @@ Menu button (left), the Accuracy readout (centered), and the Bearing readout
   font-weight: 600;
   text-align: center;
   line-height: 1.15;
+  min-height: 2.3em;
 }
 
 /* Accuracy bar: full = worst accuracy, shrinks as the estimate improves. */
