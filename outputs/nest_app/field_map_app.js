@@ -317,7 +317,7 @@ function init() {
       return;
     }
     if (!navigator.onLine) {
-      say("No signal -- saved locally; use Save waypoints when back online.");
+      say("No signal -- saved to the cache.");
       return;
     }
     say("Sending to Drive...");
@@ -1050,10 +1050,14 @@ function init() {
 
     arr.push(wp);
     storeWaypoints(arr);
-    uploadToDrive("individual_points", wp.point_name + "_" + syncTimestamp() + ".geojson", waypointsFC([wp]), null, function () {
-      markUploaded([wp.point_id]);
-      showUploadModal(forNest ? ("Location saved for " + forNest + ".") : (wp.point_name + " uploaded to Drive."));
-    });
+    if (wp.point_class === "Temp") {
+      showUploadModal(wp.point_name + " added (temporary -- not saved).");
+    } else {
+      uploadToDrive("individual_points", wp.point_name + "_" + syncTimestamp() + ".geojson", waypointsFC([wp]), null, function () {
+        markUploaded([wp.point_id]);
+        showUploadModal(forNest ? ("Location saved for " + forNest + ".") : (wp.point_name + " uploaded to Drive."));
+      });
+    }
     addWaypointMarker(wp);
     renderWaypoints();
     resetAddForm();
@@ -1140,7 +1144,7 @@ function init() {
 
   function renderWaypoints() {
     if (!listEl) return;
-    var arr = loadWaypoints().filter(function (w) { return !w.uploaded; });
+    var arr = loadWaypoints().filter(function (w) { return !w.uploaded && !w.cleared; });
     listEl.innerHTML = "";
 
     if (!arr.length) {
@@ -1250,37 +1254,63 @@ function init() {
     else startNewNestPoint(key);
   };
 
+  window.fieldNavigateNavPoint = function (key) {
+    var pts = window.fieldNavPoints || [];
+    var p = null;
+    for (var i = 0; i < pts.length; i++) {
+      if (pts[i].point_id === key || pts[i].name === key) { p = pts[i]; break; }
+    }
+    if (window.fieldMap) window.fieldMap.closePopup();
+    if (p) startNavigation({ latitude: p.lat, longitude: p.lng, point_name: p.name });
+    else window.alert("No saved location for " + key + " yet -- use Modify to add one.");
+  };
+
+  // Non-Temp waypoints that haven't reached Drive yet (saved offline, or a send
+  // that failed). Kept in the cache -- even through a Clear -- until uploaded.
+
+  function isPending(w) {
+    return w.point_class !== "Temp" && !w.uploaded;
+  }
+
+  // Re-send anything still pending once the device is back online. Debounced so
+  // a burst of "online" events triggers just one pass; markUploaded then drops
+  // each one from the pending set as it succeeds.
+
+  var lastRetry = 0;
+  function retryPendingUploads() {
+    if (!navigator.onLine) return;
+    var now = Date.now();
+    if (now - lastRetry < 3000) return;
+    lastRetry = now;
+    loadWaypoints().filter(isPending).forEach(function (w) {
+      uploadToDrive(
+        "individual_points",
+        w.point_name + "_" + syncTimestamp() + ".geojson",
+        waypointsFC([w]),
+        null,
+        function () { markUploaded([w.point_id]); }
+      );
+    });
+  }
+  window.addEventListener("online", retryPendingUploads);
+
   if (clearBtn) {
     clearBtn.addEventListener("click", function () {
-      if (!loadWaypoints().length) return;
-      if (window.confirm("Delete all saved waypoints?")) {
-        storeWaypoints([]);
+      var arr = loadWaypoints();
+      if (!arr.length) return;
+      if (window.confirm("Clear cached waypoints? (Points still waiting to reach Drive are kept and sent when you reconnect.)")) {
+        arr.forEach(function (w) { removeWaypointMarker(w.point_id); });
+        // Keep still-pending points (drop them from the view only); clear the rest.
+        var keep = arr.filter(isPending);
+        keep.forEach(function (w) { w.cleared = true; });
+        storeWaypoints(keep);
         renderWaypoints();
       }
     });
   }
 
-  var saveAllBtn = document.getElementById("saveAllWaypointsBtn");
-  var syncStatusEl = document.getElementById("waypointSyncStatus");
-  function syncStatus(m) { if (syncStatusEl) syncStatusEl.textContent = m || ""; }
-  if (saveAllBtn) {
-    saveAllBtn.addEventListener("click", function () {
-      var arr = loadWaypoints().filter(function (w) { return !w.uploaded; });
-      if (!arr.length) { syncStatus("No waypoints to save."); return; }
-      uploadToDrive(
-        "bundled_points",
-        WP_SYNC.study + "_bundled_" + syncTimestamp() + ".geojson",
-        waypointsFC(arr),
-        syncStatus,
-        function () {
-          markUploaded(arr.map(function (w) { return w.point_id; }));
-          showUploadModal(arr.length + (arr.length > 1 ? " waypoints" : " waypoint") + " uploaded to Drive.");
-        }
-      );
-    });
-  }
-
   renderWaypoints();
+  retryPendingUploads();
 
   // waypoint navigation ---------------------------------------------------
 

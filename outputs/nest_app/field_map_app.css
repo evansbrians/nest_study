@@ -42,7 +42,7 @@ it across the page.*/
 
   --accent: #136aec;            /* primary blue */
   --accent-tint: #e9f1fd;       /* light wash of the accent */
-  --bg: #d9dfce;               /* light app background (the menu surface) */
+  --bg: #e9ecce;               /* light app background (the menu surface) */
   --surface: #ffffff;           /* cards, tiles, inputs */
   --text: #1c2024;              /* primary text */
   --text-muted: #5c6670;        /* secondary text */
@@ -464,19 +464,28 @@ Menu button (left), the Accuracy readout (centered), and the Bearing readout
 
 .field-tilegrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 12px;
   margin: 8px 0 18px;
 }
 
+.field-tile-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  min-height: 0;
+}
+
 .field-tile {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 6px;
   aspect-ratio: 1 / 1;
-  padding: 8px;
+  padding: 4px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
@@ -498,13 +507,17 @@ Menu button (left), the Accuracy readout (centered), and the Bearing readout
    embed-resources inlines them into the page at render time. */
    
 .field-tile .field-tile-icon {
-  width: 46%;
-  height: 46%;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80%;
+  height: 80%;
   object-fit: contain;
 }
 
-.field-tile span {
-  font-size: 0.95rem;
+.field-tile-label {
+  font-size: 0.85rem;
   font-weight: 600;
   text-align: center;
   line-height: 1.15;
@@ -870,14 +883,12 @@ input[type="file"].field-input {
 }
 
 .field-screen[data-name="main"] .field-tilegrid {
-  flex: 1 1 auto;
-  grid-auto-rows: 1fr;
   margin-top: 24px;
   margin-bottom: 0;
 }
 
 .field-screen[data-name="main"] .field-tile {
-  aspect-ratio: auto;
+  aspect-ratio: 1 / 1;
 }
 
 .species-table {

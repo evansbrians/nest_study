@@ -102,42 +102,60 @@ map_tracking
       </label>
 
       <div class="field-tilegrid">
-        <button type="button" class="field-tile" data-screen="schedule">
-          <img class="field-tile-icon" src="icons/calendar.svg" alt="">
-          <span>Schedule</span>
-        </button>
-        <button type="button" class="field-tile" data-screen="nests">
-          <img class="field-tile-icon" src="icons/nest_active.png" alt="">
-          <span>Nests</span>
-        </button>
-        <button type="button" class="field-tile" data-screen="addwaypoint">
-          <img class="field-tile-icon" src="icons/waypoint.svg" alt="">
-          <span>Add waypoint</span>
-        </button>
-        <button type="button" class="field-tile" data-screen="waypointmgr">
-          <img class="field-tile-icon" src="icons/waypoints.svg" alt="">
-          <span>Waypoint manager</span>
-        </button>
-        <button type="button" class="field-tile" data-screen="tracks">
-          <img class="field-tile-icon" src="icons/tracks.svg" alt="">
-          <span>Add track</span>
-        </button>
-        <button type="button" class="field-tile" data-screen="trackmgr">
-          <img class="field-tile-icon" src="icons/track_manager.png" alt="">
-          <span>Track manager</span>
-        </button>
-        <button type="button" class="field-tile" data-screen="mapoptions">
-          <img class="field-tile-icon" src="icons/gear.svg" alt="">
-          <span>Map options</span>
-        </button>
-        <button type="button" class="field-tile" data-screen="speciesinfo">
-          <img class="field-tile-icon" src="icons/bunting.png" alt="">
-          <span>Species info</span>
-        </button>
-        <button type="button" class="field-tile" data-screen="concealment">
-          <img class="field-tile-icon" src="icons/my_camera.png" alt="">
-          <span>Concealment photos</span>
-        </button>
+        <div class="field-tile-cell">
+          <button type="button" class="field-tile" data-screen="mapoptions">
+            <img class="field-tile-icon" src="icons/gear.svg" alt="">
+          </button>
+          <span class="field-tile-label">Map options</span>
+        </div>
+        <div class="field-tile-cell">
+          <button type="button" class="field-tile" data-screen="addwaypoint">
+            <img class="field-tile-icon" src="icons/waypoint.svg" alt="">
+          </button>
+          <span class="field-tile-label">Add waypoint</span>
+        </div>
+        <div class="field-tile-cell">
+          <button type="button" class="field-tile" data-screen="tracks">
+            <img class="field-tile-icon" src="icons/tracks.svg" alt="">
+          </button>
+          <span class="field-tile-label">Add track</span>
+        </div>
+        <div class="field-tile-cell">
+          <button type="button" class="field-tile" data-screen="nests">
+            <img class="field-tile-icon" src="icons/nest_active.png" alt="">
+          </button>
+          <span class="field-tile-label">Nests</span>
+        </div>
+        <div class="field-tile-cell">
+          <button type="button" class="field-tile" data-screen="waypointmgr">
+            <img class="field-tile-icon" src="icons/waypoints.svg" alt="">
+          </button>
+          <span class="field-tile-label">Waypoint manager</span>
+        </div>
+        <div class="field-tile-cell">
+          <button type="button" class="field-tile" data-screen="trackmgr">
+            <img class="field-tile-icon" src="icons/track_manager.png" alt="">
+          </button>
+          <span class="field-tile-label">Track manager</span>
+        </div>
+        <div class="field-tile-cell">
+          <button type="button" class="field-tile" data-screen="schedule">
+            <img class="field-tile-icon" src="icons/calendar.svg" alt="">
+          </button>
+          <span class="field-tile-label">Schedule</span>
+        </div>
+        <div class="field-tile-cell">
+          <button type="button" class="field-tile" data-screen="concealment">
+            <img class="field-tile-icon" src="icons/my_camera.png" alt="">
+          </button>
+          <span class="field-tile-label">Concealment photos</span>
+        </div>
+        <div class="field-tile-cell">
+          <button type="button" class="field-tile" data-screen="speciesinfo">
+            <img class="field-tile-icon" src="icons/bunting.png" alt="">
+          </button>
+          <span class="field-tile-label">Species info</span>
+        </div>
       </div>
     </div>
 ```
@@ -262,6 +280,7 @@ map_tracking
           <option>Path crossing</option>
           <option value="Boundary">Boundary marker</option>
           <option>Other</option>
+          <option>Temp</option>
         </select>
       </label>
 
@@ -312,12 +331,9 @@ map_tracking
       <ul id="waypointList" class="field-waypoint-list"></ul>
 
       <div class="field-waypoint-actions">
-        <button type="button" id="saveAllWaypointsBtn" class="field-button">
-          Save waypoints
-        </button>
         <button type="button" id="clearWaypointsBtn"
                 class="field-button field-button--danger">
-          Clear all
+          Clear cache
         </button>
       </div>
       <div id="waypointSyncStatus" class="field-status" role="status"

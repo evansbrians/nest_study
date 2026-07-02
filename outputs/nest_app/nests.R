@@ -26,6 +26,12 @@ nest_accordion <-
         tags$button(
           type = "button",
           class = "field-popup-btn",
+          onclick = paste0("window.fieldNavigateNavPoint('", .x$nest_id[[1]], "')"),
+          "Navigate to"
+        ),
+        tags$button(
+          type = "button",
+          class = "field-popup-btn",
           onclick = paste0("window.fieldModifyNavPoint('", .x$nest_id[[1]], "')"),
           "Modify"
         ),
