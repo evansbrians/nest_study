@@ -16,12 +16,14 @@ source("scripts/utils/functions/weather_functions.R")
 
 # Define folder locations in Drive where waypoints are stored:
 
-scbi_point_folders <-
+scbi_folder <-
   drive_ls(
     as_id("1JE63Iy4_hLRfaHjENlBHDpLYPKgD33B6")
   ) %>%
-  filter(name == "scbi") %>%
-  drive_ls()
+  filter(name == "scbi")
+
+scbi_point_folders <-
+  drive_ls(scbi_folder)
 
 # Create file path/url for each Google sheet:
 
@@ -151,26 +153,30 @@ spatial_points <-
 
 # Collect gps points from Google Drive:
 
-new_points <- 
-  list("individual_points", "bundled_points") %>% 
-  set_names(.) %>% 
+# List the new point files (with their Drive ids) so we can archive them after
+# a clean ingest:
+
+point_files <-
+  list("individual_points", "bundled_points") %>%
+  set_names(.) %>%
   map(
     \ (.subfolder) {
-      
-      # List files in the subfolder:
-      
       scbi_point_folders %>%
         filter(name == .subfolder) %>%
         drive_ls() %>%
-        
-        # Subset to geojson file (if we've accumulated an junk):
-        
         filter(
           str_detect(name, "geojson$")
-        ) %>%
-        
-        # Map across Drive ids in the file:
-        
+        )
+    }
+  )
+
+# Download and pre-process each file:
+
+new_points <-
+  point_files %>%
+  map(
+    \ (.files) {
+      .files %>%
         pull(id) %>%
         map(
           \ (.id) {
@@ -220,14 +226,10 @@ new_points <-
                     str_to_snake()
                 ),
                 name =
-                  case_when(
-                    str_detect(name, "^(N|n_)") ~
-                      str_replace(
-                        name,
-                        "^(N|n_)",
-                        "N"
-                      ),
-                    .default = str_to_snake(as.character(point_name))
+                  if_else(
+                    str_detect(as.character(point_name), "^N"),
+                    as.character(point_name),
+                    str_to_snake(as.character(point_name))
                   )
               ) %>% 
               
@@ -298,6 +300,33 @@ new_points %>%
         st_write(url, delete_dsn = TRUE)
     }
   )
+
+# Archive the ingested point files so the working folders stay small (keeps both
+# this ingest and the app's live nest-ID read fast). Runs only after the upsert
+# above succeeds, so nothing is archived unless it reached the spatial files;
+# files uploaded mid-run stay put and are picked up next time.
+
+ingested_ids <-
+  point_files %>%
+  list_rbind() %>%
+  pull(id)
+
+if (length(ingested_ids) > 0) {
+
+  archive_folder <-
+    scbi_point_folders %>%
+    filter(name == "_archive")
+
+  if (nrow(archive_folder) == 0) {
+    archive_folder <-
+      drive_mkdir("_archive", path = scbi_folder)
+  }
+
+  walk(
+    ingested_ids,
+    \ (.id) drive_mv(as_id(.id), path = archive_folder)
+  )
+}
 
 ## coverboards ------------------------------------------------------------
 

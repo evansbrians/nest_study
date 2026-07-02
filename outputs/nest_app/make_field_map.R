@@ -798,6 +798,24 @@ nav_points_json <-
 field_nav_points_js <-
   str_c("window.fieldNavPoints = ", nav_points_json, ";")
 
+# Every nest_id in field_data (including nests that have data but no GPS point),
+# so the app's next-nest-ID suggestion never reuses a data-only nest's number.
+
+field_nest_ids_js <-
+  str_c(
+    "window.fieldNestIds = ",
+    tryCatch(
+      here("data/field_data.rds") %>%
+        read_rds() %>%
+        pluck("nests") %>%
+        pull(nest_id) %>%
+        unique() %>%
+        jsonlite::toJSON(),
+      error = function(e) "[]"
+    ),
+    ";"
+  )
+
 icons_json <-
   tryCatch(
     icons %>%
@@ -922,6 +940,7 @@ writeLines(
     field_map_points_js,
     field_paths_js,
     field_nav_points_js,
+    field_nest_ids_js,
     field_schedule_js
   ),
   here("outputs/nest_app/field_data.js")

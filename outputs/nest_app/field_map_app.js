@@ -851,6 +851,7 @@ function init() {
       if (m) { var n = parseInt(m[1], 10); if (n > 0 && n <= 999) set[n] = true; }
     }
     (window.fieldNavPoints || []).forEach(function (p) { if (p.type === "Nest") add(p.name); });
+    (window.fieldNestIds || []).forEach(add);   // all baked nests, incl. no-GPS
     loadWaypoints().forEach(function (w) { if (w.point_class === "Nest") add(w.point_name); });
     (liveIds || []).forEach(add);
     return set;
