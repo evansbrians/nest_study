@@ -90,6 +90,7 @@ function init() {
 
         if (b.dataset.screen === "addwaypoint" && typeof resetAddForm === "function") {
           resetAddForm();
+          suggestNestId();
         }
         showScreen(b.dataset.screen);
       });
@@ -547,7 +548,29 @@ function init() {
     "Boundary": "boundary-",
     "Other": ""
   };
+  // Nest naming is location-aware: within 10 km of a test site the nest takes
+  // that site's prefix and its own 001-999 series; elsewhere it's a plain "N"
+  // field nest. Keeps numbering behaviour identical at home and in the field.
+
+  var NEST_SITES = [
+    { prefix: "N-Snedgen_Park-", lat: 38.799230, lng: -77.632596 },
+    { prefix: "N-Long_Branch-",  lat: 38.995412, lng: -76.999844 }
+  ];
+  var NEST_SITE_RADIUS = 10000;
+
+  function currentNestPrefix() {
+    var ll = window.fieldLatLng;
+    if (ll) {
+      for (var i = 0; i < NEST_SITES.length; i++) {
+        if (metersBetween(ll.lat, ll.lng, NEST_SITES[i].lat, NEST_SITES[i].lng) <= NEST_SITE_RADIUS) {
+          return NEST_SITES[i].prefix;
+        }
+      }
+    }
+    return "N";
+  }
   function currentPrefix() {
+    if (wpClass && wpClass.value === "Nest") return currentNestPrefix();
     return (wpClass && WP_PREFIX.hasOwnProperty(wpClass.value)) ? WP_PREFIX[wpClass.value] : "";
   }
   function syncNamePrefix() {
@@ -572,6 +595,24 @@ function init() {
   }
   if (wpClass) wpClass.addEventListener("change", syncNamePrefix);
   syncNamePrefix();
+
+  // Auto-suggest the next nest ID when Nest is chosen; clear a stale suggestion
+  // if the class changes away from Nest, and drop the autofill flag once the
+  // user edits the field so a late live response can't overwrite their entry.
+
+  if (wpClass) {
+    wpClass.addEventListener("change", function () {
+      if (wpClass.value === "Nest") {
+        suggestNestId();
+      } else if (wpName && wpName.dataset.autofill === "1") {
+        wpName.value = "";
+        wpName.dataset.autofill = "";
+      }
+    });
+  }
+  if (wpName) {
+    wpName.addEventListener("input", function () { wpName.dataset.autofill = ""; });
+  }
   var wpPhotoPreview = document.getElementById("wpPhotoPreview");
   var wpColorRow = document.getElementById("wpColorRow");
   var addSaveBtn = document.getElementById("addWaypointSaveBtn");
@@ -739,6 +780,18 @@ function init() {
       (typeof window.fieldBearing === "number") ? window.fieldBearing + "°" : "--";
     if (wpTimer) wpTimer.textContent = averaging ? fmtElapsed(Date.now() - avgStart) : "00:00";
     if (wpSamples) wpSamples.textContent = (averaging ? samples.length : 0) + " samples";
+
+    // Keep the location-derived nest prefix + suggested number in step with the
+    // live position while the Add-nest form is open and untouched.
+
+    if (!newNestId && !editWp && wpName && wpName.dataset.autofill === "1" &&
+        wpClass && wpClass.value === "Nest") {
+      var pfx = currentNestPrefix();
+      if (wpNamePrefix && wpNamePrefix.textContent !== pfx) {
+        wpNamePrefix.textContent = pfx;
+        wpName.value = padNest(nextNestNumber(pfx, null));
+      }
+    }
   }
 
   setInterval(renderLive, 500);
@@ -777,6 +830,92 @@ function init() {
     editWp = null;
     if (modifyControls) modifyControls.hidden = true;
     refreshAddColorRow();
+  }
+
+  // --- next-nest-ID suggestion (collision failsafe) ----------------------
+
+  function escapeRegex(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
+  // Numbers already used within one prefix's namespace ("N" for field nests,
+  // "N-Snedgen_Park-" / "N-Long_Branch-" for the test sites) -- from the baked-in
+  // map data, this device's saved nests, and any live IDs from the relay.
+
+  function usedNestNumbers(prefix, liveIds) {
+    var rx = new RegExp("^" + escapeRegex(prefix) + "(\\d+)$");
+    var set = {};
+    function add(name) {
+      var m = rx.exec(String(name == null ? "" : name));
+      if (m) { var n = parseInt(m[1], 10); if (n > 0 && n <= 999) set[n] = true; }
+    }
+    (window.fieldNavPoints || []).forEach(function (p) { if (p.type === "Nest") add(p.name); });
+    loadWaypoints().forEach(function (w) { if (w.point_class === "Nest") add(w.point_name); });
+    (liveIds || []).forEach(add);
+    return set;
+  }
+
+  // Lowest unused number in the namespace: first gap in 1..max, else max+1.
+
+  function nextNestNumber(prefix, liveIds) {
+    var set = usedNestNumbers(prefix, liveIds);
+    var max = 0;
+    Object.keys(set).forEach(function (k) { var n = +k; if (n > max) max = n; });
+    var n = 1;
+    while (n <= max && set[n]) n++;
+    return n;
+  }
+
+  function padNest(n) { return String(n).padStart(3, "0"); }
+
+  // Read the live nest-ID list from the relay via JSONP -- a plain fetch can't
+  // read the no-cors relay. cb(ids) with an array, or cb(null) when offline,
+  // unconfigured, or timed out.
+
+  function fetchLiveNestIds(cb) {
+    if (!navigator.onLine || !WP_SYNC.relayUrl || WP_SYNC.relayUrl.indexOf("PASTE") === 0) {
+      cb(null);
+      return;
+    }
+    var name = "__nestIds_" + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+    var s = document.createElement("script");
+    var done = false;
+    function finish(ids) {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      try { delete window[name]; } catch (e) { window[name] = undefined; }
+      if (s.parentNode) s.parentNode.removeChild(s);
+      cb(ids);
+    }
+    var timer = setTimeout(function () { finish(null); }, 4000);
+    window[name] = function (data) { finish((data && data.nest_ids) || []); };
+    s.onerror = function () { finish(null); };
+    s.src = WP_SYNC.relayUrl + "?action=nest_ids&secret=" +
+      encodeURIComponent(WP_SYNC.secret) + "&callback=" + name;
+    (document.body || document.documentElement).appendChild(s);
+  }
+
+  // Pre-fill the name field with the suggested next nest number, but only for a
+  // fresh new-nest entry (not the measure-existing or Modify flows). Fills the
+  // offline best guess immediately, then upgrades from the live list unless the
+  // user has started editing.
+
+  function suggestNestId() {
+    if (newNestId || editWp || !wpName || !wpClass || wpClass.value !== "Nest") return;
+    syncNamePrefix();
+    var prefix = currentPrefix();
+    wpName.value = padNest(nextNestNumber(prefix, null));
+    wpName.dataset.autofill = "1";
+    fetchLiveNestIds(function (liveIds) {
+      if (wpName.dataset.autofill !== "1") return;
+      var pfx = currentPrefix();
+      syncNamePrefix();
+      if (liveIds == null) {
+        addStatus("Suggested " + pfx + wpName.value + " (offline -- couldn't check the live list).");
+        return;
+      }
+      wpName.value = padNest(nextNestNumber(pfx, liveIds));
+      addStatus("Suggested " + pfx + wpName.value + " from the live nest list.");
+    });
   }
 
   function startNewNestPoint(nestId) {

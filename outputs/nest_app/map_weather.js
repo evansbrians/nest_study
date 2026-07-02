@@ -470,17 +470,13 @@ function(el, x) {
   }
 
   // Test patches (home testing): filtered by patch_id, not geometry. Their nests
-  // have a nest number >= 999 and are hidden from the "All patches" view.
+  // carry a test-site prefix (N-Snedgen_Park- / N-Long_Branch-) and are hidden
+  // from the "All patches" view.
 
   var TEST_PATCHES = { test_snedgen_park: true, test_long_branch: true };
   function isTestPatch(name) { return !!TEST_PATCHES[name]; }
-  function nestNumber(name) {
-    var m = /^N(\d+)$/.exec(name || "");
-    return m ? parseInt(m[1], 10) : null;
-  }
   function isTestNestLayer(layer) {
-    var n = nestNumber(layer._nestId);
-    return n != null && n >= 999;
+    return /^N-(Snedgen_Park|Long_Branch)-\d+$/.test(String(layer._nestId || ""));
   }
 
   // Fixed home view for each test patch (they have no polygon to fit to).
@@ -502,7 +498,7 @@ function(el, x) {
 
     if (names === null) {
 
-      // Show everything at full opacity, except test nests (nest number >= 999).
+      // Show everything at full opacity, except test-site nests (prefixed).
 
       eachPatchFeature(function (layer, gname) {
         if (gname === "Nests" && isTestNestLayer(layer)) {
