@@ -1,9 +1,3 @@
-// Field map host page: open/close the bottom menu and drive the "Show weather"
-// toggle. Loaded by field_map.qmd after the body. The Leaflet map is rendered
-// inline in this same page, so map_weather.js runs in this same window.
-
-(function () {
-function init() {
 
   var overlay = document.getElementById("fieldMenuOverlay");
   var menuBtn = document.getElementById("fieldMenuBtn");          // map view: open menu
@@ -12,6 +6,10 @@ function init() {
   var accEl = document.getElementById("barAccuracy");
   var brgEl = document.getElementById("barBearing");
   if (!menuBtn || !overlay) return;
+
+  // Nest id stashed by window.fieldOpenNestModify for the Modify sub-menu.
+
+  var modifyNestId = null;
 
   // Desktop sidebar: a persistent "back to the menu" control at the top of the
   // sidebar. The bottom-bar buttons are hidden when the menu is a permanent
@@ -36,10 +34,6 @@ function init() {
     }
   } catch (e) {}
 
-  function activeScreen() {
-    var a = overlay.querySelector(".field-screen.is-active");
-    return a ? a.dataset.name : null;
-  }
 
   function hideEl(el, h) { if (el) el.classList.toggle("field-hide", !!h); }
 
@@ -48,57 +42,13 @@ function init() {
   //   main menu screen       -> Map only
   //   sub-screen             -> Main Menu + Map
 
-  function updateBar() {
-    var open = overlay.classList.contains("is-open");
-    var onMap = !open;
-    var onSub = open && activeScreen() !== "main";
-
-    hideEl(menuBtn, !onMap);
-    hideEl(accEl, !onMap);
-    hideEl(brgEl, !onMap);
-    hideEl(mapBtn, !open);          // "Map" shows whenever the menu is open
-    hideEl(mainMenuBtn, !onSub);    // "Main Menu" only on sub-screens
-    hideEl(sidebarBackBtn, !onSub); // desktop sidebar back-to-menu (CSS-gated)
-
-    // Desktop: the main menu is a narrow sidebar, but a sub-page takes over the
-    // full screen (like the phone app). CSS-gated to wide screens.
-
-    overlay.classList.toggle("field-fullscreen", onSub);
-  }
 
   // Screen navigation: the overlay holds several .field-screen panels; only
   // the one matching `name` is shown.
 
-  function showScreen(name) {
-    var screens = overlay.querySelectorAll(".field-screen");
-    for (var i = 0; i < screens.length; i++) {
-      screens[i].classList.toggle("is-active", screens[i].dataset.name === name);
-    }
-    updateBar();
 
-    // Auto-start/stop averaging based on whether Add Waypoint is showing.
-
-    if (typeof syncAveraging === "function") syncAveraging();
-  }
-
-  function openMenu() {
-    overlay.classList.add("is-open");
-    menuBtn.setAttribute("aria-expanded", "true");
-    showScreen("main");
-  }
   var isWide = window.matchMedia("(min-width: 900px)").matches;
 
-  function closeMenu() {
-    overlay.classList.remove("is-open");
-    menuBtn.setAttribute("aria-expanded", "false");
-
-    // On desktop the sidebar is permanent; return it to the main nav rather
-    // than leaving the last sub-screen showing.
-
-    if (isWide) showScreen("main");
-    updateBar();
-    if (typeof syncAveraging === "function") syncAveraging();
-  }
 
   menuBtn.addEventListener("click", openMenu);
   if (mapBtn) mapBtn.addEventListener("click", closeMenu);
@@ -625,6 +575,25 @@ function init() {
   if (wpClass) wpClass.addEventListener("change", syncNamePrefix);
   syncNamePrefix();
 
+  // Note + Photo now live on the nest-discovery form for nests, so hide them on
+  // the Add-waypoint screen when the class is Nest (the default). Clear their
+  // values when hidden so nothing leaks into the saved waypoint.
+
+  function syncNotedPhotoFields() {
+    var isNest = !!(wpClass && wpClass.value === "Nest");
+    var noteField = document.getElementById("wpNoteField");
+    var photoField = document.getElementById("wpPhotoField");
+    if (noteField) noteField.style.display = isNest ? "none" : "";
+    if (photoField) photoField.style.display = isNest ? "none" : "";
+    if (isNest) {
+      if (wpNote) wpNote.value = "";
+      if (wpPhoto) wpPhoto.value = "";
+      if (wpPhotoPreview) wpPhotoPreview.innerHTML = "";
+      currentPhoto = null;
+    }
+  }
+  if (wpClass) wpClass.addEventListener("change", syncNotedPhotoFields);
+
   // Auto-suggest the next nest ID when Nest is chosen; clear a stale suggestion
   // if the class changes away from Nest, and drop the autofill flag once the
   // user edits the field so a late live response can't overwrite their entry.
@@ -844,22 +813,6 @@ function init() {
     });
   }
 
-  function resetAddForm() {
-    newNestId = null;
-    if (wpName) { wpName.value = ""; wpName.readOnly = false; }
-    if (wpNote) wpNote.value = "";
-    if (wpClass) wpClass.selectedIndex = 0;
-    var clab = (wpClass && wpClass.closest) ? wpClass.closest(".field-field-label") : null;
-    if (clab) clab.style.display = "";
-    syncNamePrefix();
-    if (wpPhoto) wpPhoto.value = "";
-    if (wpPhotoPreview) wpPhotoPreview.innerHTML = "";
-    currentPhoto = null;
-    currentColor = WP_DEFAULT_COLOR;
-    editWp = null;
-    if (modifyControls) modifyControls.hidden = true;
-    refreshAddColorRow();
-  }
 
   // --- next-nest-ID suggestion (collision failsafe) ----------------------
 
@@ -953,16 +906,6 @@ function init() {
     });
   }
 
-  function startNewNestPoint(nestId) {
-    resetAddForm();
-    newNestId = nestId;
-    if (wpName) { wpName.value = nestId; wpName.readOnly = true; }
-    if (wpNamePrefix) wpNamePrefix.style.display = "none";
-    var clab = (wpClass && wpClass.closest) ? wpClass.closest(".field-field-label") : null;
-    if (clab) clab.style.display = "none";
-    showScreen("addwaypoint");
-    addStatus("No saved location for " + nestId + " \u2014 hold still; Save when the bar settles.");
-  }
 
   // Open the Add-waypoint screen to re-measure an existing waypoint. mode is
   // "replace" (new average overwrites the location) or "average" (new average
@@ -976,160 +919,10 @@ function init() {
 
   var modifyControls = null;
 
-  function ensureModifyControls() {
-    if (modifyControls) return modifyControls;
-    if (!addSaveBtn || !addSaveBtn.parentNode) return null;
-    var box = document.createElement("div");
-    box.className = "field-modify-controls";
-    box.hidden = true;
-    var lab = document.createElement("div");
-    lab.className = "field-field-label";
-    lab.textContent = "Location";
-    box.appendChild(lab);
-    var modeRow = document.createElement("div");
-    modeRow.className = "field-mgr-actions";
-    [["keep", "Keep"], ["replace", "Re-record"], ["average", "Average with current"]]
-      .forEach(function (m) {
-        var b = document.createElement("button");
-        b.type = "button";
-        b.className = "field-button field-mode-btn";
-        b.setAttribute("data-mode", m[0]);
-        b.textContent = m[1];
-        b.addEventListener("click", function () { setMode(m[0]); });
-        modeRow.appendChild(b);
-      });
-    box.appendChild(modeRow);
-    var actRow = document.createElement("div");
-    actRow.className = "field-mgr-actions";
-    var del = document.createElement("button");
-    del.type = "button";
-    del.className = "field-button field-button--danger field-modify-delete";
-    del.textContent = "Delete";
-    del.addEventListener("click", function () {
-      if (!editWp || editWp.source !== "waypoint") return;
-      var cur = loadWaypoints().filter(function (x) { return x.point_id !== editWp.id; });
-      storeWaypoints(cur);
-      removeWaypointMarker(editWp.id);
-      resetAddForm();
-      renderWaypoints();
-      showScreen("main");
-    });
-    actRow.appendChild(del);
-    box.appendChild(actRow);
-    addSaveBtn.parentNode.insertBefore(box, addSaveBtn);
-    modifyControls = box;
-    return box;
-  }
 
-  function setMode(mode) {
-    if (editWp) editWp.mode = mode;
-    if (modifyControls) {
-      var bs = modifyControls.querySelectorAll(".field-mode-btn");
-      for (var i = 0; i < bs.length; i++) {
-        bs[i].classList.toggle("is-selected", bs[i].getAttribute("data-mode") === mode);
-      }
-    }
-    addStatus(mode === "keep"
-      ? "Location kept — edit the fields and Save."
-      : mode === "replace"
-        ? "Re-recording — hold still; Save replaces the location."
-        : "Averaging — hold still; Save blends with the existing location.");
-  }
 
-  function startModify(point, source) {
-    editWp = { id: point.point_id, source: source, point: point, mode: "keep" };
-    if (wpName) wpName.value = point.point_name || "";
-    if (wpNamePrefix) wpNamePrefix.style.display = "none";
-    var clab = (wpClass && wpClass.closest) ? wpClass.closest(".field-field-label") : null;
-    if (clab) clab.style.display = "none";
-    if (wpNote) wpNote.value = point.note || "";
-    currentColor = point.color || WP_DEFAULT_COLOR;
-    currentPhoto = point.photo || null;
-    if (wpPhoto) wpPhoto.value = "";
-    if (wpPhotoPreview) {
-      wpPhotoPreview.innerHTML = "";
-      if (currentPhoto) {
-        var im = document.createElement("img");
-        im.src = currentPhoto;
-        im.className = "field-photo-thumb";
-        wpPhotoPreview.appendChild(im);
-      }
-    }
-    refreshAddColorRow();
-    var mc = ensureModifyControls();
-    if (mc) {
-      mc.hidden = false;
-      var d = mc.querySelector(".field-modify-delete");
-      if (d) d.style.display = (source === "waypoint") ? "" : "none";
-    }
-    setMode("keep");
-    showScreen("addwaypoint");
-  }
 
-  function editLocation(a) {
-    var p = editWp.point;
-    if (editWp.mode === "keep" || !a) {
-      return { lat: p.latitude, lng: p.longitude,
-               accuracy: p.horizontal_accuracy, elevation: p.elevation };
-    }
-    if (editWp.mode === "average") {
-      var c = combineLocation(p, a);
-      return { lat: c.lat, lng: c.lng, accuracy: c.accuracy,
-               elevation: (a.elevation != null) ? a.elevation : p.elevation };
-    }
-    return { lat: a.lat, lng: a.lng, accuracy: a.accuracy,
-             elevation: (a.elevation != null) ? a.elevation : p.elevation };
-  }
 
-  function saveModify() {
-    if (editWp.mode !== "keep" && (!avg || !samples.length)) {
-      addStatus("No location samples yet -- give it a moment, or choose Keep.");
-      return;
-    }
-    var a = avg;
-    stopAveraging();
-    var now = new Date();
-    var p = editWp.point;
-    var src = editWp.source;
-    var loc = editLocation(a);
-    var nm = (wpName && wpName.value.trim()) || p.point_name;
-    var w = {
-      point_id: p.point_id,
-      point_name: nm,
-      point_class: p.point_class,
-      time: fmtTime(now),
-      latitude: loc.lat,
-      longitude: loc.lng,
-      horizontal_accuracy: (loc.accuracy != null) ? Math.round(loc.accuracy * 10) / 10 : null,
-      elevation: (loc.elevation != null) ? Math.round(loc.elevation * 10) / 10 : null,
-      bearing: (p.bearing != null) ? p.bearing : null,
-      note: (wpNote && wpNote.value.trim()) || "",
-      color: currentColor,
-      photo: currentPhoto || null,
-      visible: true
-    };
-    w.photo_name = w.photo
-      ? String(nm).replace(/[^\w-]+/g, "_") + "_" + isoClean(now).replace(/:/g, "-") + ".jpg"
-      : null;
-    if (src === "waypoint") {
-      var arr = loadWaypoints();
-      var idx = -1;
-      for (var k = 0; k < arr.length; k++) {
-        if (arr[k].point_id === w.point_id) { idx = k; break; }
-      }
-      if (idx >= 0) arr[idx] = w; else arr.push(w);
-      storeWaypoints(arr);
-      refreshWaypointMarker(w);
-    }
-    uploadToDrive("individual_points", w.point_name + "_" + syncTimestamp() + ".geojson", waypointsFC([w]), null, function () {
-      if (src === "waypoint") markUploaded([w.point_id]);
-      showUploadModal(w.point_name + " uploaded to Drive.");
-    });
-    renderWaypoints();
-    resetAddForm();
-    addStatus("");
-    closeMenu();
-  }
 
   function startAveraging() {
     if (!navigator.geolocation) { addStatus("Geolocation isn't available."); return; }
@@ -1195,82 +988,6 @@ function init() {
     };
   }
 
-  function saveAveraged() {
-    if (editWp) { saveModify(); return; }
-    if (!avg || !samples.length) {
-      addStatus("No location samples yet -- give it a moment.");
-      return;
-    }
-    var a = avg;               // snapshot the average before restarting
-    stopAveraging();
-    var forNest = newNestId;
-    newNestId = null;
-
-    var now = new Date();
-    var t = fmtTime(now);
-    var arr = loadWaypoints();
-
-    var wp = {
-      point_id: newId(),
-      point_name: forNest ? forNest : currentName(t),
-      point_class: forNest ? "Nest" : ((wpClass && wpClass.value) || "Other"),
-      time: t,
-      elevation: (a.elevation != null) ? Math.round(a.elevation * 10) / 10 : null,
-      horizontal_accuracy: Math.round(a.accuracy * 10) / 10,
-      bearing: (typeof window.fieldBearing === "number") ? window.fieldBearing : null,
-      n_samples: a.n,
-      note: (wpNote && wpNote.value.trim()) || "",
-      longitude: a.lng,
-      latitude: a.lat,
-      color: currentColor,
-      visible: true,
-      photo: currentPhoto || null
-    };
-
-    // Name the photo: <waypoint name>_<ISO 8601 datetime>.jpg.
-
-    if (wp.photo) {
-      var safeNm = wp.point_name.replace(/[^\w-]+/g, "_");
-      var isoSafe = isoClean(now).replace(/:/g, "-");
-      wp.photo_name = safeNm + "_" + isoSafe + ".jpg";
-    } else {
-      wp.photo_name = null;
-    }
-
-    arr.push(wp);
-    storeWaypoints(arr);
-    var isNestPoint = (wp.point_class === "Nest" && !!forNest);
-    if (wp.point_class === "Temp") {
-      showUploadModal(wp.point_name + " added (temporary -- not saved).");
-    } else {
-      uploadToDrive("individual_points", wp.point_name + "_" + syncTimestamp() + ".geojson", waypointsFC([wp]), null, function () {
-        markUploaded([wp.point_id]);
-        // The nest-data prompt is the acknowledgement for nest points.
-        if (!isNestPoint) {
-          showUploadModal(forNest ? ("Location saved for " + forNest + ".") : (wp.point_name + " uploaded to Drive."));
-        }
-      });
-    }
-    addWaypointMarker(wp);
-    renderWaypoints();
-    resetAddForm();
-    addStatus("");
-
-    // For a nest point, offer to capture nest-level data before leaving; the
-    // GPS location and datetime are carried into the form.
-
-    if (isNestPoint) {
-      showNestDataPrompt(
-        function () { openNestData(forNest, a.lat, a.lng, now); },
-        function () { closeMenu(); }
-      );
-    } else {
-
-      // Back to the map view (closeMenu also stops the GPS averaging watch).
-
-      closeMenu();
-    }
-  }
 
   if (addSaveBtn) addSaveBtn.addEventListener("click", saveAveraged);
 
@@ -1311,134 +1028,28 @@ function init() {
   ];
 
   var nestDataCtx = null;
+  var nestPhoto = null;
+  var nestPhotoName = null;
 
-  function ndEl(id) { return document.getElementById(id); }
 
-  function buildNestChoices() {
-    var sg = ndEl("ndSpeciesGrid");
-    if (sg && !sg.childNodes.length) {
-      NEST_SPECIES.forEach(function (sp) {
-        var lab = document.createElement("label");
-        lab.className = "field-choice";
-        var inp = document.createElement("input");
-        inp.type = "radio"; inp.name = "ndSpecies"; inp.value = sp[1];
-        lab.appendChild(inp);
-        lab.appendChild(document.createTextNode(" " + sp[0] + " "));
-        var code = document.createElement("span");
-        code.className = "field-choice-code"; code.textContent = sp[1];
-        lab.appendChild(code);
-        sg.appendChild(lab);
-      });
-    }
-    var bg = ndEl("ndSubstrateGrid");
-    if (bg && !bg.childNodes.length) {
-      NEST_SUBSTRATES.forEach(function (name) {
-        var lab = document.createElement("label");
-        lab.className = "field-choice";
-        var inp = document.createElement("input");
-        inp.type = "checkbox"; inp.name = "ndSubstrate"; inp.value = name;
-        lab.appendChild(inp);
-        lab.appendChild(document.createTextNode(" " + name));
-        bg.appendChild(lab);
-      });
-    }
-  }
 
-  function fillNestPatchOptions(selected) {
-    var sel = ndEl("ndPatchId");
-    if (!sel) return;
-    sel.innerHTML = "";
-    var names = window.fieldPatches ? Object.keys(window.fieldPatches).sort() : [];
-    if (selected && selected !== "patch-none" && names.indexOf(selected) < 0) {
-      names.unshift(selected);
-    }
-    names.forEach(function (n) {
-      var o = document.createElement("option");
-      o.value = n; o.textContent = n;
-      if (n === selected) o.selected = true;
-      sel.appendChild(o);
-    });
-    var none = document.createElement("option");
-    none.value = "patch-none"; none.textContent = "(none / unknown)";
-    if (selected === "patch-none" || !names.length) none.selected = true;
-    sel.appendChild(none);
-  }
+  // Large, near-full-screen option picker (reuses the patch-overlay styling).
+  // Single-select applies + closes on tap; multi-select toggles rows and
+  // applies on Done. The hidden <select> stays the source of truth.
 
-  function resetNestFields() {
-    var radios = overlay.querySelectorAll('input[name="ndSpecies"]');
-    for (var i = 0; i < radios.length; i++) radios[i].checked = false;
-    var boxes = overlay.querySelectorAll('input[name="ndSubstrate"]');
-    for (var j = 0; j < boxes.length; j++) boxes[j].checked = false;
-    ndEl("ndSpeciesOther").value = "";
-    ndEl("ndSubstrateOther").value = "";
-    ndEl("ndDiscoveryStage").value = "";
-    ndEl("ndSelfieStick").checked = false;
-    ndEl("ndArtificialCandidate").checked = false;
-    ndEl("ndCameraOrControl").value = "Control";
-    ndEl("ndCameraDeploymentDate").value = "";
-    ndEl("ndCameraDateWrap").style.display = "none";
-    ndEl("ndHeight").value = "";
-    ndEl("ndLocationDescription").value = "";
-    var st = ndEl("nestDataStatus");
-    if (st) st.textContent = "";
-  }
 
-  function openNestData(nestId, lat, lng, date) {
-    nestDataCtx = { nestId: nestId, lat: lat, lng: lng, date: date };
-    buildNestChoices();
-    resetNestFields();
-    ndEl("ndNestId").textContent = nestId;
-    ndEl("ndGpsPoint").textContent = nestId;
-    ndEl("ndDiscoveryDate").textContent = isoClean(date).slice(0, 10);
-    fillNestPatchOptions(closestPatch(lat, lng, 1e9));
-    showScreen("nestdata");
-  }
 
-  function collectNestRecord() {
-    var checkedSp = overlay.querySelector('input[name="ndSpecies"]:checked');
-    var otherSp = ndEl("ndSpeciesOther").value.trim();
-    var species = otherSp || (checkedSp ? checkedSp.value : "");
 
-    var subs = [];
-    var boxes = overlay.querySelectorAll('input[name="ndSubstrate"]:checked');
-    for (var i = 0; i < boxes.length; i++) subs.push(boxes[i].value);
-    var otherSub = ndEl("ndSubstrateOther").value.trim();
-    if (otherSub) subs.push(otherSub);
 
-    var cam = ndEl("ndCameraOrControl").value;
-    var heightVal = ndEl("ndHeight").value.trim();
 
-    return {
-      nest_id: nestDataCtx ? nestDataCtx.nestId : null,
-      species: species || null,
-      patch_id: ndEl("ndPatchId").value,
-      discovery_date: nestDataCtx ? isoClean(nestDataCtx.date).slice(0, 10) : null,
-      discovery_stage: ndEl("ndDiscoveryStage").value || null,
-      selfie_stick: ndEl("ndSelfieStick").checked,
-      artificial_candidate: ndEl("ndArtificialCandidate").checked,
-      camera_or_control: cam,
-      camera_deployment_date: cam === "Camera" ? (ndEl("ndCameraDeploymentDate").value || null) : null,
-      height: heightVal ? Number(heightVal) : null,
-      substrate: subs.length ? subs.join(", ") : null,
-      gps_point: nestDataCtx ? nestDataCtx.nestId : null,
-      location_description: ndEl("ndLocationDescription").value.trim() || null
-    };
-  }
 
-  function saveNestData() {
-    var rec = collectNestRecord();
-    if (!rec.species) {
-      var st = ndEl("nestDataStatus");
-      if (st) st.textContent = "Pick a species (or type one under Other) first.";
-      return;
-    }
 
-    // No backend yet -- surface the record for inspection during the UI test.
 
-    if (window.console && console.log) console.log("[nest_level record]", rec);
-    showUploadModal("Nest data captured for " + rec.nest_id + " (preview only -- not yet saved).");
-    closeMenu();
-  }
+
+  // Send one nest_level row to the Apps Script relay, which appends it to the
+  // nest_level sheet. Fire-and-forget over no-cors, mirroring uploadToDrive.
+
+
 
   var ndCameraSel = ndEl("ndCameraOrControl");
   if (ndCameraSel) {
@@ -1448,48 +1059,67 @@ function init() {
     });
   }
 
+  var ndPhoto = ndEl("ndPhoto");
+  if (ndPhoto) {
+    ndPhoto.addEventListener("change", function () {
+      var file = ndPhoto.files && ndPhoto.files[0];
+      var preview = ndEl("ndPhotoPreview");
+      if (preview) preview.innerHTML = "";
+      var status = ndEl("nestDataStatus");
+      if (!file) { nestPhoto = null; nestPhotoName = null; return; }
+      if (status) status.textContent = "Processing photo...";
+      compressImage(file, 1024, 0.55, function (dataUrl) {
+        nestPhoto = dataUrl;
+        if (dataUrl && preview) {
+          var im = document.createElement("img");
+          im.src = dataUrl;
+          im.className = "field-photo-thumb";
+          preview.appendChild(im);
+        }
+        if (status) status.textContent = dataUrl ? "Photo attached." : "Couldn't read that photo.";
+      });
+    });
+  }
+
+  buildNestChoices();
+  wireNestPicker("ndPatchBtn", "ndPatchId", "Choose a patch", "Patch", false, null);
+  wireNestPicker("ndSpeciesBtn", "ndSpecies", "Choose species", "Choose species", false, syncNestOther);
+  wireNestPicker("ndDiscoveryStageBtn", "ndDiscoveryStage", "Discovery stage", "— select —", false, null);
+  wireNestPicker("ndCameraOrControlBtn", "ndCameraOrControl", "Camera or control", "Control", false, null);
+  wireNestPicker("ndSubstrateBtn", "ndSubstrate", "Substrate", "Choose substrate", true, syncNestOther);
+
   var ndSaveBtn = ndEl("nestDataSaveBtn");
   if (ndSaveBtn) ndSaveBtn.addEventListener("click", saveNestData);
 
   var ndCancelBtn = ndEl("nestDataCancelBtn");
   if (ndCancelBtn) ndCancelBtn.addEventListener("click", function () { closeMenu(); });
 
+  var intervalCtx = null;
+
+
+
+
+
+
+
+
+
+  var ivStateRadios = overlay.querySelectorAll('input[name="ivCurrentState"]');
+  for (var iv = 0; iv < ivStateRadios.length; iv++) {
+    ivStateRadios[iv].addEventListener("change", applyIntervalState);
+  }
+
+  var ivAdultSel = ivEl("ivAdultPresent");
+  if (ivAdultSel) ivAdultSel.addEventListener("change", applyIntervalAdult);
+
+  var ivSaveBtn = ivEl("intervalSaveBtn");
+  if (ivSaveBtn) ivSaveBtn.addEventListener("click", saveIntervalData);
+
+  var ivCancelBtn = ivEl("intervalCancelBtn");
+  if (ivCancelBtn) ivCancelBtn.addEventListener("click", function () { closeMenu(); });
+
   // Post-save "Add nest discovery data?" prompt (Yes/No), built on first use.
 
-  function showNestDataPrompt(onYes, onNo) {
-    var ov = document.getElementById("fieldNestPrompt");
-    if (!ov) {
-      ov = document.createElement("div");
-      ov.id = "fieldNestPrompt";
-      ov.className = "field-confirm-overlay";
-      var box = document.createElement("div");
-      box.className = "field-confirm";
-      var text = document.createElement("div");
-      text.className = "field-confirm-text";
-      text.textContent = "Add nest discovery data?";
-      var row = document.createElement("div");
-      row.className = "field-confirm-actions";
-      var yes = document.createElement("button");
-      yes.type = "button";
-      yes.className = "field-button";
-      yes.textContent = "Yes";
-      var no = document.createElement("button");
-      no.type = "button";
-      no.className = "field-button field-button--danger";
-      no.textContent = "No";
-      row.appendChild(yes);
-      row.appendChild(no);
-      box.appendChild(text);
-      box.appendChild(row);
-      ov.appendChild(box);
-      document.body.appendChild(ov);
-      ov._yes = yes;
-      ov._no = no;
-    }
-    ov._yes.onclick = function () { ov.classList.remove("is-visible"); if (onYes) onYes(); };
-    ov._no.onclick = function () { ov.classList.remove("is-visible"); if (onNo) onNo(); };
-    ov.classList.add("is-visible");
-  }
 
   // waypoint manager ------------------------------------------------------
 
@@ -1509,9 +1139,9 @@ function init() {
   }
 
   // One manager row: name (+ optional show toggle / color dot) with two
-  // actions, Navigate and Modify. Used for both own waypoints and map points.
+  // actions, Navigate and View. Used for both own waypoints and map points.
 
-  function makePointLi(nameText, color, showState, onNav, onModify) {
+  function makePointLi(nameText, color, showState, onNav, onView) {
     var li = document.createElement("li");
     li.className = "field-mgr-item";
     var row = document.createElement("div");
@@ -1541,12 +1171,12 @@ function init() {
     nav.type = "button"; nav.className = "field-button";
     nav.textContent = "Navigate";
     nav.addEventListener("click", onNav);
-    var mod = document.createElement("button");
-    mod.type = "button"; mod.className = "field-button";
-    mod.textContent = "Modify";
-    mod.addEventListener("click", onModify);
+    var view = document.createElement("button");
+    view.type = "button"; view.className = "field-button";
+    view.textContent = "View";
+    view.addEventListener("click", onView);
     acts.appendChild(nav);
-    acts.appendChild(mod);
+    acts.appendChild(view);
     row.appendChild(acts);
     li.appendChild(row);
     return li;
@@ -1577,7 +1207,7 @@ function init() {
           }
         },
         function () { startNavigation(w); },
-        function () { startModify(w, "waypoint"); }
+        function () { window.fieldViewNest(w.point_name); }
       ));
     });
 
@@ -1637,13 +1267,12 @@ function init() {
       });
 
       list.forEach(function (p) {
-        var navAsPoint = navPointToPoint(p);
         body.appendChild(makePointLi(
           p.name,
           null,
           null,
           function () { startNavigation({ latitude: p.lat, longitude: p.lng, point_name: p.name }); },
-          function () { startModify(navAsPoint, "nav"); }
+          function () { window.fieldViewNest(p.name); }
         ));
       });
 
@@ -1694,6 +1323,28 @@ function init() {
     }
     window.alert("No saved location for " + key + " yet -- use Modify to add one.");
   };
+
+  // Open a nest's accordion (and its parent patch accordion when the grouped
+  // view is active) using the same class/display toggles accordion.js uses.
+
+
+
+  // View a nest: show the Nests page, open that nest's accordion (opening its
+  // parent patch accordion first when grouped), reveal its detail block, and
+  // scroll it into view. Resilient when the nest can't be found.
+
+
+  // Open the Modify sub-menu for a nest: stash the id and show the screen. The
+  // screen fills the shown id from modifyNestId when it opens.
+
+
+  // Modify sub-menu Cancel returns to the Nests page. The four action buttons
+  // are inert for now (wired in a later task).
+
+  var nmCancelBtn = document.getElementById("nmCancelBtn");
+  if (nmCancelBtn) nmCancelBtn.addEventListener("click", function () {
+    showScreen("nests");
+  });
 
   // Test nests created in the app go straight to Drive; the (server-rendered)
   // Nests page won't include them until the pipeline ingests them. Inject them
@@ -1786,7 +1437,7 @@ function init() {
       "<li><strong>Recorded</strong>: " + escapeHtml(n.time || "—") + "</li></ul>" +
       '<button type="button" class="field-popup-btn" onclick="window.fieldNavigateNavPoint(\'' +
         escapeHtml(n.name) + '\')">Navigate to</button>' +
-      '<button type="button" class="field-popup-btn" onclick="window.fieldModifyNavPoint(\'' +
+      '<button type="button" class="field-popup-btn" onclick="window.fieldOpenNestModify(\'' +
         escapeHtml(n.name) + '\')">Modify</button>';
 
     group.appendChild(btn);
@@ -3141,15 +2792,3 @@ function init() {
     });
   })();
 
-}
-
-// Run after the DOM exists. embed-resources can relocate this inline script,
-// so don't assume it runs at end-of-body -- wait for DOMContentLoaded if the
-// document is still parsing.
-
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init);
-} else {
-  init();
-}
-})();

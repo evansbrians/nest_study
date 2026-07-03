@@ -1275,6 +1275,15 @@ input[type="file"].field-input {
   font-weight: 700;
 }
 
+.field-picker-done {
+  position: sticky;
+  bottom: 0;
+  text-align: center;
+  font-weight: 700;
+  color: var(--accent);
+  border-top: 2px solid var(--border);
+}
+
 /* Modify-screen location/mode controls */
 
 .field-modify-controls {

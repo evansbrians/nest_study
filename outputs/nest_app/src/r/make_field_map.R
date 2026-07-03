@@ -19,7 +19,7 @@ source(
 # Functions for the app:
 
 source(
-  here("outputs/nest_app/app_functions.R")
+  here("outputs/nest_app/src/r/app_functions.R")
 )
 
 # basemap -----------------------------------------------------------------
@@ -345,7 +345,7 @@ map_mobile_friendly <-
     tags$style(
       HTML(
         read_file(
-          here("outputs/nest_app/map_styles.css")
+          here("outputs/nest_app/src/css/map_styles.css")
         )
       )
     )
@@ -357,7 +357,7 @@ map_tracking <-
   map_mobile_friendly %>%
   onRender(
     read_file(
-      here("outputs/nest_app/map_tracking.js")
+      here("outputs/nest_app/src/js/map_tracking.js")
     )
   )
 
@@ -369,7 +369,7 @@ map_tracking <-
 map_tracking <-
   map_tracking %>%
   onRender(
-    read_file(here("outputs/nest_app/map_weather.js"))
+    read_file(here("outputs/nest_app/src/js/map_weather.js"))
   )
 
 # embed patch geometries for the patch filter ------------------------------
@@ -427,7 +427,7 @@ field_schedule_json <-
       sched_env <- new.env()
       
       source(
-        here("outputs/nest_app/schedule_for_map.R"),
+        here("outputs/nest_app/src/r/schedule_for_map.R"),
         local = sched_env
       )
       
