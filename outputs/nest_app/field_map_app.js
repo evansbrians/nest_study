@@ -13,6 +13,19 @@ function init() {
   var brgEl = document.getElementById("barBearing");
   if (!menuBtn || !overlay) return;
 
+  // Desktop sidebar: a persistent "back to the menu" control at the top of the
+  // sidebar. The bottom-bar buttons are hidden when the menu is a permanent
+  // sidebar, so this is the way back to the main menu (table of contents). It
+  // is shown only on wide screens and only on a sub-screen (updateBar clears
+  // field-hide); base CSS keeps it hidden on phones.
+
+  var sidebarBackBtn = document.createElement("button");
+  sidebarBackBtn.type = "button";
+  sidebarBackBtn.className = "field-sidebar-back field-hide";
+  sidebarBackBtn.textContent = "‹ Menu";
+  overlay.insertBefore(sidebarBackBtn, overlay.firstChild);
+  sidebarBackBtn.addEventListener("click", function () { showScreen("main"); });
+
   // Portrait only. Best-effort lock where the browser supports it (Android
   // Chrome / installed PWAs); iOS Safari ignores this, so the CSS rotate-notice
   // overlay is the real guard.
@@ -45,6 +58,12 @@ function init() {
     hideEl(brgEl, !onMap);
     hideEl(mapBtn, !open);          // "Map" shows whenever the menu is open
     hideEl(mainMenuBtn, !onSub);    // "Main Menu" only on sub-screens
+    hideEl(sidebarBackBtn, !onSub); // desktop sidebar back-to-menu (CSS-gated)
+
+    // Desktop: the main menu is a narrow sidebar, but a sub-page takes over the
+    // full screen (like the phone app). CSS-gated to wide screens.
+
+    overlay.classList.toggle("field-fullscreen", onSub);
   }
 
   // Screen navigation: the overlay holds several .field-screen panels; only
@@ -67,9 +86,16 @@ function init() {
     menuBtn.setAttribute("aria-expanded", "true");
     showScreen("main");
   }
+  var isWide = window.matchMedia("(min-width: 900px)").matches;
+
   function closeMenu() {
     overlay.classList.remove("is-open");
     menuBtn.setAttribute("aria-expanded", "false");
+
+    // On desktop the sidebar is permanent; return it to the main nav rather
+    // than leaving the last sub-screen showing.
+
+    if (isWide) showScreen("main");
     updateBar();
     if (typeof syncAveraging === "function") syncAveraging();
   }
@@ -1213,12 +1239,16 @@ function init() {
 
     arr.push(wp);
     storeWaypoints(arr);
+    var isNestPoint = (wp.point_class === "Nest" && !!forNest);
     if (wp.point_class === "Temp") {
       showUploadModal(wp.point_name + " added (temporary -- not saved).");
     } else {
       uploadToDrive("individual_points", wp.point_name + "_" + syncTimestamp() + ".geojson", waypointsFC([wp]), null, function () {
         markUploaded([wp.point_id]);
-        showUploadModal(forNest ? ("Location saved for " + forNest + ".") : (wp.point_name + " uploaded to Drive."));
+        // The nest-data prompt is the acknowledgement for nest points.
+        if (!isNestPoint) {
+          showUploadModal(forNest ? ("Location saved for " + forNest + ".") : (wp.point_name + " uploaded to Drive."));
+        }
       });
     }
     addWaypointMarker(wp);
@@ -1226,9 +1256,20 @@ function init() {
     resetAddForm();
     addStatus("");
 
-    // Back to the map view (closeMenu also stops the GPS averaging watch).
+    // For a nest point, offer to capture nest-level data before leaving; the
+    // GPS location and datetime are carried into the form.
 
-    closeMenu();
+    if (isNestPoint) {
+      showNestDataPrompt(
+        function () { openNestData(forNest, a.lat, a.lng, now); },
+        function () { closeMenu(); }
+      );
+    } else {
+
+      // Back to the map view (closeMenu also stops the GPS averaging watch).
+
+      closeMenu();
+    }
   }
 
   if (addSaveBtn) addSaveBtn.addEventListener("click", saveAveraged);
@@ -1243,6 +1284,212 @@ function init() {
 
     showScreen("main");
   });
+
+  // nest discovery data ---------------------------------------------------
+  // UI-only capture of a "nest_level" record. No backend yet: Save assembles
+  // the record, logs it, and confirms. Opened from the post-save prompt.
+
+  var NEST_SPECIES = [
+    ["Northern cardinal", "NOCA"], ["Yellow-breasted chat", "YBCH"],
+    ["Gray catbird", "GRCA"], ["Indigo bunting", "INBU"],
+    ["Field sparrow", "FISP"], ["American goldfinch", "AGOL"],
+    ["Blue jay", "BLJA"], ["Brown thrasher", "BRTH"],
+    ["Common yellowthroat", "COYE"], ["Eastern towhee", "EATO"],
+    ["Northern mockingbird", "NOMO"], ["Prairie warbler", "PRAW"],
+    ["Red-winged blackbird", "RWBL"], ["Song sparrow", "SOSP"],
+    ["White-eyed vireo", "WEVI"], ["Mourning dove", "MODO"],
+    ["Artificial nest", "ARNE"]
+  ];
+
+  var NEST_SUBSTRATES = [
+    "Autumn olive", "Multiflora rose", "Honeysuckle", "Grape",
+    "Asian bittersweet", "Coral berry", "Spicebush", "Cherry",
+    "Wineberry", "Blackberry", "Callery pear", "Hackberry", "Sassafras",
+    "Black raspberry", "Box elder", "Blackhaw", "American beech",
+    "American elm", "American hazelnut", "Locust", "Catbriar", "Bamboo",
+    "Vines", "White mulberry"
+  ];
+
+  var nestDataCtx = null;
+
+  function ndEl(id) { return document.getElementById(id); }
+
+  function buildNestChoices() {
+    var sg = ndEl("ndSpeciesGrid");
+    if (sg && !sg.childNodes.length) {
+      NEST_SPECIES.forEach(function (sp) {
+        var lab = document.createElement("label");
+        lab.className = "field-choice";
+        var inp = document.createElement("input");
+        inp.type = "radio"; inp.name = "ndSpecies"; inp.value = sp[1];
+        lab.appendChild(inp);
+        lab.appendChild(document.createTextNode(" " + sp[0] + " "));
+        var code = document.createElement("span");
+        code.className = "field-choice-code"; code.textContent = sp[1];
+        lab.appendChild(code);
+        sg.appendChild(lab);
+      });
+    }
+    var bg = ndEl("ndSubstrateGrid");
+    if (bg && !bg.childNodes.length) {
+      NEST_SUBSTRATES.forEach(function (name) {
+        var lab = document.createElement("label");
+        lab.className = "field-choice";
+        var inp = document.createElement("input");
+        inp.type = "checkbox"; inp.name = "ndSubstrate"; inp.value = name;
+        lab.appendChild(inp);
+        lab.appendChild(document.createTextNode(" " + name));
+        bg.appendChild(lab);
+      });
+    }
+  }
+
+  function fillNestPatchOptions(selected) {
+    var sel = ndEl("ndPatchId");
+    if (!sel) return;
+    sel.innerHTML = "";
+    var names = window.fieldPatches ? Object.keys(window.fieldPatches).sort() : [];
+    if (selected && selected !== "patch-none" && names.indexOf(selected) < 0) {
+      names.unshift(selected);
+    }
+    names.forEach(function (n) {
+      var o = document.createElement("option");
+      o.value = n; o.textContent = n;
+      if (n === selected) o.selected = true;
+      sel.appendChild(o);
+    });
+    var none = document.createElement("option");
+    none.value = "patch-none"; none.textContent = "(none / unknown)";
+    if (selected === "patch-none" || !names.length) none.selected = true;
+    sel.appendChild(none);
+  }
+
+  function resetNestFields() {
+    var radios = overlay.querySelectorAll('input[name="ndSpecies"]');
+    for (var i = 0; i < radios.length; i++) radios[i].checked = false;
+    var boxes = overlay.querySelectorAll('input[name="ndSubstrate"]');
+    for (var j = 0; j < boxes.length; j++) boxes[j].checked = false;
+    ndEl("ndSpeciesOther").value = "";
+    ndEl("ndSubstrateOther").value = "";
+    ndEl("ndDiscoveryStage").value = "";
+    ndEl("ndSelfieStick").checked = false;
+    ndEl("ndArtificialCandidate").checked = false;
+    ndEl("ndCameraOrControl").value = "Control";
+    ndEl("ndCameraDeploymentDate").value = "";
+    ndEl("ndCameraDateWrap").style.display = "none";
+    ndEl("ndHeight").value = "";
+    ndEl("ndLocationDescription").value = "";
+    var st = ndEl("nestDataStatus");
+    if (st) st.textContent = "";
+  }
+
+  function openNestData(nestId, lat, lng, date) {
+    nestDataCtx = { nestId: nestId, lat: lat, lng: lng, date: date };
+    buildNestChoices();
+    resetNestFields();
+    ndEl("ndNestId").textContent = nestId;
+    ndEl("ndGpsPoint").textContent = nestId;
+    ndEl("ndDiscoveryDate").textContent = isoClean(date).slice(0, 10);
+    fillNestPatchOptions(closestPatch(lat, lng, 1e9));
+    showScreen("nestdata");
+  }
+
+  function collectNestRecord() {
+    var checkedSp = overlay.querySelector('input[name="ndSpecies"]:checked');
+    var otherSp = ndEl("ndSpeciesOther").value.trim();
+    var species = otherSp || (checkedSp ? checkedSp.value : "");
+
+    var subs = [];
+    var boxes = overlay.querySelectorAll('input[name="ndSubstrate"]:checked');
+    for (var i = 0; i < boxes.length; i++) subs.push(boxes[i].value);
+    var otherSub = ndEl("ndSubstrateOther").value.trim();
+    if (otherSub) subs.push(otherSub);
+
+    var cam = ndEl("ndCameraOrControl").value;
+    var heightVal = ndEl("ndHeight").value.trim();
+
+    return {
+      nest_id: nestDataCtx ? nestDataCtx.nestId : null,
+      species: species || null,
+      patch_id: ndEl("ndPatchId").value,
+      discovery_date: nestDataCtx ? isoClean(nestDataCtx.date).slice(0, 10) : null,
+      discovery_stage: ndEl("ndDiscoveryStage").value || null,
+      selfie_stick: ndEl("ndSelfieStick").checked,
+      artificial_candidate: ndEl("ndArtificialCandidate").checked,
+      camera_or_control: cam,
+      camera_deployment_date: cam === "Camera" ? (ndEl("ndCameraDeploymentDate").value || null) : null,
+      height: heightVal ? Number(heightVal) : null,
+      substrate: subs.length ? subs.join(", ") : null,
+      gps_point: nestDataCtx ? nestDataCtx.nestId : null,
+      location_description: ndEl("ndLocationDescription").value.trim() || null
+    };
+  }
+
+  function saveNestData() {
+    var rec = collectNestRecord();
+    if (!rec.species) {
+      var st = ndEl("nestDataStatus");
+      if (st) st.textContent = "Pick a species (or type one under Other) first.";
+      return;
+    }
+
+    // No backend yet -- surface the record for inspection during the UI test.
+
+    if (window.console && console.log) console.log("[nest_level record]", rec);
+    showUploadModal("Nest data captured for " + rec.nest_id + " (preview only -- not yet saved).");
+    closeMenu();
+  }
+
+  var ndCameraSel = ndEl("ndCameraOrControl");
+  if (ndCameraSel) {
+    ndCameraSel.addEventListener("change", function () {
+      var wrap = ndEl("ndCameraDateWrap");
+      if (wrap) wrap.style.display = (ndCameraSel.value === "Camera") ? "" : "none";
+    });
+  }
+
+  var ndSaveBtn = ndEl("nestDataSaveBtn");
+  if (ndSaveBtn) ndSaveBtn.addEventListener("click", saveNestData);
+
+  var ndCancelBtn = ndEl("nestDataCancelBtn");
+  if (ndCancelBtn) ndCancelBtn.addEventListener("click", function () { closeMenu(); });
+
+  // Post-save "Add nest discovery data?" prompt (Yes/No), built on first use.
+
+  function showNestDataPrompt(onYes, onNo) {
+    var ov = document.getElementById("fieldNestPrompt");
+    if (!ov) {
+      ov = document.createElement("div");
+      ov.id = "fieldNestPrompt";
+      ov.className = "field-confirm-overlay";
+      var box = document.createElement("div");
+      box.className = "field-confirm";
+      var text = document.createElement("div");
+      text.className = "field-confirm-text";
+      text.textContent = "Add nest discovery data?";
+      var row = document.createElement("div");
+      row.className = "field-confirm-actions";
+      var yes = document.createElement("button");
+      yes.type = "button";
+      yes.className = "field-button";
+      yes.textContent = "Yes";
+      var no = document.createElement("button");
+      no.type = "button";
+      no.className = "field-button field-button--danger";
+      no.textContent = "No";
+      row.appendChild(yes);
+      row.appendChild(no);
+      box.appendChild(text);
+      box.appendChild(row);
+      ov.appendChild(box);
+      document.body.appendChild(ov);
+      ov._yes = yes;
+      ov._no = no;
+    }
+    ov._yes.onclick = function () { ov.classList.remove("is-visible"); if (onYes) onYes(); };
+    ov._no.onclick = function () { ov.classList.remove("is-visible"); if (onNo) onNo(); };
+    ov.classList.add("is-visible");
+  }
 
   // waypoint manager ------------------------------------------------------
 
@@ -1694,12 +1941,12 @@ function init() {
   // - (c) commit a vertex every SEG_MIN of net movement. Lower WIN_MS = more 
   //    faithful to the raw path; higher = more averaging/smoothing.
 
-  var ACC_START = 10;  // m: initial accuracy gate (reject fixes < this)
+  var ACC_START = 15;  // m: initial accuracy gate (reject fixes worse than this)
   var ACC_FLOOR = 5;   // m: tightest the gate gets as the GPS settles
   var GATE_MULT = 1.8; // gate ~ best-seen accuracy * this (down to ACC_FLOOR)
   var WIN_MS = 3000;   // ms: averaging window (longer = more averaging but lag)
   var SEG_MIN = 1.5;   // m: net movement before a new vertex commits
-  var STILL_RMS = 0.5;
+  var STILL_RMS = 0.75;
   var STILL_ENTER_MS = 3000;
   var STILL_EXIT_MS = 1800;
   var ACC_WIN_MS = 1200;

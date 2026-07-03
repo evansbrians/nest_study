@@ -323,6 +323,93 @@ map_tracking
 ```
 :::
 
+::: {.field-screen data-name="nestdata"}
+```{=html}
+    <div class="field-menu-panel">
+      <div class="field-menu-title">Nest discovery data</div>
+
+      <!-- Auto-filled from the saved GPS point; not editable here. -->
+      <div class="field-nest-auto">
+        <div>Nest ID: <span id="ndNestId" class="field-nest-auto-val">--</span></div>
+        <div>GPS point: <span id="ndGpsPoint" class="field-nest-auto-val">--</span></div>
+        <div>Discovery date: <span id="ndDiscoveryDate" class="field-nest-auto-val">--</span></div>
+      </div>
+
+      <label class="field-field-label">Patch
+        <!-- Defaults to the closest patch; override if the auto guess is wrong. -->
+        <select id="ndPatchId" class="field-input"></select>
+      </label>
+
+      <div class="field-field-label">Species</div>
+      <!-- Single-select (one species per nest); radios injected by JS. -->
+      <div id="ndSpeciesGrid" class="field-choice-grid"></div>
+      <label class="field-field-label field-other-label">Other species
+        <input type="text" id="ndSpeciesOther" class="field-input"
+               placeholder="If not listed above" autocomplete="off">
+      </label>
+
+      <label class="field-field-label">Discovery stage
+        <select id="ndDiscoveryStage" class="field-input">
+          <option value="">-- select --</option>
+          <option>Building</option>
+          <option>Incubation</option>
+          <option>Nestling</option>
+          <option>Inactive</option>
+        </select>
+      </label>
+
+      <label class="field-check-line">
+        <input type="checkbox" id="ndSelfieStick"> Selfie stick used
+      </label>
+      <label class="field-check-line">
+        <input type="checkbox" id="ndArtificialCandidate"> Artificial nest candidate
+      </label>
+
+      <label class="field-field-label">Camera or control
+        <select id="ndCameraOrControl" class="field-input">
+          <option>Control</option>
+          <option>Camera</option>
+        </select>
+      </label>
+      <label class="field-field-label" id="ndCameraDateWrap" style="display:none;">
+        Camera deployment date
+        <input type="date" id="ndCameraDeploymentDate" class="field-input">
+      </label>
+
+      <label class="field-field-label">Height (m)
+        <input type="number" id="ndHeight" class="field-input" step="0.1" min="0"
+               inputmode="decimal" placeholder="e.g. 1.5" autocomplete="off">
+      </label>
+
+      <div class="field-field-label">Substrate</div>
+      <!-- Multi-select (a nest can sit in several plants); checkboxes injected by JS. -->
+      <div id="ndSubstrateGrid" class="field-choice-grid"></div>
+      <label class="field-field-label field-other-label">Other substrate
+        <input type="text" id="ndSubstrateOther" class="field-input"
+               placeholder="If not listed above" autocomplete="off">
+      </label>
+
+      <label class="field-field-label">Location description
+        <textarea id="ndLocationDescription" class="field-input" rows="3"
+                  placeholder="Where is the nest relative to landmarks?"></textarea>
+      </label>
+
+      <div class="field-waypoint-actions">
+        <button type="button" id="nestDataSaveBtn" class="field-button">
+          Save nest data
+        </button>
+        <button type="button" id="nestDataCancelBtn"
+                class="field-button field-button--danger">
+          Cancel
+        </button>
+      </div>
+
+      <div id="nestDataStatus" class="field-status" role="status"
+           aria-live="polite"></div>
+    </div>
+```
+:::
+
 ::: {.field-screen data-name="waypointmgr"}
 ```{=html}
     <div class="field-menu-panel">

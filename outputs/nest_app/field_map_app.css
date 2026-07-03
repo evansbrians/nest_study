@@ -1102,6 +1102,110 @@ input[type="file"].field-input {
 }
 
 
+/* Nest discovery data form */
+
+.field-nest-auto {
+  margin-top: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--accent-tint);
+  line-height: 1.6;
+}
+
+.field-nest-auto-val {
+  font-weight: 700;
+}
+
+.field-choice-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+  margin-top: 6px;
+}
+
+.field-choice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 400;
+  padding: 4px 2px;
+}
+
+.field-choice input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.field-choice-code {
+  margin-left: auto;
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+
+.field-check-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-weight: 600;
+}
+
+.field-check-line input {
+  width: 18px;
+  height: 18px;
+}
+
+.field-other-label {
+  font-weight: 400;
+  font-size: 0.92rem;
+}
+
+/* Yes / No confirmation prompt */
+
+.field-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100001;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.field-confirm-overlay.is-visible {
+  display: flex;
+}
+
+.field-confirm {
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 18px;
+  padding: 28px 24px;
+  max-width: 86%;
+  text-align: center;
+  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.45);
+}
+
+.field-confirm-text {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.field-confirm-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.field-confirm-actions .field-button {
+  flex: 1;
+}
+
+
 /* Large near-full-screen patch picker (accessibility) */
 
 .field-patch-select { display: none; }
@@ -1206,4 +1310,141 @@ input[type="file"].field-input {
   background: #136aec;
   border: none;
   border-radius: 6px;
+}
+
+/* Desktop-only sidebar "back to menu" control. Hidden on phones (the bottom
+   bar handles navigation there); the desktop block below reveals it. */
+
+.field-sidebar-back {
+  display: none;
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  padding: 12px 14px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.field-sidebar-back:hover {
+  background: var(--accent-tint);
+}
+
+/* desktop layout ---------------------------------------------------------
+
+On wide screens the app opens straight to the map, and the menu (normally a
+full-screen overlay on phones) becomes a permanent left sidebar. The map fills
+the space to the right of the sidebar. Everything below is gated behind the
+breakpoint, so the phone layout is untouched. */
+
+@media (min-width: 900px) {
+  :root {
+    --field-sidebar-w: 300px;
+  }
+
+  /* Sidebar: always visible, docked to the left, full height. The .is-open
+     class no longer gates it -- it is a permanent panel here. */
+
+  .field-menu-overlay {
+    display: block;
+    top: 0;
+    left: 0;
+    right: auto;
+    bottom: 0;
+    width: var(--field-sidebar-w);
+    border-right: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    z-index: 1100;
+  }
+
+  /* A sub-page opens full-screen (covering the map), like the phone app; the
+     main menu stays as the narrow sidebar. The panel is centered with a
+     comfortable max width so forms don't stretch edge to edge. */
+
+  .field-menu-overlay.field-fullscreen {
+    width: 100%;
+    right: 0;
+    border-right: none;
+  }
+
+  .field-menu-overlay.field-fullscreen .field-menu-panel {
+    max-width: 760px;
+    margin: 0 auto;
+  }
+
+  /* Map fills the area to the right of the sidebar and above the bar. */
+
+  .leaflet-container,
+  .html-widget {
+    left: var(--field-sidebar-w) !important;
+  }
+
+  /* Bottom bar sits alongside the map (to the right of the sidebar). */
+
+  .field-menu-bar {
+    left: var(--field-sidebar-w);
+  }
+
+  /* The Menu / Map toggle buttons are meaningless with a permanent sidebar. */
+
+  .field-bar-menu-btn {
+    display: none !important;
+  }
+
+  /* Field-only actions aren't useful from a desktop browser -- hide their
+     tiles on the main menu. */
+
+  .field-screen[data-name="main"] .field-tile[data-screen="addwaypoint"],
+  .field-screen[data-name="main"] .field-tile[data-screen="tracks"],
+  .field-screen[data-name="main"] .field-tile[data-screen="concealment"] {
+    display: none;
+  }
+
+  /* Reveal the sidebar back-to-menu control on sub-screens (updateBar clears
+     field-hide when a sub-screen is active). */
+
+  .field-sidebar-back:not(.field-hide) {
+    display: block;
+  }
+
+  /* Main-menu tiles become a vertical list of icon + label rows. */
+
+  .field-screen[data-name="main"] .field-tilegrid {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    margin-top: 12px;
+  }
+
+  .field-screen[data-name="main"] .field-tile {
+    flex-direction: row;
+    justify-content: flex-start;
+    aspect-ratio: auto;
+    gap: 12px;
+    padding: 10px 12px;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .field-screen[data-name="main"] .field-tile .field-tile-icon {
+    position: static;
+    transform: none;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 auto;
+  }
+
+  .field-screen[data-name="main"] .field-tile-label {
+    text-align: left;
+    min-height: 0;
+    font-size: 0.95rem;
+  }
+
+  /* Tighter menu chrome to suit the narrow sidebar. */
+
+  .field-menu-panel {
+    padding: 14px 14px 20px;
+  }
 }
