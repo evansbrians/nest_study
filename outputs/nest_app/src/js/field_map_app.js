@@ -1439,8 +1439,26 @@
     }
 
     niBuildMap(nestId);
+
+    // "Add GPS point" only when the nest has no location yet.
+    var gpsBtn = document.getElementById("niAddGpsBtn");
+    if (gpsBtn) gpsBtn.style.display = niCoords(nestId) ? "none" : "";
+
     showScreen("nestinfo");
   };
+
+  var niModifyBtn = document.getElementById("niModifyBtn");
+  if (niModifyBtn) niModifyBtn.addEventListener("click", function () {
+    if (window.fieldOpenNestModify) window.fieldOpenNestModify(niCurrentNest);
+  });
+  var niAddIntervalBtn = document.getElementById("niAddIntervalBtn");
+  if (niAddIntervalBtn) niAddIntervalBtn.addEventListener("click", function () {
+    if (window.fieldAddInterval) window.fieldAddInterval(niCurrentNest);
+  });
+  var niAddGpsBtn = document.getElementById("niAddGpsBtn");
+  if (niAddGpsBtn) niAddGpsBtn.addEventListener("click", function () {
+    startNewNestPoint(niCurrentNest);
+  });
 
   if (niBarBack) niBarBack.addEventListener("click", function () { showScreen("nests"); });
   if (niBarMain) niBarMain.addEventListener("click", function () { showScreen("main"); });
@@ -1752,10 +1770,11 @@
       var arr = loadWaypoints();
       if (!arr.length) return;
       if (window.confirm("Clear cached waypoints? (Points still waiting to reach Drive are kept so they can upload when you reconnect.)")) {
-        // Keep still-pending points (visible, so they can still be uploaded);
-        // drop the already-uploaded ones and their markers.
-        var keep = arr.filter(isPending);
-        arr.forEach(function (w) { if (!isPending(w)) removeWaypointMarker(w.point_id); });
+        // Remove every cached waypoint's marker from the map. Still-pending
+        // points stay in the cache + the manager (off the map) so they can still
+        // upload.
+        arr.forEach(function (w) { removeWaypointMarker(w.point_id); });
+        var keep = arr.filter(isPending).map(function (w) { w.visible = false; return w; });
         storeWaypoints(keep);
         renderWaypoints();
         retryPendingUploads();

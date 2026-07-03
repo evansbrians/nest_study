@@ -42,7 +42,7 @@ it across the page.*/
 
   --accent: #136aec;            /* primary blue */
   --accent-tint: #e9f1fd;       /* light wash of the accent */
-  --bg: #e9efce;               /* light app background (the menu surface) */
+  --bg: #b9ceef;               /* light app background (the menu surface) */
   --surface: #ffffff;           /* cards, tiles, inputs */
   --text: #1c2024;              /* primary text */
   --text-muted: #5c6670;        /* secondary text */
@@ -1083,12 +1083,12 @@ input[type="file"].field-input {
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm, 8px);
-  background: var(--surface);
+  background: #aaddff;
   color: var(--text);
   cursor: pointer;
 }
 
-.field-nest-btn:hover { background: var(--accent-tint); }
+.field-nest-btn:hover { background: #93d0f5; }
 
 /* Nest info page */
 

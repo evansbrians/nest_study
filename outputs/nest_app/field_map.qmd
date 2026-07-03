@@ -758,6 +758,13 @@ cat(
       <div id="niMap" class="nest-info-map"></div>
       <ul id="niSummary" class="nest-info-summary"></ul>
 
+      <div class="field-waypoint-actions nest-info-actions">
+        <button type="button" id="niModifyBtn" class="field-button">Modify</button>
+        <button type="button" id="niAddIntervalBtn" class="field-button">Add interval</button>
+        <button type="button" id="niAddGpsBtn" class="field-button"
+                style="display:none;">Add GPS point</button>
+      </div>
+
       <button type="button" class="field-accordion" id="niIntervalToggle">
         <span class="field-accordion-caret">&#x25B8;</span> Interval checks
       </button>
