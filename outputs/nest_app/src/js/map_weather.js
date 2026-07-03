@@ -470,13 +470,13 @@ function(el, x) {
   }
 
   // Test patches (home testing): filtered by patch_id, not geometry. Their nests
-  // carry a test-site prefix (N-Snedgen_Park- / N-Long_Branch-) and are hidden
+  // carry a test-site prefix (NSP / NLB) and are hidden
   // from the "All patches" view.
 
   var TEST_PATCHES = { test_snedgen_park: true, test_long_branch: true };
   function isTestPatch(name) { return !!TEST_PATCHES[name]; }
   function isTestNestLayer(layer) {
-    return /^N-(Snedgen_Park|Long_Branch)-\d+$/.test(String(layer._nestId || ""));
+    return /^(NSP|NLB)\d+$/.test(String(layer._nestId || ""));
   }
 
   // Fixed home view for each test patch (they have no polygon to fit to).

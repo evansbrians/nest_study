@@ -107,8 +107,8 @@
 
   function defaultPatchForNest(nestId, lat, lng) {
     var id = String(nestId || "");
-    if (/Long_Branch/i.test(id)) return "long_branch";
-    if (/Snedgen_Park/i.test(id)) return "snedgen_park";
+    if (/^NLB\d/i.test(id)) return "long_branch";
+    if (/^NSP\d/i.test(id)) return "snedgen_park";
     return closestPatch(lat, lng, 1e9);
   }
 
@@ -627,7 +627,9 @@
 
     arr.push(wp);
     storeWaypoints(arr);
-    var isNestPoint = (wp.point_class === "Nest" && !!forNest);
+    // Every new Nest waypoint goes to the discovery form -- whether its id came
+    // from the Nests page (forNest) or was auto-named here (wp.point_name).
+    var isNestPoint = (wp.point_class === "Nest");
     if (wp.point_class === "Temp") {
       showUploadModal(wp.point_name + " added (temporary -- not saved).");
     } else {
@@ -649,7 +651,7 @@
     // note/photo captured there can be attached back to this waypoint.
 
     if (isNestPoint) {
-      openNestData(forNest, a.lat, a.lng, now, wp.point_id);
+      openNestData(wp.point_name, a.lat, a.lng, now, wp.point_id);
     } else {
 
       // Back to the map view (closeMenu also stops the GPS averaging watch).

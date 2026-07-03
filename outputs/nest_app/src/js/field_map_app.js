@@ -532,8 +532,8 @@
   // field nest. Keeps numbering behaviour identical at home and in the field.
 
   var NEST_SITES = [
-    { prefix: "N-Snedgen_Park-", lat: 38.799230, lng: -77.632596 },
-    { prefix: "N-Long_Branch-",  lat: 38.995412, lng: -76.999844 }
+    { prefix: "NSP", lat: 38.799230, lng: -77.632596 },
+    { prefix: "NLB", lat: 38.995412, lng: -76.999844 }
   ];
   var NEST_SITE_RADIUS = 10000;
 
@@ -819,7 +819,7 @@
   function escapeRegex(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 
   // Numbers already used within one prefix's namespace ("N" for field nests,
-  // "N-Snedgen_Park-" / "N-Long_Branch-" for the test sites) -- from the baked-in
+  // "NSP" / "NLB" for the test sites) -- from the baked-in
   // map data, this device's saved nests, and any live IDs from the relay.
 
   function usedNestNumbers(prefix, liveIds) {
@@ -1397,8 +1397,8 @@
   var liveNestCoords = {};   // nest_id -> { lat, lng } from the relay
 
   function testPatchForName(nm) {
-    if (/^N-Snedgen_Park-\d+$/.test(nm)) return "test_snedgen_park";
-    if (/^N-Long_Branch-\d+$/.test(nm)) return "test_long_branch";
+    if (/^NSP\d+$/.test(nm)) return "test_snedgen_park";
+    if (/^NLB\d+$/.test(nm)) return "test_long_branch";
     return null;
   }
 
