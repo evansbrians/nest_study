@@ -116,12 +116,27 @@ push_schedule <-
     
     # Get existing schedule data:
     
-    existing <- 
-      tryCatch(
-        read_rds(path), 
-        error = function(e) NULL
+    existing <-
+      if (file.exists(path)) {
+        read_rds(path)
+      } else {
+        NULL
+      }
+
+    # Skip a repeat run for the same day:
+
+    if (
+      !is.null(existing) &&
+      as_date(.from_date) %in% existing$from_date
+    ) {
+      message(
+        "Schedule push already recorded for ",
+        as_date(.from_date),
+        "; no change."
       )
-    
+      return(invisible(existing))
+    }
+
     # Define the new row(s) to add to the existing data:
     
     new_row <-

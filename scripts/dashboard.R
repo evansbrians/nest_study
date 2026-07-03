@@ -9,6 +9,11 @@ library(tidyverse)
 
 system("git pull")
 
+source(
+  here("scripts/utils/functions/time_and_date_functions.R"
+)
+)
+
 # download data points from garmin ----------------------------------------
 
 # This is just a fail safe in case you are still using the Garmin:
@@ -16,6 +21,12 @@ system("git pull")
 source("scripts/spatial/convert_gpx_geojson.R")
 
 # download and pre-process field data and process outputs -----------------
+
+# Weather woes:
+
+push_schedule(
+  today()
+) 
 
 source("scripts/utils/updater.R")
 
