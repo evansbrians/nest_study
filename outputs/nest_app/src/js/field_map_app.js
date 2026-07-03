@@ -1187,7 +1187,11 @@
 
   function renderWaypoints() {
     if (!listEl) return;
-    var arr = loadWaypoints().filter(function (w) { return !w.uploaded && !w.cleared; });
+    var arr = loadWaypoints().filter(function (w) {
+      if (w.uploaded) return false;   // already on Drive
+      if (isPending(w)) return true;  // not on Drive yet -- always show so it can be uploaded
+      return !w.cleared;              // Temp points drop out once cleared
+    });
     listEl.innerHTML = "";
 
     if (!arr.length) {
@@ -1747,13 +1751,14 @@
     clearBtn.addEventListener("click", function () {
       var arr = loadWaypoints();
       if (!arr.length) return;
-      if (window.confirm("Clear cached waypoints? (Points still waiting to reach Drive are kept and sent when you reconnect.)")) {
-        arr.forEach(function (w) { removeWaypointMarker(w.point_id); });
-        // Keep still-pending points (drop them from the view only); clear the rest.
+      if (window.confirm("Clear cached waypoints? (Points still waiting to reach Drive are kept so they can upload when you reconnect.)")) {
+        // Keep still-pending points (visible, so they can still be uploaded);
+        // drop the already-uploaded ones and their markers.
         var keep = arr.filter(isPending);
-        keep.forEach(function (w) { w.cleared = true; });
+        arr.forEach(function (w) { if (!isPending(w)) removeWaypointMarker(w.point_id); });
         storeWaypoints(keep);
         renderWaypoints();
+        retryPendingUploads();
       }
     });
   }
