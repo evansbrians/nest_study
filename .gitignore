@@ -63,3 +63,7 @@ tara_sandbox/
 
 .secrets/
 service_account.json
+
+/recycling/
+outputs/nest_app/offline_tiles/
+outputs/app_testing/offline_tiles/
