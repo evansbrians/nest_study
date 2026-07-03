@@ -1346,6 +1346,49 @@
     showScreen("nests");
   });
 
+  // The four Modify sub-menu actions.
+
+  var nmAddInt = document.getElementById("nmAddInterval");
+  if (nmAddInt) nmAddInt.addEventListener("click", function () {
+    openIntervalData({ nestId: modifyNestId, mode: "add" });
+  });
+  var nmModInt = document.getElementById("nmModifyInterval");
+  if (nmModInt) nmModInt.addEventListener("click", function () {
+    modifyIntervalPick(modifyNestId);
+  });
+  var nmModDisc = document.getElementById("nmModifyDiscovery");
+  if (nmModDisc) nmModDisc.addEventListener("click", function () {
+    modifyDiscovery(modifyNestId);
+  });
+  var nmModWp = document.getElementById("nmModifyWaypoint");
+  if (nmModWp) nmModWp.addEventListener("click", function () {
+    if (window.fieldModifyNavPoint) window.fieldModifyNavPoint(modifyNestId);
+  });
+
+  // Delete buttons on the discovery + interval forms (edit mode only).
+
+  var ndDeleteBtn = document.getElementById("ndDeleteBtn");
+  if (ndDeleteBtn) ndDeleteBtn.addEventListener("click", function () {
+    if (!nestDataCtx || nestDataCtx.mode !== "edit") return;
+    if (!window.confirm("Delete this nest's discovery row from the sheet?")) return;
+    var st = document.getElementById("nestDataStatus");
+    if (st) st.textContent = "Deleting…";
+    deleteSheetRow("nest_level", nestDataCtx.sheetRow,
+      function () { showUploadModal("Nest data deleted."); closeMenu(); },
+      function (msg) { if (st) st.textContent = msg; });
+  });
+
+  var intervalDeleteBtn = document.getElementById("intervalDeleteBtn");
+  if (intervalDeleteBtn) intervalDeleteBtn.addEventListener("click", function () {
+    if (!intervalCtx || intervalCtx.mode !== "edit") return;
+    if (!window.confirm("Delete this interval check from the sheet?")) return;
+    var st = document.getElementById("intervalStatus");
+    if (st) st.textContent = "Deleting…";
+    deleteSheetRow("interval_level", intervalCtx.sheetRow,
+      function () { showUploadModal("Interval check deleted."); closeMenu(); },
+      function (msg) { if (st) st.textContent = msg; });
+  });
+
   // Test nests created in the app go straight to Drive; the (server-rendered)
   // Nests page won't include them until the pipeline ingests them. Inject them
   // into their test-patch group client-side from the live Drive list (with

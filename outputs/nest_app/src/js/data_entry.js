@@ -162,13 +162,14 @@
   }
 
   function openNestData(nestId, lat, lng, date, pointId) {
-    nestDataCtx = { nestId: nestId, lat: lat, lng: lng, date: date, pointId: pointId };
+    nestDataCtx = { nestId: nestId, lat: lat, lng: lng, date: date, pointId: pointId, mode: "add" };
     buildNestChoices();
     resetNestFields();
     ndEl("ndNestId").textContent = nestId;
     ndEl("ndGpsPoint").textContent = nestId;
     ndEl("ndDiscoveryDate").textContent = isoClean(date).slice(0, 10);
     fillNestPatchOptions(defaultPatchForNest(nestId, lat, lng));
+    toggleNestEditChrome(false);
     showScreen("nestdata");
   }
 
@@ -196,7 +197,7 @@
       nest_id: nestDataCtx ? nestDataCtx.nestId : null,
       species: species || null,
       patch_id: ndEl("ndPatchId").value,
-      discovery_date: nestDataCtx ? isoClean(nestDataCtx.date).slice(0, 10) : null,
+      discovery_date: nestDataCtx ? (typeof nestDataCtx.date === "string" ? nestDataCtx.date.slice(0, 10) : isoClean(nestDataCtx.date).slice(0, 10)) : null,
       discovery_stage: ndEl("ndDiscoveryStage").value || null,
       selfie_stick: ndEl("ndSelfieStick").checked,
       artificial_candidate: ndEl("ndArtificialCandidate").checked,
@@ -210,29 +211,7 @@
   }
 
   function uploadNestRow(row, onSuccess, onError) {
-    if (!WP_SYNC.relayUrl || WP_SYNC.relayUrl.indexOf("PASTE") === 0) {
-      if (onError) onError("Sheet sync isn't set up yet.");
-      return;
-    }
-    if (!navigator.onLine) {
-      if (onError) onError("No signal — nest data not sent. Reconnect, then Save again.");
-      return;
-    }
-    fetch(WP_SYNC.relayUrl, {
-      method: "POST",
-      mode: "no-cors",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({
-        secret: WP_SYNC.secret,
-        study: WP_SYNC.study,
-        action: "nest_row",
-        row: row
-      })
-    }).then(function () {
-      if (onSuccess) onSuccess();
-    }).catch(function () {
-      if (onError) onError("Send failed — try Save again.");
-    });
+    relayPost({ action: "nest_row", row: row }, onSuccess, onError);
   }
 
   function saveNestData() {
@@ -244,6 +223,15 @@
     }
     if (status) status.textContent = "Saving nest data…";
     if (window.console && console.log) console.log("[nest_level row]", rec);
+
+    // Edit mode: overwrite the existing sheet row and return to the map.
+
+    if (nestDataCtx && nestDataCtx.mode === "edit") {
+      updateSheetRow("nest_level", nestDataCtx.sheetRow, rec,
+        function () { showUploadModal("Nest data updated for " + rec.nest_id + "."); closeMenu(); },
+        function (msg) { if (status) status.textContent = msg; });
+      return;
+    }
 
     // The form stays open on failure so the record isn't lost -- Tara can Save
     // again once there's signal.
@@ -333,48 +321,57 @@
     var pad = function (n) { return (n < 10 ? "0" : "") + n; };
     var dateStr = now.getFullYear() + "-" + pad(now.getMonth() + 1) + "-" + pad(now.getDate());
     var timeStr = pad(now.getHours()) + ":" + pad(now.getMinutes());
-    intervalCtx = { nestId: opts.nestId, date: dateStr, mode: mode };
+    intervalCtx = { nestId: opts.nestId, date: dateStr, mode: mode, sheetRow: null };
     resetIntervalFields();
     ivEl("ivNestId").textContent = opts.nestId || "--";
     ivEl("ivDate").textContent = dateStr;
     ivEl("ivTime").textContent = timeStr;
     intervalCtx.time = timeStr;
     applyIntervalState();
+    toggleIntervalEditChrome(false);
     showScreen("intervaldata");
   }
 
   function collectIntervalRecord() {
     var active = ivState() === "Active";
-    var rec = {
+    var adult = active ? ivEl("ivAdultPresent").value : "";
+
+    // Always include every interval_level column (blank when Empty) so an
+    // update fully overwrites the row -- e.g. switching Active -> Empty clears
+    // the adult/egg fields rather than leaving stale values behind.
+
+    return {
       nest_id: intervalCtx ? intervalCtx.nestId : null,
       date: intervalCtx ? intervalCtx.date : null,
       time: intervalCtx ? intervalCtx.time : null,
-      current_state: ivState()
+      current_state: ivState(),
+      adult_present: active ? adult : "",
+      adult_activity: (active && adult !== "N") ? ivEl("ivAdultActivity").value : "",
+      host_eggs: active ? Number(ivEl("ivHostEggs").value) : "",
+      host_young: active ? Number(ivEl("ivHostYoung").value) : "",
+      bhco_eggs: active ? Number(ivEl("ivBhcoEggs").value) : "",
+      bhco_young: active ? Number(ivEl("ivBhcoYoung").value) : "",
+      nest_status: active ? ivEl("ivNestStatus").value : "",
+      young_status: active ? ivEl("ivYoungStatus").value : "",
+      observer: active ? ivEl("ivObserverActive").value : ivEl("ivObserver").value,
+      notes: (active ? ivEl("ivNotesActive").value : ivEl("ivNotes").value).trim()
     };
-    if (active) {
-      var adult = ivEl("ivAdultPresent").value;
-      rec.adult_present = adult;
-      rec.adult_activity = (adult !== "N") ? ivEl("ivAdultActivity").value : "";
-      rec.host_eggs = Number(ivEl("ivHostEggs").value);
-      rec.host_young = Number(ivEl("ivHostYoung").value);
-      rec.bhco_eggs = Number(ivEl("ivBhcoEggs").value);
-      rec.bhco_young = Number(ivEl("ivBhcoYoung").value);
-      rec.nest_status = ivEl("ivNestStatus").value;
-      rec.young_status = ivEl("ivYoungStatus").value;
-      rec.observer = ivEl("ivObserverActive").value;
-      rec.notes = ivEl("ivNotesActive").value.trim();
-    } else {
-      rec.observer = ivEl("ivObserver").value;
-      rec.notes = ivEl("ivNotes").value.trim();
-    }
-    return rec;
   }
 
   function saveIntervalData() {
     var rec = collectIntervalRecord();
+    var status = ivEl("intervalStatus");
+    if (status) status.textContent = "Saving…";
     if (window.console && console.log) console.log("[interval_level row]", rec);
-    showUploadModal("Interval check saved for " + intervalCtx.nestId + ".");
-    closeMenu();
+    if (intervalCtx && intervalCtx.mode === "edit") {
+      updateSheetRow("interval_level", intervalCtx.sheetRow, rec,
+        function () { showUploadModal("Interval check updated."); closeMenu(); },
+        function (msg) { if (status) status.textContent = msg; });
+      return;
+    }
+    uploadIntervalRow(rec,
+      function () { showUploadModal("Interval check saved for " + intervalCtx.nestId + "."); closeMenu(); },
+      function (msg) { if (status) status.textContent = msg; });
   }
 
   function showNestDataPrompt(onYes, onNo) {
@@ -677,4 +674,264 @@
     if (modifyControls) modifyControls.hidden = true;
     refreshAddColorRow();
     syncNotedPhotoFields();
+  }
+
+  // ---- Sheet CRUD via the Apps Script relay -----------------------------
+
+  function relayPost(payload, onSuccess, onError) {
+    if (!WP_SYNC.relayUrl || WP_SYNC.relayUrl.indexOf("PASTE") === 0) {
+      if (onError) onError("Sheet sync isn't set up yet.");
+      return;
+    }
+    if (!navigator.onLine) {
+      if (onError) onError("No signal — reconnect, then try again.");
+      return;
+    }
+    payload.secret = WP_SYNC.secret;
+    payload.study = WP_SYNC.study;
+    fetch(WP_SYNC.relayUrl, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    }).then(function () {
+      if (onSuccess) onSuccess();
+    }).catch(function () {
+      if (onError) onError("Send failed — try again.");
+    });
+  }
+
+  function uploadIntervalRow(row, onSuccess, onError) {
+    relayPost({ action: "interval_row", row: row }, onSuccess, onError);
+  }
+
+  function updateSheetRow(sheet, rowNum, values, onSuccess, onError) {
+    relayPost({ action: "update_row", sheet: sheet, row: rowNum, values: values }, onSuccess, onError);
+  }
+
+  function deleteSheetRow(sheet, rowNum, onSuccess, onError) {
+    relayPost({ action: "delete_row", sheet: sheet, row: rowNum }, onSuccess, onError);
+  }
+
+  // Live read of a nest's discovery row + interval rows (each with its sheet
+  // row number) over the no-cors JSONP channel, mirroring fetchLiveNestIds.
+
+  function fetchNestDetail(nestId, cb) {
+    if (!WP_SYNC.relayUrl || WP_SYNC.relayUrl.indexOf("PASTE") === 0 || !navigator.onLine) {
+      cb(null); return;
+    }
+    var name = "__nestDetail_" + Date.now();
+    var s = document.createElement("script");
+    var done = false;
+    function settle() { if (s.parentNode) s.parentNode.removeChild(s); }
+    window[name] = function (data) {
+      if (done) return;
+      done = true;
+      settle();
+      try { cb(data); } finally { try { delete window[name]; } catch (e) { window[name] = undefined; } }
+    };
+    setTimeout(function () { if (!done) { done = true; settle(); cb(null); } }, 12000);
+    s.onerror = function () { if (!done) { done = true; settle(); cb(null); } };
+    s.src = WP_SYNC.relayUrl + "?action=nest_detail&secret=" + encodeURIComponent(WP_SYNC.secret) +
+      "&study=" + encodeURIComponent(WP_SYNC.study) +
+      "&nest_id=" + encodeURIComponent(nestId) + "&callback=" + name;
+    document.body.appendChild(s);
+  }
+
+  function sheetTruthy(v) {
+    return v === true || v === 1 || v === "1" ||
+      (typeof v === "string" && v.toLowerCase() === "true");
+  }
+  function numText(v) { return (v == null || v === "") ? "0" : String(v); }
+
+  // Lightweight busy overlay (reuses the confirm-overlay styling).
+
+  function showBusy(msg) {
+    var ov = document.getElementById("fieldBusy");
+    if (!ov) {
+      ov = document.createElement("div");
+      ov.id = "fieldBusy";
+      ov.className = "field-confirm-overlay";
+      var box = document.createElement("div");
+      box.className = "field-confirm";
+      var t = document.createElement("div");
+      t.className = "field-confirm-text";
+      box.appendChild(t);
+      ov.appendChild(box);
+      document.body.appendChild(ov);
+      ov._t = t;
+    }
+    ov._t.textContent = msg || "Working…";
+    ov.classList.add("is-visible");
+  }
+  function hideBusy() {
+    var ov = document.getElementById("fieldBusy");
+    if (ov) ov.classList.remove("is-visible");
+  }
+
+  // ---- Modify entry points (from the nest Modify sub-menu) ---------------
+
+  function modifyDiscovery(nestId) {
+    showBusy("Loading nest data…");
+    fetchNestDetail(nestId, function (detail) {
+      hideBusy();
+      if (!detail) { showUploadModal("Couldn't load nest data — check signal."); return; }
+      if (!detail.discovery) { showUploadModal("No discovery row yet for " + nestId + "."); return; }
+      openNestDataEdit(nestId, detail.discovery.data, detail.discovery.row);
+    });
+  }
+
+  function modifyIntervalPick(nestId) {
+    showBusy("Loading interval checks…");
+    fetchNestDetail(nestId, function (detail) {
+      hideBusy();
+      if (!detail) { showUploadModal("Couldn't load — check signal."); return; }
+      var list = detail.intervals || [];
+      if (!list.length) { showUploadModal("No interval checks yet for " + nestId + "."); return; }
+      openIntervalPicker(nestId, list);
+    });
+  }
+
+  function openIntervalPicker(nestId, list) {
+    var overlay = document.createElement("div");
+    overlay.className = "field-patch-overlay";
+    var inner = document.createElement("div");
+    inner.className = "field-patch-overlay-inner";
+    var t = document.createElement("div");
+    t.className = "field-patch-overlay-title";
+    t.textContent = "Which check to modify?";
+    inner.appendChild(t);
+    function close() { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); }
+    list.forEach(function (item) {
+      var row = document.createElement("button");
+      row.type = "button";
+      row.className = "field-patch-overlay-row";
+      var d = item.data || {};
+      row.textContent = (d.date || "?") + "  " + (d.time || "");
+      row.addEventListener("click", function () {
+        close();
+        openIntervalDataEdit(nestId, item.data, item.row);
+      });
+      inner.appendChild(row);
+    });
+    overlay.appendChild(inner);
+    overlay.addEventListener("click", function (e) { if (e.target === overlay) close(); });
+    document.body.appendChild(overlay);
+  }
+
+  // ---- Discovery: edit-mode open + pre-fill -----------------------------
+
+  function toggleNestEditChrome(isEdit) {
+    var wp = ndEl("ndWaypointFields");
+    if (wp) wp.style.display = isEdit ? "none" : "";
+    var del = ndEl("ndDeleteBtn");
+    if (del) del.style.display = isEdit ? "" : "none";
+    var save = ndEl("nestDataSaveBtn");
+    if (save) save.textContent = isEdit ? "Update nest data" : "Save nest data";
+  }
+
+  function fillNestForm(data) {
+    data = data || {};
+    var sp = ndEl("ndSpecies");
+    var spVal = (data.species != null) ? String(data.species) : "";
+    if (sp) {
+      var known = false;
+      Array.prototype.forEach.call(sp.options, function (o) { if (o.value === spVal) known = true; });
+      if (spVal && known) sp.value = spVal;
+      else if (spVal) { sp.value = "__other__"; ndEl("ndSpeciesOther").value = spVal; }
+      else sp.selectedIndex = 0;
+    }
+    fillNestPatchOptions(data.patch_id || "patch-none");
+    ndEl("ndDiscoveryStage").value = data.discovery_stage || "";
+    ndEl("ndSelfieStick").checked = sheetTruthy(data.selfie_stick);
+    ndEl("ndArtificialCandidate").checked = sheetTruthy(data.artificial_candidate);
+    var cam = (String(data.camera_or_control || "Control") === "Camera") ? "Camera" : "Control";
+    ndEl("ndCameraOrControl").value = cam;
+    ndEl("ndCameraDeploymentDate").value =
+      data.camera_deployment_date ? String(data.camera_deployment_date).slice(0, 10) : "";
+    ndEl("ndCameraDateWrap").style.display = (cam === "Camera") ? "" : "none";
+    ndEl("ndHeight").value = (data.height != null && data.height !== "") ? String(data.height) : "";
+    var su = ndEl("ndSubstrate");
+    var subs = String(data.substrate || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+    var others = [];
+    if (su) {
+      Array.prototype.forEach.call(su.options, function (o) { o.selected = false; });
+      subs.forEach(function (nm) {
+        var matched = false;
+        Array.prototype.forEach.call(su.options, function (o) { if (o.value === nm) { o.selected = true; matched = true; } });
+        if (!matched) others.push(nm);
+      });
+      if (others.length) {
+        Array.prototype.forEach.call(su.options, function (o) { if (o.value === "__other__") o.selected = true; });
+        ndEl("ndSubstrateOther").value = others.join(", ");
+      }
+    }
+    ndEl("ndLocationDescription").value = data.location_description || "";
+    syncNestOther();
+    pickerLabel(ndEl("ndSpecies"), ndEl("ndSpeciesBtn"), "Choose species", false);
+    pickerLabel(ndEl("ndSubstrate"), ndEl("ndSubstrateBtn"), "Choose substrate", true);
+    pickerLabel(ndEl("ndDiscoveryStage"), ndEl("ndDiscoveryStageBtn"), "— select —", false);
+    pickerLabel(ndEl("ndCameraOrControl"), ndEl("ndCameraOrControlBtn"), "Control", false);
+  }
+
+  function openNestDataEdit(nestId, data, row) {
+    nestDataCtx = { nestId: nestId, mode: "edit", sheetRow: row, date: (data && data.discovery_date) || null };
+    buildNestChoices();
+    resetNestFields();
+    ndEl("ndNestId").textContent = nestId;
+    ndEl("ndGpsPoint").textContent = (data && data.gps_point) || nestId;
+    ndEl("ndDiscoveryDate").textContent =
+      (data && data.discovery_date) ? String(data.discovery_date).slice(0, 10) : "--";
+    fillNestForm(data);
+    toggleNestEditChrome(true);
+    showScreen("nestdata");
+  }
+
+  // ---- Interval: edit-mode open + pre-fill ------------------------------
+
+  function toggleIntervalEditChrome(isEdit) {
+    var del = ivEl("intervalDeleteBtn");
+    if (del) del.style.display = isEdit ? "" : "none";
+    var save = ivEl("intervalSaveBtn");
+    if (save) save.textContent = isEdit ? "Update interval data" : "Save interval data";
+  }
+
+  function fillIntervalForm(data) {
+    data = data || {};
+    var active = !!(data.adult_present || data.nest_status || data.young_status ||
+      (data.host_eggs != null && data.host_eggs !== ""));
+    var radios = overlay.querySelectorAll('input[name="ivCurrentState"]');
+    for (var i = 0; i < radios.length; i++) {
+      radios[i].checked = (radios[i].value === (active ? "Active" : "Empty"));
+    }
+    if (active) {
+      ivEl("ivAdultPresent").value = data.adult_present || "N";
+      ivEl("ivAdultActivity").value = data.adult_activity || "BC";
+      ivEl("ivHostEggs").value = numText(data.host_eggs);
+      ivEl("ivHostYoung").value = numText(data.host_young);
+      ivEl("ivBhcoEggs").value = numText(data.bhco_eggs);
+      ivEl("ivBhcoYoung").value = numText(data.bhco_young);
+      ivEl("ivNestStatus").value = data.nest_status || "IN";
+      ivEl("ivYoungStatus").value = data.young_status || "NO";
+      ivEl("ivObserverActive").value = data.observer || "TNS";
+      ivEl("ivNotesActive").value = data.notes || "";
+    } else {
+      ivEl("ivObserver").value = data.observer || "TNS";
+      ivEl("ivNotes").value = data.notes || "";
+    }
+    applyIntervalState();
+  }
+
+  function openIntervalDataEdit(nestId, data, row) {
+    intervalCtx = {
+      nestId: nestId, mode: "edit", sheetRow: row,
+      date: (data && data.date) || null, time: (data && data.time) || null
+    };
+    resetIntervalFields();
+    ivEl("ivNestId").textContent = nestId;
+    ivEl("ivDate").textContent = (data && data.date) || "--";
+    ivEl("ivTime").textContent = (data && data.time) || "--";
+    fillIntervalForm(data);
+    toggleIntervalEditChrome(true);
+    showScreen("intervaldata");
   }

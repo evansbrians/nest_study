@@ -405,20 +405,28 @@ map_tracking
                   placeholder="Describe how to find this nest"></textarea>
       </label>
 
-      <label class="field-field-label">Note
-        <textarea id="ndNote" class="field-input" rows="3"
-                  placeholder="Other notes"></textarea>
-      </label>
+      <!-- Note + Photo belong to the waypoint (add flow); hidden when editing an
+           existing nest's discovery row. -->
+      <div id="ndWaypointFields">
+        <label class="field-field-label">Note
+          <textarea id="ndNote" class="field-input" rows="3"
+                    placeholder="Other notes"></textarea>
+        </label>
 
-      <label class="field-field-label">Photo
-        <!-- No `capture` attribute: the OS offers Take Photo *or* Choose File. -->
-        <input type="file" id="ndPhoto" class="field-input" accept="image/*">
-      </label>
-      <div id="ndPhotoPreview" class="field-photo-preview"></div>
+        <label class="field-field-label">Photo
+          <!-- No `capture` attribute: the OS offers Take Photo *or* Choose File. -->
+          <input type="file" id="ndPhoto" class="field-input" accept="image/*">
+        </label>
+        <div id="ndPhotoPreview" class="field-photo-preview"></div>
+      </div>
 
       <div class="field-waypoint-actions">
         <button type="button" id="nestDataSaveBtn" class="field-button">
           Save nest data
+        </button>
+        <button type="button" id="ndDeleteBtn"
+                class="field-button field-button--danger" style="display:none;">
+          Delete nest data
         </button>
         <button type="button" id="nestDataCancelBtn"
                 class="field-button field-button--danger">
@@ -542,6 +550,10 @@ map_tracking
       <div class="field-waypoint-actions">
         <button type="button" id="intervalSaveBtn" class="field-button">
           Save interval data
+        </button>
+        <button type="button" id="intervalDeleteBtn"
+                class="field-button field-button--danger" style="display:none;">
+          Delete check
         </button>
         <button type="button" id="intervalCancelBtn"
                 class="field-button field-button--danger">
