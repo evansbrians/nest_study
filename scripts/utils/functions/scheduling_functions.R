@@ -188,7 +188,11 @@ prep_schedule_data <-
           c(check_nests, predator_cameras),
           ~ replace_na(as.character(.x), "-")
         )
-      )
+      ) %>%
+
+      # Slide any weather-cancelled days forward for the affected week.
+
+      apply_schedule_push()
   }
 
 # Blank or missing values become a dash:

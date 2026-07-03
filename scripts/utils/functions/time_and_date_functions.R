@@ -97,6 +97,110 @@ get_sampling_week <-
     ) - .week_offset
   }
 
+# weather push-back -------------------------------------------------------
+
+# Record a weather cancellation: from .from_date, everything through that
+# week's Sunday slides forward .days day(s). Stackable (two rained-out days in a
+# week = two rows). Appends to data/schedule_pushes.rds.
+
+push_schedule <-
+  function(
+    .from_date, 
+    .days = 1,
+    .outpath = "data/schedule_pushes.rds"
+  ) {
+    
+    # Define the read and write path:
+    
+    path <- here::here(.outpath)
+    
+    # Get existing schedule data:
+    
+    existing <- 
+      tryCatch(
+        read_rds(path), 
+        error = function(e) NULL
+      )
+    
+    # Define the new row(s) to add to the existing data:
+    
+    new_row <-
+      tibble(
+        from_date = as_date(.from_date),
+        days = as.integer(.days)
+      )
+    
+    # Define output:
+    
+    out <-
+      if (is.null(existing)) {
+        new_row
+      } else {
+        bind_rows(existing, new_row)
+      }
+    
+    # Write to file:
+    
+    write_rds(out, path)
+    
+    # Send a message:
+    
+    message(
+      "Recorded schedule push: from ", 
+      as_date(.from_date),
+      " by ", .days,
+      " day(s)."
+    )
+    invisible(out)
+  }
+
+# Apply recorded pushes to the schedule table:
+
+apply_schedule_push <-
+  function(
+    .data, 
+    .date_col = "date",
+    .outpath = "data/schedule_pushes.rds"
+  ) {
+    if (
+      !.date_col %in% names(.data) || 
+      nrow(.data) == 0
+    ) return(.data)
+    
+    pushes <-
+      tryCatch(
+        read_rds(
+          here::here("data/schedule_pushes.rds")
+        ),
+        error = function(e) NULL
+      )
+    
+    if (
+      is.null(pushes) || 
+      nrow(pushes) == 0
+    ) return(.data)
+    
+    pushes <-
+      pushes %>%
+      mutate(
+        from_date = as_date(from_date),
+        days = as.integer(days),
+        week_end = from_date + (7 - wday(from_date, week_start = 1))
+      )
+
+    # Non-equi join each date to the push window that covers it (windows are
+    # disjoint across weeks, so at most one matches), then add that shift.
+
+    .data %>%
+      mutate(.push_date = as_date(.data[[.date_col]])) %>%
+      left_join(
+        pushes,
+        join_by(between(.push_date, from_date, week_end))
+      ) %>%
+      mutate("{.date_col}" := .push_date + coalesce(days, 0L)) %>%
+      select(!c(.push_date, from_date, days, week_end))
+  }
+
 # easy-to-read date ranges ------------------------------------------------
 
 pretty_date_range <-

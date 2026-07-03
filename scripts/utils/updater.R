@@ -70,272 +70,6 @@ schedule <-
 
 # field_data --------------------------------------------------------------
 
-## gps points -------------------------------------------------------------
-
-# Make a template for each point file:
-
-point_template <-
-  st_sf(
-    point_id = character(),
-    name = character(),
-    datetime = ymd_hms(tz = "America/New_York"),
-    elevation = double(),
-    bearing = double(),
-    accuracy = double(),
-    photo_name = character(),
-    photo = character(),
-    note = character(),
-    geometry = st_sfc(crs = 4326)
-  )
-
-class_template <-
-  point_template %>% 
-  mutate(point_class = character()) %>% 
-  select(point_class, everything())
-
-rbind_sf <- 
-  function(.lst) {
-    .lst <- keep(.lst, \ (.x) nrow(.x) > 0)
-    if (length(.lst) == 0) {
-      class_template
-    } else {
-      reduce(.lst, rbind)
-    }
-  }
-
-# Get current point files (if they exist):
-
-spatial_points <- 
-  list(
-    "nest",
-    "coverboard",
-    "trailcam",
-    "point_count",
-    "landmark",
-    "path_crossing",
-    "boundary",
-    "other"
-  ) %>% 
-  set_names(.) %>% 
-  map(
-    \ (.point_class) {
-      
-      url <-
-        file.path(
-          "data/spatial",
-          str_c(.point_class, "_locations.geojson")
-        )
-      
-      if (file.exists(url)) {
-        st_read(url, quiet = TRUE) %>% 
-          
-          # Ensure the CRS is 4326:
-          
-          st_transform(4326) %>% 
-          
-          # Conform to the template:
-          
-          mutate(
-            across(
-              matches("elevation|bearing|accuracy"),
-              ~ as.numeric(.x)
-            ),
-            across(
-              any_of("datetime"),
-              ~ as_datetime(.x)
-            )
-          ) %>% 
-          bind_rows(point_template, .)
-      } else {
-        point_template
-      }
-    }
-  )
-
-# Collect gps points from Google Drive:
-
-# List the new point files (with their Drive ids) so we can archive them after
-# a clean ingest:
-
-point_files <-
-  list("individual_points", "bundled_points") %>%
-  set_names(.) %>%
-  map(
-    \ (.subfolder) {
-      scbi_point_folders %>%
-        filter(name == .subfolder) %>%
-        drive_ls() %>%
-        filter(
-          str_detect(name, "geojson$")
-        )
-    }
-  )
-
-# Download and pre-process each file:
-
-new_points <-
-  point_files %>%
-  map(
-    \ (.files) {
-      .files %>%
-        pull(id) %>%
-        map(
-          \ (.id) {
-            
-            # Define a temporary write path:
-            
-            .path <- tempfile(fileext = ".geojson")
-            
-            # Download the file to temp:
-            
-            drive_download(
-              as_id(.id), 
-              path = .path, 
-              overwrite = TRUE
-            )
-            
-            # Read in the file and pre-process:
-            
-            st_read(.path, quiet = TRUE) %>% 
-              st_transform(4326) %>% 
-              rename_with(
-                ~ "accuracy", 
-                any_of("horizontal_accuracy")
-              ) %>% 
-              mutate(
-                
-                # Numeric class columns:
-                
-                across(
-                  matches("elevation|bearing|accuracy"),
-                  ~ as.numeric(.x)
-                )
-              ) %>% 
-              bind_rows(point_template, .) %>% 
-              mutate(
-                datetime = 
-                  force_tz(
-                    as_datetime(time), 
-                    "America/New_York"
-                  ),
-                
-                # Snake case except for point_names of nests:
-                
-                across(
-                  c(point_class, photo_name),
-                  ~ tolower(.x) %>% 
-                    str_to_snake()
-                ),
-                name =
-                  if_else(
-                    str_detect(as.character(point_name), "^N"),
-                    as.character(point_name),
-                    str_to_snake(as.character(point_name))
-                  )
-              ) %>% 
-              
-              # Align with template:
-              
-              select(
-                point_class,
-                all_of(
-                  names(point_template)
-                )
-              )
-          }
-        ) %>%
-        rbind_sf()
-    }
-  ) %>% 
-  
-  # Combine both sets of files and keep the newest upload per point (so a
-  # re-averaged / edited point wins even if the original hasn't been ingested):
-  
-  rbind_sf() %>%
-  arrange(desc(datetime)) %>%
-  distinct(point_id, .keep_all = TRUE) %>%
-  
-  # Split by point_class:
-  
-  split(.$point_class)
-
-# Combine previous and new points:
-
-new_points %>%
-  
-  # Subset to items with at least one row:
-  
-  keep(
-    ~ !is.null(.x) && nrow(.x) > 0
-  ) %>% 
-  iwalk(
-    \ (.x, .name) {
-      
-      # Define the path:
-      
-      url <- 
-        str_c(.name, "_locations.geojson") %>% 
-        file.path("data/spatial", .)
-      
-      # New and updated points (drop the non-spatial class column):
-      
-      new_rows <-
-        .x %>%
-        select(!point_class) %>%
-        st_zm(drop = TRUE, what = "ZM")
-      
-      # Upsert by point_id: keep existing points that are not being updated,
-      # add the new and updated points, then overwrite the file:
-      
-      spatial_points[[.name]] %>%
-        st_zm(drop = TRUE, what = "ZM") %>%
-        filter(!point_id %in% new_rows$point_id) %>%
-        rbind(new_rows) %>%
-        mutate(
-          name =
-            case_when(
-              str_detect(name, "^(N|n_)") ~ str_replace(name, "^(N|n_)", "N"),
-              .default = name
-            )
-        ) %>%
-        arrange(desc(datetime)) %>%
-        distinct(name, .keep_all = TRUE) %>%
-        st_write(url, delete_dsn = TRUE)
-    }
-  )
-
-# Archive the ingested point files so the working folders stay small (keeps both
-# this ingest and the app's live nest-ID read fast). Runs only after the upsert
-# above succeeds, so nothing is archived unless it reached the spatial files;
-# files uploaded mid-run stay put and are picked up next time.
-
-ingested_ids <-
-  point_files %>%
-  list_rbind() %>%
-  pull(id)
-
-if (length(ingested_ids) > 0) {
-  
-  archive_folder <-
-    scbi_point_folders %>%
-    filter(name == "_archive")
-  
-  if (nrow(archive_folder) == 0) {
-    archive_folder <-
-      drive_mkdir("_archive", path = scbi_folder)
-  }
-  
-  walk(
-    ingested_ids,
-    \ (.id) {
-      drive_mv(
-        as_id(.id), 
-        path = archive_folder
-      )
-    }
-  )
-}
-
 ## coverboards ------------------------------------------------------------
 
 coverboards <-
@@ -571,6 +305,303 @@ predator_cameras <-
   
   nest(maintenance_activities = date:notes)
 
+
+## gps points -------------------------------------------------------------
+
+# Make a template for each point file:
+
+point_template <-
+  st_sf(
+    point_id = character(),
+    name = character(),
+    datetime = ymd_hms(tz = "America/New_York"),
+    elevation = double(),
+    bearing = double(),
+    accuracy = double(),
+    photo_name = character(),
+    photo = character(),
+    note = character(),
+    geometry = st_sfc(crs = 4326)
+  )
+
+class_template <-
+  point_template %>% 
+  mutate(point_class = character()) %>% 
+  select(point_class, everything())
+
+rbind_sf <- 
+  function(.lst) {
+    .lst <- keep(.lst, \ (.x) nrow(.x) > 0)
+    if (length(.lst) == 0) {
+      class_template
+    } else {
+      reduce(.lst, rbind)
+    }
+  }
+
+# Get current point files (if they exist):
+
+spatial_points <- 
+  list(
+    "nest",
+    "coverboard",
+    "trailcam",
+    "point_count",
+    "landmark",
+    "path_crossing",
+    "boundary",
+    "other"
+  ) %>% 
+  set_names(.) %>% 
+  map(
+    \ (.point_class) {
+      
+      url <-
+        file.path(
+          "data/spatial",
+          str_c(.point_class, "_locations.geojson")
+        )
+      
+      if (file.exists(url)) {
+        st_read(url, quiet = TRUE) %>% 
+          
+          # Ensure the CRS is 4326:
+          
+          st_transform(4326) %>% 
+          
+          # Conform to the template:
+          
+          mutate(
+            across(
+              matches("elevation|bearing|accuracy"),
+              ~ as.numeric(.x)
+            ),
+            across(
+              any_of("datetime"),
+              ~ as_datetime(.x)
+            )
+          ) %>% 
+          bind_rows(point_template, .)
+      } else {
+        point_template
+      }
+    }
+  )
+
+# Change name of spatial points where it is now an artificial nest:
+
+qnest_lookup <- 
+  nests %>% 
+  filter(
+    str_detect(nest_id, "NQ")
+  ) %>% 
+  mutate(
+    name = str_remove(nest_id, "Q"),
+    .keep = "used"
+  )
+
+spatial_points$nest <- 
+  spatial_points$nest %>% 
+  left_join(qnest_lookup, by = "name") %>% 
+  mutate(
+    name = 
+      case_when(
+        !is.na(nest_id) ~ nest_id,
+        .default = name
+      ) %>% 
+      str_replace("N-Long_Branch-", "NLB")
+  ) %>% 
+  select(!nest_id) %>% 
+  filter(
+    point_id == first(point_id),
+    .by = name
+  )
+
+# Collect gps points from Google Drive:
+
+# List the new point files (with their Drive ids) so we can archive them after
+# a clean ingest:
+
+point_files <-
+  list("individual_points", "bundled_points") %>%
+  set_names(.) %>%
+  map(
+    \ (.subfolder) {
+      scbi_point_folders %>%
+        filter(name == .subfolder) %>%
+        drive_ls() %>%
+        filter(
+          str_detect(name, "geojson$")
+        )
+    }
+  )
+
+# Download and pre-process each file:
+
+new_points <-
+  point_files %>%
+  map(
+    \ (.files) {
+      .files %>%
+        pull(id) %>%
+        map(
+          \ (.id) {
+            
+            # Define a temporary write path:
+            
+            .path <- tempfile(fileext = ".geojson")
+            
+            # Download the file to temp:
+            
+            drive_download(
+              as_id(.id), 
+              path = .path, 
+              overwrite = TRUE
+            )
+            
+            # Read in the file and pre-process:
+            
+            st_read(.path, quiet = TRUE) %>% 
+              st_transform(4326) %>% 
+              rename_with(
+                ~ "accuracy", 
+                any_of("horizontal_accuracy")
+              ) %>% 
+              mutate(
+                
+                # Numeric class columns:
+                
+                across(
+                  matches("elevation|bearing|accuracy"),
+                  ~ as.numeric(.x)
+                )
+              ) %>% 
+              bind_rows(point_template, .) %>% 
+              mutate(
+                datetime = 
+                  force_tz(
+                    as_datetime(time), 
+                    "America/New_York"
+                  ),
+                
+                # Snake case except for point_names of nests:
+                
+                across(
+                  c(point_class, photo_name),
+                  ~ tolower(.x) %>% 
+                    str_to_snake()
+                ),
+                name =
+                  if_else(
+                    str_detect(as.character(point_name), "^N"),
+                    as.character(point_name),
+                    str_to_snake(as.character(point_name))
+                  )
+              ) %>% 
+              
+              # Align with template:
+              
+              select(
+                point_class,
+                all_of(
+                  names(point_template)
+                )
+              )
+          }
+        ) %>%
+        rbind_sf()
+    }
+  ) %>% 
+  
+  # Combine both sets of files and keep the newest upload per point (so a
+  # re-averaged / edited point wins even if the original hasn't been ingested):
+  
+  rbind_sf() %>%
+  arrange(desc(datetime)) %>%
+  distinct(point_id, .keep_all = TRUE) %>%
+  
+  # Split by point_class:
+  
+  split(.$point_class)
+
+# Combine previous and new points:
+
+new_points %>%
+  
+  # Subset to items with at least one row:
+  
+  keep(
+    ~ !is.null(.x) && nrow(.x) > 0
+  ) %>% 
+  iwalk(
+    \ (.x, .name) {
+      
+      # Define the path:
+      
+      url <- 
+        str_c(.name, "_locations.geojson") %>% 
+        file.path("data/spatial", .)
+      
+      # New and updated points (drop the non-spatial class column):
+      
+      new_rows <-
+        .x %>%
+        select(!point_class) %>%
+        st_zm(drop = TRUE, what = "ZM") %>% 
+        st_transform(4326)
+      
+      # Upsert by point_id: keep existing points that are not being updated,
+      # add the new and updated points, then overwrite the file:
+      
+      spatial_points[[.name]] %>%
+        st_zm(drop = TRUE, what = "ZM") %>%
+        filter(!point_id %in% new_rows$point_id) %>%
+        rbind(new_rows) %>%
+        mutate(
+          name =
+            case_when(
+              str_detect(name, "^(N|n_)") ~ str_replace(name, "^(N|n_)", "N"),
+              .default = name
+            )
+        ) %>%
+        arrange(desc(datetime)) %>%
+        distinct(name, .keep_all = TRUE) %>%
+        st_write(url, delete_dsn = TRUE)
+    }
+  )
+
+# Archive the ingested point files so the working folders stay small (keeps both
+# this ingest and the app's live nest-ID read fast). Runs only after the upsert
+# above succeeds, so nothing is archived unless it reached the spatial files;
+# files uploaded mid-run stay put and are picked up next time.
+
+ingested_ids <-
+  point_files %>%
+  list_rbind() %>%
+  pull(id)
+
+if (length(ingested_ids) > 0) {
+  
+  archive_folder <-
+    scbi_point_folders %>%
+    filter(name == "_archive")
+  
+  if (nrow(archive_folder) == 0) {
+    archive_folder <-
+      drive_mkdir("_archive", path = scbi_folder)
+  }
+  
+  walk(
+    ingested_ids,
+    \ (.id) {
+      drive_mv(
+        as_id(.id), 
+        path = archive_folder
+      )
+    }
+  )
+}
+
 # output -----------------------------------------------------------
 
 field_data <-
@@ -607,7 +638,7 @@ next_maintenance <-
   # Summarize by patch and camera (see functions.R):
   
   summarize_me(
-    date = max(date) + 14,
+    date = max(date) + 21,
     .by = 
       vars(
         patch = str_remove(camera_id, "_trailcam_[0-2]"),

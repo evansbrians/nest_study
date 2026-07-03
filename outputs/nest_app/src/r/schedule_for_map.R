@@ -15,19 +15,21 @@ schedule <-
   ) %>% 
   
   # Subset to only relevant information:
-  
+
   select(
     date,
     patch = patch_count,
     board_id
-  )
+  ) %>%
+  apply_schedule_push()
 
 # predator camera maintenance ----------------------------------------------
 
 next_pred_cam_maintenance <-
   here::here("data", "predator_camera_maintenance.rds") %>%
-  read_rds() %>% 
-  drop_na(camera_id)
+  read_rds() %>%
+  drop_na(camera_id) %>%
+  apply_schedule_push()
 
 # get and process nest data ------------------------------------------------
 
@@ -35,4 +37,5 @@ next_checks <-
   read_rds(here::here("data/temp_nest_checking.rds")) %>%
   separate_longer_delim(check_nests, delim = ", ") %>%
   rename(nest_id = check_nests) %>%
-  select(nest_id, patch, date)
+  select(nest_id, patch, date) %>%
+  apply_schedule_push()
