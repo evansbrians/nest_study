@@ -3,6 +3,9 @@
   var menuBtn = document.getElementById("fieldMenuBtn");          // map view: open menu
   var mainMenuBtn = document.getElementById("fieldMainMenuBtn");  // sub-screen: go to main
   var mapBtn = document.getElementById("fieldMapBtn");            // menu open: back to map
+  var niBarBack = document.getElementById("niBarBack");           // nest info: to Nests
+  var niBarMain = document.getElementById("niBarMain");           // nest info: to main
+  var niBarMap = document.getElementById("niBarMap");             // nest info: zoom map
   var accEl = document.getElementById("barAccuracy");
   var brgEl = document.getElementById("barBearing");
   if (!menuBtn || !overlay) return;
@@ -1141,7 +1144,7 @@
   // One manager row: name (+ optional show toggle / color dot) with two
   // actions, Navigate and View. Used for both own waypoints and map points.
 
-  function makePointLi(nameText, color, showState, onNav, onView) {
+  function makePointLi(nameText, color, showState, onNav, onView, actionLabel) {
     var li = document.createElement("li");
     li.className = "field-mgr-item";
     var row = document.createElement("div");
@@ -1173,7 +1176,7 @@
     nav.addEventListener("click", onNav);
     var view = document.createElement("button");
     view.type = "button"; view.className = "field-button";
-    view.textContent = "View";
+    view.textContent = actionLabel || "View";
     view.addEventListener("click", onView);
     acts.appendChild(nav);
     acts.appendChild(view);
@@ -1207,7 +1210,8 @@
           }
         },
         function () { startNavigation(w); },
-        function () { window.fieldViewNest(w.point_name); }
+        function () { startModify(w, "waypoint"); },
+        "Modify"
       ));
     });
 
@@ -1247,10 +1251,204 @@
   }
   function nestCompare(a, b) {
     var ka = nestSortKey(a), kb = nestSortKey(b);
-    if (ka.g !== kb.g) return ka.g - kb.g;
-    if (ka.g < 4) return ka.n - kb.n;
-    return ka.s < kb.s ? -1 : (ka.s > kb.s ? 1 : 0);
+    if (ka.g !== kb.g) return ka.g - kb.g;          // groups stay N, NQ, NSP, NLB
+    if (ka.g < 4) return kb.n - ka.n;               // within a group: high -> low
+    return ka.s < kb.s ? 1 : (ka.s > kb.s ? -1 : 0);
   }
+
+  // Zoom the map tight (level 19) onto a point and drop back to the map view.
+  function zoomToPoint(lat, lng) {
+    if (lat == null || lng == null) return;
+    if (window.fieldMap) window.fieldMap.setView([lat, lng], 19);
+    closeMenu();
+  }
+
+  // ---- Nest info page ---------------------------------------------------
+
+  var niCurrentNest = null;
+
+  function niCoords(nestId) {
+    var pts = window.fieldMapPoints || [];
+    for (var i = 0; i < pts.length; i++) {
+      if (pts[i].name === nestId && pts[i].lat != null && pts[i].lng != null &&
+          !isNaN(pts[i].lat) && !isNaN(pts[i].lng)) {
+        return { lat: pts[i].lat, lng: pts[i].lng };
+      }
+    }
+    var arr = loadWaypoints();
+    for (var j = 0; j < arr.length; j++) {
+      if (arr[j].point_name === nestId && arr[j].latitude != null) {
+        return { lat: arr[j].latitude, lng: arr[j].longitude };
+      }
+    }
+    return null;
+  }
+
+  function niMapPoint(nestId) {
+    var pts = window.fieldMapPoints || [];
+    for (var i = 0; i < pts.length; i++) {
+      if (pts[i].name === nestId) return pts[i];
+    }
+    return null;
+  }
+
+  // Photo for a nest: prefer a fresh cached (app-created) one, else the photo
+  // baked from its GeoJSON into window.fieldNavPoints.
+  function niFindPhoto(nestId) {
+    var arr = loadWaypoints();
+    for (var i = 0; i < arr.length; i++) {
+      if (arr[i].point_name === nestId && arr[i].photo) return arr[i].photo;
+    }
+    var nav = window.fieldNavPoints || [];
+    for (var j = 0; j < nav.length; j++) {
+      if (nav[j].name === nestId && nav[j].photo &&
+          String(nav[j].photo).indexOf("data:") === 0) return nav[j].photo;
+    }
+    return null;
+  }
+
+  // Format one interval check per the field convention.
+  function niIntervalParts(iv) {
+    var he = Number(iv.host_eggs) || 0, hy = Number(iv.host_young) || 0;
+    var be = Number(iv.bhco_eggs) || 0, by = Number(iv.bhco_young) || 0;
+    var host;
+    if (he > 0 && hy > 0) host = he + " Eggs & " + hy + " nestlings";
+    else if (he > 0) host = he + " Eggs";
+    else if (hy > 0) host = hy + " Nestlings";
+    else host = "Empty";
+    var sub = null;
+    if (be > 0 && by > 0) sub = be + " BHCO eggs & " + by + " BHCO nestlings";
+    else if (be > 0) sub = be + " BHCO eggs";
+    else if (by > 0) sub = by + " BHCO nestlings";
+    return { line: (iv.date || "?") + ": " + host, sub: sub };
+  }
+
+  function niBuildMap(nestId) {
+    var host = document.getElementById("niMap");
+    if (!host) return;
+    if (host._nimap) { try { host._nimap.remove(); } catch (e) {} host._nimap = null; }
+    host.innerHTML = "";
+    var c = niCoords(nestId);
+    if (!window.L || !c) { host.style.display = "none"; return; }
+    host.style.display = "";
+    var map = window.L.map(host, {
+      attributionControl: false, zoomControl: false, dragging: false,
+      scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, keyboard: false
+    });
+    // Same basemap as the primary map (Esri World Imagery) with the offline
+    // tile cache patched in so it works in the field.
+    var layer = window.L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      { maxZoom: 21, maxNativeZoom: 19 }
+    );
+    var orig = layer.getTileUrl;
+    layer.getTileUrl = function (coords) {
+      var t = window.fieldOfflineTiles;
+      if (t) { var k = coords.z + "/" + coords.x + "/" + coords.y; if (t[k]) return t[k]; }
+      return orig.call(this, coords);
+    };
+    layer.addTo(map);
+    map.setView([c.lat, c.lng], 18);
+
+    // Same marker as the main map: the nest's icon from window.fieldIcons.
+    var p = niMapPoint(nestId);
+    var ic = (p && window.fieldIcons) ? window.fieldIcons[p.icon_id] : null;
+    if (ic) {
+      window.L.marker([c.lat, c.lng], {
+        icon: window.L.icon({
+          iconUrl: ic.iconUrl,
+          iconSize: [ic.iconWidth, ic.iconHeight],
+          iconAnchor: [ic.iconAnchorX, ic.iconAnchorY]
+        })
+      }).addTo(map);
+    } else {
+      window.L.circleMarker([c.lat, c.lng], {
+        radius: 7, color: "#136aec", weight: 2, fillColor: "#8ec5ff", fillOpacity: 0.9
+      }).addTo(map);
+    }
+
+    host._nimap = map;
+    setTimeout(function () { try { map.invalidateSize(); } catch (e) {} }, 250);
+  }
+
+  window.fieldOpenNestInfo = function (nestId) {
+    ensureMenuOpen();
+    niCurrentNest = nestId;
+    var info = (window.fieldNestInfo && window.fieldNestInfo[nestId]) || {};
+
+    var t = document.getElementById("niTitle");
+    if (t) t.textContent = nestId +
+      (info.species && info.species !== "Unknown" ? " — " + info.species : "");
+
+    var ph = document.getElementById("niPhoto");
+    if (ph) {
+      ph.innerHTML = "";
+      var photo = niFindPhoto(nestId);
+      if (photo) {
+        var im = document.createElement("img");
+        im.src = photo; im.className = "nest-info-photo-img";
+        ph.appendChild(im); ph.style.display = "";
+      } else ph.style.display = "none";
+    }
+
+    var s = document.getElementById("niSummary");
+    if (s) {
+      s.innerHTML = "";
+      var addRow = function (label, val) {
+        if (val == null || val === "" || val === "Unknown") return;
+        var li = document.createElement("li");
+        li.innerHTML = "<strong>" + label + ":</strong> " + escapeHtml(String(val));
+        s.appendChild(li);
+      };
+      addRow("Patch", info.patch_id);
+      addRow("Plant spp", info.substrate);
+      addRow("Height (m)", info.height);
+      addRow("Location", info.location_description);
+      addRow("Discovered", info.discovery_date);
+      addRow("Last check", info.last_check);
+      addRow("Status", info.last_status);
+    }
+
+    var il = document.getElementById("niIntervals");
+    if (il) {
+      il.innerHTML = "";
+      var ivs = (info.intervals || []).slice().reverse();
+      if (!ivs.length) {
+        var none = document.createElement("li");
+        none.textContent = "No interval checks yet.";
+        il.appendChild(none);
+      } else {
+        ivs.forEach(function (iv) {
+          var parts = niIntervalParts(iv);
+          var li = document.createElement("li");
+          li.appendChild(document.createTextNode(parts.line));
+          if (parts.sub) {
+            var sub = document.createElement("ul");
+            var sli = document.createElement("li");
+            sli.textContent = parts.sub;
+            sub.appendChild(sli);
+            li.appendChild(sub);
+          }
+          il.appendChild(li);
+        });
+      }
+    }
+
+    niBuildMap(nestId);
+    showScreen("nestinfo");
+  };
+
+  if (niBarBack) niBarBack.addEventListener("click", function () { showScreen("nests"); });
+  if (niBarMain) niBarMain.addEventListener("click", function () { showScreen("main"); });
+  if (niBarMap) niBarMap.addEventListener("click", function () {
+    var c = niCoords(niCurrentNest);
+    if (c) zoomToPoint(c.lat, c.lng); else closeMenu();
+  });
+  var niIntervalToggle = document.getElementById("niIntervalToggle");
+  if (niIntervalToggle) niIntervalToggle.addEventListener("click", function () {
+    var body = document.getElementById("niIntervals");
+    if (body) { body.hidden = !body.hidden; niIntervalToggle.classList.toggle("is-open", !body.hidden); }
+  });
 
   function renderNavPoints() {
     if (!listEl) return;
@@ -1284,13 +1482,17 @@
         btn.classList.toggle("is-open", !body.hidden);
       });
 
+      var isNestType = (type === "Nest");
       list.slice().sort(function (a, b) { return nestCompare(a.name, b.name); }).forEach(function (p) {
         body.appendChild(makePointLi(
           p.name,
           null,
           null,
           function () { startNavigation({ latitude: p.lat, longitude: p.lng, point_name: p.name }); },
-          function () { window.fieldViewNest(p.name); }
+          isNestType
+            ? function () { window.fieldViewNest(p.name); }
+            : function () { zoomToPoint(p.lat, p.lng); },
+          "View"
         ));
       });
 

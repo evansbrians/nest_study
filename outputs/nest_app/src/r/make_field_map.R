@@ -209,14 +209,19 @@ nest_proc <-
       )
   ) %>% 
   mutate(
-    
+
+    # A nest has concluded once it has a recorded fate (Success / Failure / a
+    # recorded Unknown). Capture this before NA fates become "Unknown" below.
+
+    concluded = !is.na(nest_fate),
+
     # Convert NA character values to Unknown:
-    
+
     across(
       where(is.character),
       ~ replace_na(.x, "Unknown")
     ),
-    
+
     # Define a brood status based on what happened during the last check:
     
     brood_status =
@@ -243,8 +248,9 @@ nests_mapping <-
   # Add nest icons:
   
   mutate(
-    icon_id = 
+    icon_id =
       case_when(
+        str_detect(nest_id, "^NQ") & nest_fate == "Failure" ~ "nest_failed_artificial",
         str_detect(nest_id, "^NQ") ~ "nest_artificial",
         brood_status %in% c("Fledged", "Nestlings") ~ "nest_active_nestlings",
         brood_status == "Eggs" ~ "nest_active_eggs",
@@ -253,11 +259,18 @@ nests_mapping <-
         brood_status == "Artificial" ~ "nest_artificial",
         .default = "nest_inactive"
       ),
-    current = 
-      length(current_nest_ids) == 0 |
-      nest_id %in% current_nest_ids |
-      brood_status %in% c("Eggs", "Nestlings", "Artificial") |
-      str_detect(nest_id, "^NQ")
+
+    # A nest with a recorded fate (Success / Failure / Unknown = concluded)
+    # fades regardless of type, so artificial (NQ) nests fade once fated too.
+
+    current =
+      !concluded &
+      (
+        length(current_nest_ids) == 0 |
+          nest_id %in% current_nest_ids |
+          brood_status %in% c("Eggs", "Nestlings", "Artificial") |
+          str_detect(nest_id, "^NQ")
+      )
   ) %>% 
 
   

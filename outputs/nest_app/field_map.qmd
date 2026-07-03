@@ -735,7 +735,8 @@ cat(
       paste(as.character(nest_panels), collapse = ""),
       auto_unbox = TRUE
     ),
-    ";\n"
+    ";\n",
+    "window.fieldNestInfo = ", nest_info_json, ";\n"
   ),
   file = here::here("outputs/nest_app/field_data.js"),
   append = TRUE
@@ -744,6 +745,23 @@ cat(
 
 ```{=html}
       </div>
+    </div>
+```
+:::
+
+::: {.field-screen data-name="nestinfo"}
+```{=html}
+    <div class="field-menu-panel">
+      <div class="field-menu-title" id="niTitle">Nest</div>
+
+      <div id="niPhoto" class="nest-info-photo"></div>
+      <div id="niMap" class="nest-info-map"></div>
+      <ul id="niSummary" class="nest-info-summary"></ul>
+
+      <button type="button" class="field-accordion" id="niIntervalToggle">
+        <span class="field-accordion-caret">&#x25B8;</span> Interval checks
+      </button>
+      <ul id="niIntervals" class="nest-info-intervals field-navpts-body" hidden></ul>
     </div>
 ```
 :::
@@ -797,6 +815,12 @@ cat(
           id="fieldMainMenuBtn">Main Menu</button>
   <button type="button" class="field-bar-menu-btn field-hide"
           id="fieldMapBtn">Map</button>
+  <button type="button" class="field-bar-menu-btn field-hide"
+          id="niBarBack">Back</button>
+  <button type="button" class="field-bar-menu-btn field-hide"
+          id="niBarMain">Main menu</button>
+  <button type="button" class="field-bar-menu-btn field-hide"
+          id="niBarMap">Map</button>
   <span class="field-bar-readout" id="barAccuracy">Accuracy: --</span>
   <span class="field-bar-readout" id="barBearing">Bearing: --</span>
 </div>

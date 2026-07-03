@@ -1,114 +1,33 @@
 library(tidyverse)
 library(htmltools)
 
-# One interval-level check rendered as an accordion inside the View detail:
-# the title carries the check's date/time, the panel lists its fields.
+# A single nest on the Nests page is now a button that opens the Nest info page
+# (window.fieldOpenNestInfo); it is no longer an accordion.
 
-interval_check_accordion <-
-  function(.row) {
-    field_item <-
-      function(label, value) {
-        tags$li(tags$strong(label), ": ", as.character(value %||% "--"))
-      }
-    tagList(
-      tags$button(
-        class = "accordion",
-        tags$strong(as.character(.row$date %||% "--")),
-        paste0(" ", as.character(.row$time %||% ""))
-      ),
-      tags$div(
-        class = "panel",
-        tags$ul(
-          field_item("Adult present", .row$adult_present),
-          field_item("Adult activity", .row$adult_activity),
-          field_item("Host eggs", .row$host_eggs),
-          field_item("Host young", .row$host_young),
-          field_item("Host dead young", .row$host_dead_young),
-          field_item("BHCO eggs", .row$bhco_eggs),
-          field_item("BHCO young", .row$bhco_young),
-          field_item("BHCO dead young", .row$bhco_dead_young),
-          field_item("Nest status", .row$nest_status),
-          field_item("Young status", .row$young_status),
-          field_item("Observer", .row$observer),
-          field_item("Notes", .row$notes)
-        )
-      )
-    )
-  }
-
-nest_accordion <-
+nest_button <-
   function(.x) {
     dc <- if (isTRUE(.x$is_current[[1]])) "true" else "false"
-    intervals <- .x$interval_data[[1]]
-    interval_accordions <-
-      if (is.null(intervals) || nrow(intervals) == 0) {
-        tags$p("No interval checks yet.")
-      } else {
-        tags$div(
-          class = "accordion-group",
-          map(seq_len(nrow(intervals)), ~ interval_check_accordion(intervals[.x, ]))
-        )
-      }
-    tagList(
-      tags$button(
-        class = "accordion",
-        `data-current` = dc,
-        tags$strong(paste0(.x$nest_id[[1]], ".")),
-        paste0(" Species : ", .x$species[[1]])
-      ),
-      tags$div(
-        class = "panel",
-        `data-current` = dc,
-        tags$ul(
-          tags$li(tags$strong("Patch"), ": ", .x$patch_id[[1]]),
-          tags$li(tags$strong("Plant species"), ": ", .x$substrate[[1]]),
-          tags$li(tags$strong("Height"), ": ", as.character(.x$height[[1]])),
-          tags$li(tags$strong("Location description"), ": ", .x$location_description[[1]]),
-          tags$li(tags$strong("Discovered on"), ": ", as.character(.x$discovery_date[[1]])),
-          tags$li(tags$strong("Last checked on"), ": ", as.character(.x$last_check[[1]])),
-          tags$li(tags$strong("Current status"), ": ", .x$last_status[[1]])
-        ),
-        tags$button(
-          type = "button",
-          class = "field-popup-btn",
-          onclick = paste0("window.fieldNavigateNavPoint('", .x$nest_id[[1]], "')"),
-          "Navigate"
-        ),
-        tags$button(
-          type = "button",
-          class = "field-popup-btn",
-          onclick = paste0("window.fieldViewNest('", .x$nest_id[[1]], "')"),
-          "View"
-        ),
-        tags$button(
-          type = "button",
-          class = "field-popup-btn",
-          onclick = paste0("window.fieldOpenNestModify('", .x$nest_id[[1]], "')"),
-          "Modify"
-        ),
-        tags$div(
-          class = "nest-view-detail",
-          `data-nest` = .x$nest_id[[1]],
-          style = "display:none;",
-          interval_accordions
-        ),
-        tags$div(
-          class = "nest-detail-map",
-          `data-nest` = .x$nest_id[[1]]
-        )
-      )
+    tags$button(
+      type = "button",
+      class = "field-nest-btn",
+      `data-current` = dc,
+      `data-patch` = .x$patch_id[[1]],
+      `data-nest` = .x$nest_id[[1]],
+      onclick = paste0("window.fieldOpenNestInfo('", .x$nest_id[[1]], "')"),
+      tags$strong(paste0(.x$nest_id[[1]], ".")),
+      paste0(" ", .x$species[[1]])
     )
   }
 
 nest_toggle <-
-  function(id, label) {
+  function(id, label, checked = TRUE) {
     tags$label(
       class = "field-toggle",
       tags$input(
         type = "checkbox",
         id = id,
         class = "field-toggle-input",
-        checked = NA
+        checked = if (checked) NA else NULL
       ),
       tags$span(
         class = "field-toggle-track",
@@ -118,61 +37,110 @@ nest_toggle <-
     )
   }
 
+# Shared prep: one summarized row per nest plus its interval list-column. Wrapped
+# so a data problem degrades gracefully instead of breaking the whole page.
+
+nest_prep <-
+  tryCatch(
+    {
+      field_nests <-
+        here::here("data/field_data.rds") %>%
+        read_rds() %>%
+        pluck("nests") %>%
+        filter(nest_id != "N031")
+
+      current_nest_ids <-
+        tryCatch(
+          here::here("data/current_nests.rds") %>%
+            read_rds() %>%
+            pull(nest_id),
+          error = function(e) NULL
+        )
+
+      nest_intervals <-
+        field_nests %>%
+        select(nest_id, interval_data)
+
+      nests_start <-
+        field_nests %>%
+        unnest(interval_data) %>%
+        summarize(
+          last_check = last(date),
+          last_status = last(nest_status),
+          .by =
+            c(
+              nest_id:patch_id,
+              height,
+              substrate,
+              location_description,
+              discovery_date
+            )
+        ) %>%
+        left_join(nest_intervals, by = "nest_id") %>%
+        mutate(
+          across(
+            where(is.character),
+            ~ replace_na(.x, "Unknown")
+          ),
+          is_current =
+            str_starts(patch_id, "test_") |
+            (if (is.null(current_nest_ids)) TRUE else nest_id %in% current_nest_ids)
+        )
+
+      nests_start
+    },
+    error = function(e) NULL
+  )
+
+# Compact per-nest payload for the Nest info page (discovery summary + the
+# interval checks the info page turns into a bullet list). Keyed by nest_id.
+
+nest_info_json <-
+  tryCatch(
+    {
+      nest_prep %>%
+        split(.$nest_id) %>%
+        map(
+          function(.n) {
+            iv <- .n$interval_data[[1]]
+            intervals <-
+              if (is.null(iv) || nrow(iv) == 0) {
+                list()
+              } else {
+                iv %>%
+                  transmute(
+                    date = as.character(date),
+                    host_eggs = suppressWarnings(as.numeric(host_eggs)),
+                    host_young = suppressWarnings(as.numeric(host_young)),
+                    bhco_eggs = suppressWarnings(as.numeric(bhco_eggs)),
+                    bhco_young = suppressWarnings(as.numeric(bhco_young))
+                  ) %>%
+                  transpose()
+              }
+            list(
+              species = .n$species[[1]],
+              patch_id = .n$patch_id[[1]],
+              substrate = .n$substrate[[1]],
+              height = as.character(.n$height[[1]]),
+              location_description = .n$location_description[[1]],
+              discovery_date = as.character(.n$discovery_date[[1]]),
+              last_check = as.character(.n$last_check[[1]]),
+              last_status = .n$last_status[[1]],
+              intervals = intervals
+            )
+          }
+        ) %>%
+        jsonlite::toJSON(auto_unbox = TRUE, na = "null")
+    },
+    error = function(e) "{}"
+  )
+
 nest_panels <-
-  tryCatch({
-    field_nests <-
-      here::here("data/field_data.rds") %>%
-      read_rds() %>%
-      pluck("nests")
-
-    current_nest_ids <-
-      tryCatch(
-        here::here("data/current_nests.rds") %>%
-          read_rds() %>%
-          pull(nest_id),
-        error = function(e) NULL
-      )
-
-    field_nests <-
-      field_nests %>%
-      filter(nest_id != "N031")
-
-    # Keep each nest's interval rows as a per-nest list-column so nest_accordion
-    # can render the full View detail, while still summarizing last_check /
-    # last_status for the collapsed row.
-
-    nest_intervals <-
-      field_nests %>%
-      select(nest_id, interval_data)
-
-    nests_start <-
-      field_nests %>%
-      unnest(interval_data) %>%
-      summarize(
-        last_check = last(date),
-        last_status = last(nest_status),
-        .by =
-          c(
-            nest_id:patch_id,
-            height,
-            substrate,
-            location_description,
-            discovery_date
-          )
-      ) %>%
-      left_join(nest_intervals, by = "nest_id") %>%
-      mutate(
-        across(
-          where(is.character),
-          ~ replace_na(.x, "Unknown")
-        ),
-        is_current =
-          str_starts(patch_id, "test_") |
-          (if (is.null(current_nest_ids)) TRUE else nest_id %in% current_nest_ids)
-      )
-
+  if (is.null(nest_prep)) {
+    tags$p("Nest information is currently unavailable.")
+  } else {
     nest_list <-
-      nests_start %>%
+      nest_prep %>%
       split(.$nest_id)
 
     test_patch_labels <-
@@ -182,11 +150,11 @@ nest_panels <-
       )
 
     patch_list <-
-      nests_start %>%
+      nest_prep %>%
       split(.$patch_id)
 
     patch_list[setdiff(names(test_patch_labels), names(patch_list))] <-
-      list(nests_start[0, ])
+      list(nest_prep[0, ])
 
     patch_list <-
       patch_list[
@@ -200,15 +168,16 @@ nest_panels <-
       tags$div(
         class = "nest-toggles",
         nest_toggle("nestGroupToggle", "Group by patch"),
-        nest_toggle("nestCurrentToggle", "Current nests")
+        nest_toggle("nestCurrentToggle", "Current nests"),
+        nest_toggle("nestTodayToggle", "Today's nests", checked = FALSE)
       ),
       tags$div(
         id = "nest-view-all",
         class = "nest-view",
         style = "display: none;",
         tags$div(
-          class = "accordion-group",
-          map(nest_list, nest_accordion)
+          class = "nest-btn-group",
+          map(nest_list, nest_button)
         )
       ),
       tags$div(
@@ -236,10 +205,10 @@ nest_panels <-
                   class = "panel patch-panel",
                   `data-current` = patch_dc,
                   tags$div(
-                    class = "accordion-group nest-accordion-group",
+                    class = "nest-btn-group",
                     map(
                       split(.x, .x$nest_id),
-                      nest_accordion
+                      nest_button
                     )
                   )
                 )
@@ -249,6 +218,4 @@ nest_panels <-
         )
       )
     )
-  },
-  error = function(e) tags$p("Nest information is currently unavailable.")
-  )
+  }

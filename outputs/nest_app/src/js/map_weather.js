@@ -85,6 +85,16 @@ function(el, x) {
   // scaleIconsForZoom owns their size (fieldNestBig + zoom + aspect ratio):
   // one styler, no parallel "(JS)" groups.
 
+  // Photo baked from a nest's GeoJSON into window.fieldNavPoints (data URI).
+  function nestPhotoFor(name) {
+    var nav = window.fieldNavPoints || [];
+    for (var i = 0; i < nav.length; i++) {
+      if (nav[i].name === name && nav[i].photo &&
+          String(nav[i].photo).indexOf("data:") === 0) return nav[i].photo;
+    }
+    return null;
+  }
+
   function renderMapPoints() {
     if (!window.fieldMapPoints || !window.fieldIcons || !window.L ||
         !map.layerManager) return;
@@ -101,7 +111,15 @@ function(el, x) {
           iconAnchor: [ic.iconAnchorX, ic.iconAnchorY]
         })
       });
-      marker.bindPopup(p.popup);
+      var popupHtml = p.popup;
+      if (p.group === "Nests") {
+        var photo = nestPhotoFor(p.name);
+        if (photo) {
+          popupHtml += '<img src="' + photo +
+            '" style="display:block;max-width:200px;margin-top:6px;border-radius:4px">';
+        }
+      }
+      marker.bindPopup(popupHtml);
       if (p.group === "Nests") {
         marker.setZIndexOffset(1000);
         marker._nestId = p.name;

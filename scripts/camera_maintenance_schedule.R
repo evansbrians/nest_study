@@ -39,7 +39,7 @@ next_maintenance <-
     
     # Set the date as two weeks after the last maintenance activity:
     
-    date = max(date) + 14,
+    date = max(date) + 21,
     .groups = "drop"
   ) %>% 
   

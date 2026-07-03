@@ -11,8 +11,23 @@ document.addEventListener("DOMContentLoaded", function () {
   if (!doc) return;
   var groupToggle = document.getElementById("nestGroupToggle");
   var currentToggle = document.getElementById("nestCurrentToggle");
+  var todayToggle = document.getElementById("nestTodayToggle");
   var allView = document.getElementById("nest-view-all");
   var patchView = document.getElementById("nest-view-patch");
+
+  // Flag every nest + patch element as "today" if its patch is on today's
+  // schedule (window.fieldToday.patches), so the Today's-nests filter can act.
+  var todayPatches = {};
+  ((window.fieldToday && window.fieldToday.patches) || []).forEach(function (p) {
+    todayPatches[String(p)] = true;
+  });
+  var marked = doc.querySelectorAll("[data-patch]");
+  for (var i = 0; i < marked.length; i++) {
+    marked[i].setAttribute(
+      "data-today",
+      todayPatches[marked[i].getAttribute("data-patch")] ? "true" : "false"
+    );
+  }
 
   function applyGroup() {
     var grouped = groupToggle.checked;
@@ -25,11 +40,18 @@ document.addEventListener("DOMContentLoaded", function () {
     else doc.classList.remove("show-current-only");
   }
 
+  function applyToday() {
+    if (todayToggle && todayToggle.checked) doc.classList.add("show-today-only");
+    else doc.classList.remove("show-today-only");
+  }
+
   if (groupToggle) groupToggle.addEventListener("change", applyGroup);
   if (currentToggle) currentToggle.addEventListener("change", applyCurrent);
+  if (todayToggle) todayToggle.addEventListener("change", applyToday);
 
   applyGroup();
   applyCurrent();
+  applyToday();
 });
 
 (function () {

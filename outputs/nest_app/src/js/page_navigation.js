@@ -9,19 +9,26 @@
   function updateBar() {
     var open = overlay.classList.contains("is-open");
     var onMap = !open;
-    var onSub = open && activeScreen() !== "main";
+    var onNestInfo = open && activeScreen() === "nestinfo";
+    var onSub = open && activeScreen() !== "main" && !onNestInfo;
 
     hideEl(menuBtn, !onMap);
     hideEl(accEl, !onMap);
     hideEl(brgEl, !onMap);
-    hideEl(mapBtn, !open);          // "Map" shows whenever the menu is open
-    hideEl(mainMenuBtn, !onSub);    // "Main Menu" only on sub-screens
-    hideEl(sidebarBackBtn, !onSub); // desktop sidebar back-to-menu (CSS-gated)
+    hideEl(mapBtn, !open || onNestInfo);   // "Map" shows when menu open (except nest info)
+    hideEl(mainMenuBtn, !onSub);           // "Main Menu" only on sub-screens
+    hideEl(sidebarBackBtn, !onSub);        // desktop sidebar back-to-menu (CSS-gated)
+
+    // Nest info page uses its own Back / Main menu / Map bar buttons.
+
+    hideEl(niBarBack, !onNestInfo);
+    hideEl(niBarMain, !onNestInfo);
+    hideEl(niBarMap, !onNestInfo);
 
     // Desktop: the main menu is a narrow sidebar, but a sub-page takes over the
     // full screen (like the phone app). CSS-gated to wide screens.
 
-    overlay.classList.toggle("field-fullscreen", onSub);
+    overlay.classList.toggle("field-fullscreen", onSub || onNestInfo);
   }
 
   function showScreen(name) {
@@ -54,6 +61,13 @@
     if (typeof syncAveraging === "function") syncAveraging();
   }
 
+  // Open the menu overlay without changing the current screen -- used by map
+  // popup / marker actions, which fire while the menu is closed.
+  function ensureMenuOpen() {
+    overlay.classList.add("is-open");
+    if (menuBtn) menuBtn.setAttribute("aria-expanded", "true");
+  }
+
   function openAccordion(btn) {
     if (!btn) return;
     btn.classList.add("active");
@@ -74,26 +88,21 @@
     return null;
   }
 
+  // View now opens the dedicated Nest info page.
   window.fieldViewNest = function (nestId) {
-    showScreen("nests");
-    var btn = findNestAccordion(nestId);
-    if (!btn) return;
-    var patchPanel = btn.closest(".patch-panel");
-    if (patchPanel) {
-      var patchBtn = patchPanel.previousElementSibling;
-      if (patchBtn && patchBtn.classList.contains("patch-accordion")) openAccordion(patchBtn);
-    }
-    openAccordion(btn);
-    var panel = btn.nextElementSibling;
-    var detail = panel &&
-      panel.querySelector('.nest-view-detail[data-nest="' + nestId + '"]');
-    if (detail) detail.style.display = "block";
-    (detail || btn).scrollIntoView({ behavior: "smooth", block: "start" });
+    if (window.fieldOpenNestInfo) window.fieldOpenNestInfo(nestId);
   };
 
   window.fieldOpenNestModify = function (nestId) {
+    ensureMenuOpen();
     modifyNestId = nestId;
     var idEl = document.getElementById("nmNestId");
     if (idEl) idEl.textContent = nestId || "--";
     showScreen("nestmodify");
+  };
+
+  // Jump straight to a fresh interval-check for a nest (from a map popup).
+  window.fieldAddInterval = function (nestId) {
+    ensureMenuOpen();
+    openIntervalData({ nestId: nestId, mode: "add" });
   };
