@@ -334,28 +334,40 @@
 
   function collectIntervalRecord() {
     var active = ivState() === "Active";
-    var adult = active ? ivEl("ivAdultPresent").value : "";
-
-    // Always include every interval_level column (blank when Empty) so an
-    // update fully overwrites the row -- e.g. switching Active -> Empty clears
-    // the adult/egg fields rather than leaving stale values behind.
-
-    return {
+    var rec = {
       nest_id: intervalCtx ? intervalCtx.nestId : null,
       date: intervalCtx ? intervalCtx.date : null,
       time: intervalCtx ? intervalCtx.time : null,
       current_state: ivState(),
-      adult_present: active ? adult : "",
-      adult_activity: (active && adult !== "N") ? ivEl("ivAdultActivity").value : "",
-      host_eggs: active ? Number(ivEl("ivHostEggs").value) : "",
-      host_young: active ? Number(ivEl("ivHostYoung").value) : "",
-      bhco_eggs: active ? Number(ivEl("ivBhcoEggs").value) : "",
-      bhco_young: active ? Number(ivEl("ivBhcoYoung").value) : "",
-      nest_status: active ? ivEl("ivNestStatus").value : "",
-      young_status: active ? ivEl("ivYoungStatus").value : "",
       observer: active ? ivEl("ivObserverActive").value : ivEl("ivObserver").value,
       notes: (active ? ivEl("ivNotesActive").value : ivEl("ivNotes").value).trim()
     };
+    if (active) {
+      var adult = ivEl("ivAdultPresent").value;
+      rec.adult_present = adult;
+      rec.adult_activity = (adult !== "N") ? ivEl("ivAdultActivity").value : "";
+      rec.host_eggs = Number(ivEl("ivHostEggs").value);
+      rec.host_young = Number(ivEl("ivHostYoung").value);
+      rec.bhco_eggs = Number(ivEl("ivBhcoEggs").value);
+      rec.bhco_young = Number(ivEl("ivBhcoYoung").value);
+      rec.nest_status = ivEl("ivNestStatus").value;
+      rec.young_status = ivEl("ivYoungStatus").value;
+    } else {
+
+      // Inactive/Empty check: record a standard "complete nest, no birds" row.
+
+      rec.adult_present = "N";
+      rec.adult_activity = "";
+      rec.host_eggs = 0;
+      rec.host_young = 0;
+      rec.host_dead_young = 0;
+      rec.bhco_eggs = 0;
+      rec.bhco_young = 0;
+      rec.bhco_dead_young = 0;
+      rec.nest_status = "CN";
+      rec.young_status = "NO";
+    }
+    return rec;
   }
 
   function saveIntervalData() {

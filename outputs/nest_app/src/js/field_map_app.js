@@ -1234,6 +1234,24 @@
     };
   }
 
+  // Manager nest ordering: N### then NQ### then NSP### then NLB###; within each
+  // group by number. Non-nest names fall last, alphabetically.
+  function nestSortKey(name) {
+    name = String(name || "");
+    var rules = [[/^NSP(\d+)/, 2], [/^NLB(\d+)/, 3], [/^NQ(\d+)/, 1], [/^N(\d+)/, 0]];
+    for (var i = 0; i < rules.length; i++) {
+      var m = rules[i][0].exec(name);
+      if (m) return { g: rules[i][1], n: parseInt(m[1], 10), s: "" };
+    }
+    return { g: 4, n: 0, s: name.toLowerCase() };
+  }
+  function nestCompare(a, b) {
+    var ka = nestSortKey(a), kb = nestSortKey(b);
+    if (ka.g !== kb.g) return ka.g - kb.g;
+    if (ka.g < 4) return ka.n - kb.n;
+    return ka.s < kb.s ? -1 : (ka.s > kb.s ? 1 : 0);
+  }
+
   function renderNavPoints() {
     if (!listEl) return;
     var pts = window.fieldNavPoints;
@@ -1266,7 +1284,7 @@
         btn.classList.toggle("is-open", !body.hidden);
       });
 
-      list.forEach(function (p) {
+      list.slice().sort(function (a, b) { return nestCompare(a.name, b.name); }).forEach(function (p) {
         body.appendChild(makePointLi(
           p.name,
           null,
