@@ -10,8 +10,9 @@ library(tidyverse)
 system("git pull")
 
 source(
-  here("scripts/utils/functions/time_and_date_functions.R"
-)
+  here(
+    "scripts/utils/functions/time_and_date_functions.R"
+  )
 )
 
 # download data points from garmin ----------------------------------------
