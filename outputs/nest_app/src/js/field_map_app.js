@@ -621,6 +621,9 @@
   var currentPhoto = null;
   var currentColor = WP_DEFAULT_COLOR;
   var newNestId = null;
+  // true when the Add-waypoint screen is attaching a GPS point to a nest that
+  // already exists (already discovered) rather than creating a brand-new nest.
+  var newNestExisting = false;
 
   // When set, the Add-waypoint screen is re-measuring an existing waypoint:
   // { id, mode } where mode is "replace" or "average".
@@ -852,6 +855,33 @@
 
   function padNest(n) { return String(n).padStart(3, "0"); }
 
+  // True when `name` already belongs to a GPS point somewhere the app knows
+  // about: a baked map point with coordinates, a cached waypoint with a
+  // location, or a live nest whose coordinates came back from the relay. Used to
+  // block naming a brand-new nest the same as an existing GPS point.
+  function nestNameHasGpsPoint(name) {
+    name = String(name || "");
+    if (!name) return false;
+    var pts = window.fieldNavPoints || [];
+    for (var i = 0; i < pts.length; i++) {
+      if (pts[i].name === name && pts[i].lat != null && pts[i].lng != null &&
+          !isNaN(pts[i].lat) && !isNaN(pts[i].lng)) return true;
+    }
+    var mpts = window.fieldMapPoints || [];
+    for (var m = 0; m < mpts.length; m++) {
+      if (mpts[m].name === name && mpts[m].lat != null && mpts[m].lng != null &&
+          !isNaN(mpts[m].lat) && !isNaN(mpts[m].lng)) return true;
+    }
+    var arr = loadWaypoints();
+    for (var j = 0; j < arr.length; j++) {
+      if (arr[j].point_name === name && arr[j].latitude != null &&
+          arr[j].longitude != null) return true;
+    }
+    var c = liveNestCoords[name];
+    if (c && c.lat != null && c.lng != null) return true;
+    return false;
+  }
+
   // Read the live nest-ID list from the relay via JSONP -- a plain fetch can't
   // read the no-cors relay. cb(ids) with an array, or cb(null) when offline,
   // unconfigured, or timed out.
@@ -973,6 +1003,7 @@
       samples = [];
       avg = null;
       newNestId = null;
+      newNestExisting = false;
       renderLive();
     }
   }
@@ -1009,25 +1040,26 @@
   // UI-only capture of a "nest_level" record. No backend yet: Save assembles
   // the record, logs it, and confirms. Opened from the post-save prompt.
 
+  // Bird species: [common name, 4-letter code]. The picker displays the common
+  // name only (Tara's request) but the 4-letter code is what's written to the
+  // sheet. Ordered alphabetically by common name; Unknown / Artificial nest /
+  // Other are added around this list by buildNestChoices.
+
   var NEST_SPECIES = [
-    ["Northern cardinal", "NOCA"], ["Yellow-breasted chat", "YBCH"],
-    ["Gray catbird", "GRCA"], ["Indigo bunting", "INBU"],
-    ["Field sparrow", "FISP"], ["American goldfinch", "AGOL"],
-    ["Blue jay", "BLJA"], ["Brown thrasher", "BRTH"],
-    ["Common yellowthroat", "COYE"], ["Eastern towhee", "EATO"],
-    ["Northern mockingbird", "NOMO"], ["Prairie warbler", "PRAW"],
-    ["Red-winged blackbird", "RWBL"], ["Song sparrow", "SOSP"],
-    ["White-eyed vireo", "WEVI"], ["Mourning dove", "MODO"],
-    ["Artificial nest", "ARNE"]
+    ["American goldfinch", "AGOL"], ["Common yellowthroat", "COYE"],
+    ["Field sparrow", "FISP"], ["Gray catbird", "GRCA"],
+    ["Indigo bunting", "INBU"], ["Northern cardinal", "NOCA"],
+    ["Prairie warbler", "PRAW"], ["Song sparrow", "SOSP"],
+    ["White-eyed vireo", "WEVI"], ["Yellow-breasted chat", "YBCH"]
   ];
 
+  // Plant/substrate species, alphabetical. Unknown first and Other last are
+  // added by buildNestChoices.
+
   var NEST_SUBSTRATES = [
-    "Autumn olive", "Multiflora rose", "Honeysuckle", "Grape",
-    "Asian bittersweet", "Coral berry", "Spicebush", "Cherry",
-    "Wineberry", "Blackberry", "Callery pear", "Hackberry", "Sassafras",
-    "Black raspberry", "Box elder", "Blackhaw", "American beech",
-    "American elm", "American hazelnut", "Locust", "Catbriar", "Bamboo",
-    "Vines", "White mulberry"
+    "Amur honeysuckle", "Asian bittersweet", "Autumn Olive", "Bamboo",
+    "Black raspberry", "Blackberry", "Catbriar", "Coral berry", "Grape",
+    "Japanese honeysuckle", "Multiflora rose", "Wineberry"
   ];
 
   var nestDataCtx = null;
@@ -1605,6 +1637,14 @@
   var nmModWp = document.getElementById("nmModifyWaypoint");
   if (nmModWp) nmModWp.addEventListener("click", function () {
     if (window.fieldModifyNavPoint) window.fieldModifyNavPoint(modifyNestId);
+  });
+  var nmMakeArt = document.getElementById("nmMakeArtificial");
+  if (nmMakeArt) nmMakeArt.addEventListener("click", function () {
+    if (!modifyNestId) return;
+    if (!window.confirm("Reassign " + modifyNestId +
+        " as an artificial nest? This adds a discovery row (Artificial nest) " +
+        "and a first interval check with 2 host eggs.")) return;
+    makeArtificialNest(modifyNestId);
   });
 
   // Delete buttons on the discovery + interval forms (edit mode only).

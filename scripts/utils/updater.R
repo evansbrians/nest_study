@@ -34,38 +34,13 @@ urls <-
     point_counts = "10ZsdRqT-oS_C92CpD-RA79QO52DFSHKbT1mwxUZsEIo",
     visits = "1Pd4OYDbRkV3DMDlZU1kFfW2ci2izmtpq8eXY7MvYENY",
     nests = "1iosPhbwDOVhIM4EkaeexnX0kRLsBqZKEuCbCsxFyMPs",
-    predator_cameras = "1exlfw40PfefcOLRxf7WUyCi9TOJ3yydKbAXcJNmABfc",
-    schedule_updates = "1Pt-PPSekVv4BIM7nhCHPw1cmnUWkfrbjWpGw79-ohiQ"
-  ) %>% 
+    predator_cameras = "1exlfw40PfefcOLRxf7WUyCi9TOJ3yydKbAXcJNmABfc"
+  ) %>%
   map(
     ~ file.path(
       "https://docs.google.com/spreadsheets/d",
       .x
     )
-  )
-
-# Get and process schedule data:
-
-schedule <-
-  read_rds("data/season_schedule.rds") %>% 
-  unnest(patch_counts) %>% 
-  
-  # Remove Sundays and subset to to the current week:
-  
-  filter(
-    # day = "Sun",
-    get_sampling_week(date) ==
-      get_sampling_week(
-        today()
-      )
-  ) %>% 
-  
-  # Subset to only relevant information:
-  
-  mutate(
-    date,
-    patch = patch_count,
-    .keep = "none"
   )
 
 # field_data --------------------------------------------------------------
@@ -222,72 +197,9 @@ nests <-
 
 ### nests to check --------------------------------------------------------
 
-# Process nest data and determine the earliest next nest check:
+# Active nests to check (also feeds the nest page and map fade):
 
-current_nests <- 
-  nests %>% 
-  unnest(interval_data) %>%
-  
-  # It's probably safest to turn the NA values into 0s:
-  
-  mutate(
-    across(
-      host_eggs:host_young,
-      ~ replace_na(.x, 0)
-    )
-  ) %>% 
-  
-  # Determine the number of days with 0 eggs and 0 young:
-  
-  summarize_me(
-    first_check = min(date),
-    last_check = max(date),
-    n_checks = n_unique(date),
-    n_check_days = 
-      as.numeric(last_check - first_check),
-    always_empty = sum(host_eggs, host_young) == 0,
-    .by = 
-      vars(
-        nest_id,
-        patch = patch_id,
-        nest_fate
-      )
-  ) %>%
-  
-  # Check if the fate is NA, the number of check days is less than or equal to
-  # 10, and it's been empty at every check:
-  
-  filter(
-    is.na(nest_fate),
-    !(n_check_days > 10 & always_empty)
-  )
-
-### output: the date of the next nest checks in the current week ----------
-
-temp_nest_checking <- 
-  current_nests %>% 
-  
-  # Join with schedule and subset to the checks that will occur in next round of
-  # checks:
-  
-  left_join(
-    schedule,
-    by = "patch",
-    relationship = "many-to-many"
-  ) %>% 
-  
-  # Re-arrange by patch and day to view the nests you have to check on a given
-  # day:
-  
-  arrange(date, patch) %>% 
-  
-  # Make it flat so that nests to check on a given day are in a single column
-  # and row:
-  
-  summarize(
-    check_nests = str_flatten(nest_id, collapse = ", "),
-    .by = c(date, patch)
-  ) 
+current_nests <- get_current_nests(.nests = nests)
 
 ## camera_maintenance -----------------------------------------------------
 
@@ -621,87 +533,6 @@ rm(
   visits
 )
 
-# camera maintenance schedule ---------------------------------------------
-
-# Define the next two cameras for sampling (one per patch visit):
-
-next_maintenance <- 
-  predator_cameras %>% 
-  unnest(maintenance_activities) %>% 
-  
-  # Subset to the last time in which any maintenance activity occurred:
-  
-  filter(
-    when_any(install, replace_sd & replace_batteries),
-  ) %>% 
-  
-  # Summarize by patch and camera (see functions.R):
-  
-  summarize_me(
-    date = max(date) + 21,
-    .by = 
-      vars(
-        patch = str_remove(camera_id, "_trailcam_[0-2]"),
-        camera_id
-      )
-  ) %>% 
-  
-  # Subset to cameras that need to be sampled in the next week:
-  
-  filter(
-    get_sampling_week(date) <=
-      get_sampling_week()
-  ) %>% 
-  
-  # Get the two cameras that are most in need of maintenance in each patch:
-  
-  slice_min(
-    date,
-    n = 2,
-    with_ties = FALSE,
-    by = patch
-  ) %>% 
-  
-  # Assign camera priority:
-  
-  mutate(
-    priority = row_number(),
-    .by = patch
-  ) %>%
-  select(!date)
-
-## output: maintenance schedule for the current week ----------------------
-
-predator_camera_maintenance <- 
-  schedule %>% 
-  arrange(patch, date) %>% 
-  mutate(
-    visit = row_number(),
-    .by = patch
-  ) %>% 
-  left_join(
-    next_maintenance,
-    by = join_by(patch, visit == priority)
-  ) %>% 
-  select(!visit) %>% 
-  mutate(
-    camera_id = str_extract(camera_id, "[0-2]$")
-  )
-
-# Remove files we will not pass on:
-
-rm(next_maintenance, schedule)
-
-# schedule ----------------------------------------------------------------
-
-# This one's a one step!
-
-schedule_updates <-
-  read_sheet(
-    urls$schedule_updates,
-    col_types = "c"
-  ) 
-
 # weather forecast --------------------------------------------------------
 
 read_rds("data/weather.rds") %>%
@@ -713,12 +544,9 @@ read_rds("data/weather.rds") %>%
 # write to file -----------------------------------------------------------
 
 lst(
-  predator_camera_maintenance,
   current_nests,
-  temp_nest_checking,
-  field_data,
-  schedule_updates
-) %>% 
+  field_data
+) %>%
   iwalk(
     \ (.x, .name) {
       write_rds(

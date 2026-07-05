@@ -2,6 +2,366 @@
 
 # functions for app version *and* pdf -------------------------------------
 
+## combine Google sheets and initial scheduling data ----------------------
+
+get_modify_schedule <-
+  function(
+    .week = get_sampling_week(),
+    .week_offset = 19,
+    .gsheet_id = "1Pt-PPSekVv4BIM7nhCHPw1cmnUWkfrbjWpGw79-ohiQ",
+    .schedule_url = here::here("data/season_schedule.rds")
+  ) {
+    
+    # The schedule for the week as defined during the pre-field season:
+    
+    schedule_start <-
+      read_rds(.schedule_url) %>% 
+      filter(week == .week) %>% 
+      select(
+        !c(week, helper)
+      ) %>% 
+      arrange(date) %>% 
+      
+      # Unnest patch counts to define patch search order:
+      
+      unnest(patch_counts, keep_empty = TRUE) %>% 
+      mutate(
+        search_patch_1 = patch_count[patch_order == 3],
+        search_patch_2 = patch_count[patch_order == 2],
+        .by = date
+      ) %>% 
+      
+      # Boards sampled per patch:
+      
+      unnest(boards, keep_empty = TRUE) %>% 
+      summarize(
+        boards = str_flatten(board_id, collapse = ", "),
+        .by = !board_id
+      ) %>% 
+      
+      # Nest everything but visit-level variables:
+      
+      nest(activities = !date:sunrise)
+    
+    # ... and ensure that everything is in date order
+    
+    # Get and process the the Google Sheets schedule for the week:
+    
+    g_sheet <-
+      file.path("https://docs.google.com/spreadsheets/d", .gsheet_id) %>% 
+      googlesheets4::read_sheet() %>% 
+      mutate(
+        date = as_date(date),
+        field = as.logical(field)
+      ) %>% 
+      filter(
+        get_sampling_week(date, .week_offset) == .week
+      )
+    
+    # Determine if there is a day cancelled for weather an pull it:
+    
+    weather_day <-
+      g_sheet %>% 
+      filter(
+        !field,
+        day != "Sun"
+      ) %>% 
+      pull(date)
+    
+    # Offset for a day cancelled due to weather, if necessary:
+    
+    schedule_augmented <-
+      schedule_start %>%
+      unnest(activities, keep_empty = TRUE)
+
+    if (length(weather_day) > 0) {
+      schedule_augmented <-
+        schedule_start %>% 
+        
+        # Make sure the data are date-arranged: 
+        
+        arrange(date) %>% 
+        mutate(
+          activities =
+            case_when(
+              date > weather_day ~ lag(activities),
+              .default = activities
+            )
+        ) %>% 
+        unnest(activities, keep_empty = TRUE)
+    }
+    
+    # Add the information from the Google Sheet schedule:
+    
+    schedule_augmented %>%  
+      left_join(
+        g_sheet %>% 
+          select(!day) %>% 
+          rename(
+            sp_1 = search_patch_1,
+            sp_2 = search_patch_2
+          ),
+        by = "date"
+      ) %>% 
+      
+      # Replace schedule info with custom inputs from Google Sheets, if
+      # necessary:
+      
+      mutate(
+        search_patch_1 = 
+          if_else(
+            is.na(sp_1),
+            search_patch_1,
+            sp_1
+          ),
+        search_patch_2 = 
+          if_else(
+            is.na(sp_2),
+            search_patch_2,
+            sp_2
+          ),
+        helper = replace_na(helper, "-"),
+        .keep = "unused"
+      ) %>% 
+      select(
+        date:day,
+        helper,
+        everything()
+      )
+  }
+
+## define current nests ---------------------------------------------------
+
+get_current_nests <-
+  function(
+    .field_data = here::here("data/field_data.rds"),
+    .nests =
+      read_rds(.field_data) %>%
+      pluck("nests"),
+    .reference_date = today()
+  ) {
+
+    # Process nest data and determine the earliest next nest check:
+
+    .nests %>%
+      unnest(interval_data) %>%
+      mutate(
+        
+        # It's probably safest to turn the NA values into 0s:
+        
+        across(
+          host_eggs:host_young,
+          ~ replace_na(.x, 0)
+        ),
+        
+        # Reference date as a date object:
+        
+        reference_date = as_date(.reference_date)
+      ) %>% 
+      
+      # Filter to observations before or on the reference date:
+      
+      filter(
+        date <= reference_date
+      ) %>% 
+      
+      # Determine the number of days with 0 eggs and 0 young:
+      
+      summarize_me(
+        first_check = min(date),
+        last_check = max(date),
+        n_checks = n_unique(date),
+        n_check_days = 
+          as.numeric(last_check - first_check),
+        always_empty = sum(host_eggs, host_young) == 0,
+        selfie_stick = max(selfie_stick),
+        .by = 
+          vars(
+            nest_id,
+            patch = patch_id,
+            nest_fate,
+            reference_date
+          )
+      ) %>%
+      
+      # Check if the fate is NA, the number of check days is less than or equal
+      # to 10, and it's been empty at every check:
+      
+      filter(
+        is.na(nest_fate),
+        reference_date - last_check <= 14,
+        !(n_check_days > 10 & always_empty)
+      )
+  }
+
+## add current nests to the schedule --------------------------------------
+
+add_nests_to_schedule <-
+  function(
+    .schedule,
+    .current_nests = get_current_nests(),
+    .mark_tall_nests = TRUE
+  ) {
+
+    nest_summary <-
+      .current_nests %>%
+
+      # Define nests as requiring a selfie-stick (app only):
+
+      {
+        if (.mark_tall_nests) {
+          mutate(
+            .,
+
+            # Add giraffes:
+
+            nest_id =
+              if_else(
+                selfie_stick == 1,
+                str_c(nest_id, "\U1F992"),
+                nest_id
+              )
+          )
+        } else .
+      } %>%
+
+      # Nests by patch:
+
+      summarize(
+        check_nests = str_flatten(nest_id, collapse = ", "),
+        .by = patch
+      )
+
+    # Add the nests to the schedule:
+
+    left_join(
+      .schedule,
+      nest_summary,
+      by = join_by(patch_count == patch)
+    )
+  }
+
+## predator camera maintenance schedule -----------------------------------
+
+schedule_camera_maintenance <-
+  function(
+    .schedule,
+    .predator_cam_id = "1exlfw40PfefcOLRxf7WUyCi9TOJ3yydKbAXcJNmABfc",
+    .week = get_sampling_week()
+  ) {
+    
+    trail_cams <-
+      file.path("https://docs.google.com/spreadsheets/d", .predator_cam_id) %>% 
+      googlesheets4::read_sheet() %>% 
+      mutate(
+        date = as_date(date),
+      ) %>% 
+      
+      # Subset to the last time in which any maintenance activity occurred:
+      
+      filter(
+        when_any(install, replace_sd & replace_batteries),
+      ) %>% 
+      
+      # Summarize by patch and camera (see functions.R):
+      
+      summarize_me(
+        date = max(date) + 21,
+        .by = 
+          vars(
+            patch_count = str_remove(camera_id, "_trailcam_[0-2]"),
+            camera_id
+          )
+      ) %>% 
+      
+      # Subset to cameras that need to be sampled in the next week:
+      
+      filter(
+        get_sampling_week(date) <= .week
+      ) %>% 
+      
+      # Get the two cameras that are most in need of maintenance in each patch:
+      
+      slice_min(
+        date,
+        n = 2,
+        with_ties = FALSE,
+        by = patch_count
+      ) %>% 
+      
+      # Assign camera priority:
+      
+      mutate(
+        priority = row_number(),
+        .by = patch_count
+      ) %>%
+      select(!date)
+    
+    # Add camera maintenance:
+    
+    if (nrow(trail_cams) == 0) {
+      .schedule %>% 
+        mutate(predator_cameras = "-")
+    } else {
+      .schedule %>% 
+        arrange(patch_count, date) %>% 
+        mutate(
+          visit = row_number(),
+          .by = patch_count
+        ) %>% 
+        left_join(
+          trail_cams,
+          by = join_by(patch_count, visit == priority)
+        ) %>% 
+        select(!visit) %>% 
+        mutate(
+          predator_cameras = str_extract(camera_id, "[0-2]$")
+        ) %>% 
+        arrange(date, patch_order)
+    }
+  }
+
+## output schedule --------------------------------------------------------
+
+# Order of operations can matter here:
+
+# get_sampling_week("2026-07-05") %>% 
+#   get_modify_schedule() %>%
+#   add_nests_to_schedule() %>%
+#   schedule_camera_maintenance() %>%
+#   make_pretty_schedule()
+
+# Function for the final output for the app and pdf:
+
+make_pretty_schedule <-
+  function(.activity_schedule) {
+    
+    # Define scheduling variables, in output format:
+    
+    .activity_schedule %>% 
+      mutate(
+        departure_time = 
+          make_pretty_time(
+            arrive, 
+            .offset = minutes(-45)
+          ),
+        scbi_departure_time = 
+          make_pretty_time(
+            arrive, 
+            .offset = hours(9)
+          ),
+        point_count_time = 
+          make_pretty_time(
+            sunrise, 
+            .offset = minutes(40 * (patch_order - 1))
+          ),
+        across(
+          c(check_nests, predator_cameras),
+          ~ replace_na(as.character(.x), "-")
+        )
+      )
+  }
+
 ## season schedule to a joined per-day data frame -------------------------
 
 prep_schedule_data <-
@@ -760,26 +1120,21 @@ note <-
 
 
 
-## full day block, driven by the schedule-updates Google sheet ------------
+## full day block, driven by prep_schedule_data --------------------------
 
-day_block <- 
+day_block <-
   function(
     .wday,
-    .schedule_list = schedule_list,
-    .updates = schedule_updates
+    .schedule_list = schedule_list
   ) {
     
-    # This weekday's date, and its row in the sheet:
+    # This weekday's row (schedule fields already merged with the Google
+    # Sheet in prep_schedule_data):
     
-    .date <-
+    row <-
       .schedule_list %>%
       pluck(.wday) %>%
-      pull(date) %>%
-      first()
-    
-    row <- 
-      .updates %>% 
-      filter(date == .date)
+      slice(1)
     
     # Pull one sheet value (a dash when blank or absent):
     
@@ -791,29 +1146,14 @@ day_block <-
     helper <- sheet_val("helper")
     notes <- sheet_val("notes")
     
-    # The scheduled searching order, and any override from the sheet:
+    # Searching patches (base order, already overridden by the sheet in prep):
     
-    scheduled_patches <- 
-      .schedule_list %>% 
-      pluck(.wday) %>% 
-      filter(patch_order != 1) %>% 
-      arrange(
-        desc(patch_order)
-      ) %>% 
-      pull(patch_count)
-    
-    search_override <- 
+    search_patches <-
       c(
         sheet_val("search_patch_1"),
         sheet_val("search_patch_2")
-      ) %>% 
+      ) %>%
       keep(~ .x != "-")
-    
-    order_patches <- 
-      if (length(search_override) > 0) search_override else scheduled_patches
-    
-    table_patches <- 
-      if (length(search_override) == 2) search_override else scheduled_patches
     
     # Morning times and point counts:
     
@@ -832,11 +1172,11 @@ day_block <-
     # Nest searching order and activity table (helper and activities from
     # sheet):
     
-    nest_searching_order(.patches = order_patches)
+    nest_searching_order(.patches = search_patches)
     
     nest_searching(
       .helper = helper,
-      .patches = table_patches,
+      .patches = search_patches,
       .helper_patch_1 = sheet_val("helper_patch_1"),
       .me_patch_1 = sheet_val("tns_patch_1"),
       .helper_patch_2 = sheet_val("helper_patch_2"),

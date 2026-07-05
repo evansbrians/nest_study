@@ -45,19 +45,14 @@ c(
 schedule <- prep_schedule_data()
 
 schedule_list <-
-  schedule %>% 
+  schedule %>%
   split(schedule$day)
-
-schedule_updates <- 
-  here("data", "schedule_updates.rds") %>% 
-  read_rds() %>% 
-  mutate(date = as_date(date))
 
 # list set-up -------------------------------------------------------------
 
 days_ordered <-
-  schedule %>% 
-  filter(day != "Sun") %>% 
+  schedule %>%
+  filter(field) %>%
   arrange(date) %>% 
   distinct(day) %>% 
   pull(day)

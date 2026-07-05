@@ -479,23 +479,22 @@ map_tracking
       <div id="ivActiveFields" style="display:none;">
         <label class="field-field-label">Adult present
           <select id="ivAdultPresent" class="field-input">
-            <option>N</option>
-            <option>A</option>
-            <option>F</option>
-            <option>M</option>
-            <option>P</option>
+            <option value="N">No adults seen or heard</option>
+            <option value="A">Adult</option>
+            <option value="F">Female</option>
+            <option value="M">Male</option>
+            <option value="P">Pair</option>
           </select>
         </label>
         <label class="field-field-label" id="ivAdultActivityWrap" style="display:none;">
           Adult activity
           <select id="ivAdultActivity" class="field-input">
-            <option>BC</option>
-            <option>FY</option>
-            <option>IC</option>
-            <option>NV</option>
-            <option>AC</option>
-            <option>TS</option>
-            <option>FL</option>
+            <option value="BC">Building</option>
+            <option value="FY">Feeding young at nest</option>
+            <option value="IC">Incubating</option>
+            <option value="NV">Near nest, no vocalizations</option>
+            <option value="AC">Alarm calls near nest</option>
+            <option value="TS">Territorial singing near nest</option>
           </select>
         </label>
         <label class="field-field-label">Host eggs
@@ -516,21 +515,21 @@ map_tracking
         </label>
         <label class="field-field-label">Nest status
           <select id="ivNestStatus" class="field-input">
-            <option>IN</option>
-            <option>CN</option>
-            <option>DN</option>
-            <option>FN</option>
-            <option>RN</option>
+            <option value="CN">Nest structurally complete</option>
+            <option value="IN">Nest materials present, nest incomplete</option>
+            <option value="DN">Damaged nest</option>
+            <option value="FN">Flattened nest with fecal matter</option>
+            <option value="RN">Nest disappeared for unknown reason</option>
           </select>
         </label>
         <label class="field-field-label">Young status
           <select id="ivYoungStatus" class="field-input">
-            <option>NO</option>
-            <option>HY</option>
-            <option>NY</option>
-            <option>PY</option>
-            <option>BY</option>
-            <option>VY</option>
+            <option value="NO">No young present at nest</option>
+            <option value="HY">At least one hatching or just emerged</option>
+            <option value="NY">Nestlings naked and pink, eyes closed</option>
+            <option value="PY">Wing feathers emerging, skin visible, eyes open</option>
+            <option value="BY">Body feathers cover skin, stubby tail feathers</option>
+            <option value="VY">Vocal young, heard only</option>
           </select>
         </label>
         <label class="field-field-label">Observer
@@ -588,6 +587,9 @@ map_tracking
         </button>
         <button type="button" id="nmModifyWaypoint" class="field-button">
           Modify waypoint
+        </button>
+        <button type="button" id="nmMakeArtificial" class="field-button">
+          Make artificial nest
         </button>
         <button type="button" id="nmCancelBtn"
                 class="field-button field-button--danger">

@@ -7,13 +7,19 @@
     var sp = ndEl("ndSpecies");
     if (sp && !sp.options.length) {
       sp.add(new Option("— choose species —", ""));
+      // Order: Unknown, Artificial nest, then birds A->Z, then Other. Labels are
+      // common names only; the sheet value is the 4-letter code for birds and a
+      // plain word for the special options.
+      sp.add(new Option("Unknown", "Unknown"));
+      sp.add(new Option("Artificial nest", "Artificial nest"));
       NEST_SPECIES.forEach(function (s) {
-        sp.add(new Option(s[0] + " (" + s[1] + ")", s[1]));
+        sp.add(new Option(s[0], s[1]));
       });
       sp.add(new Option("Other…", "__other__"));
     }
     var su = ndEl("ndSubstrate");
     if (su && !su.options.length) {
+      su.add(new Option("Unknown", "Unknown"));
       NEST_SUBSTRATES.forEach(function (name) { su.add(new Option(name, name)); });
       su.add(new Option("Other…", "__other__"));
     }
@@ -306,7 +312,7 @@
     ivEl("ivHostYoung").value = "0";
     ivEl("ivBhcoEggs").value = "0";
     ivEl("ivBhcoYoung").value = "0";
-    ivEl("ivNestStatus").value = "IN";
+    ivEl("ivNestStatus").value = "CN";
     ivEl("ivYoungStatus").value = "NO";
     ivEl("ivObserverActive").value = "TNS";
     ivEl("ivNotesActive").value = "";
@@ -421,9 +427,75 @@
     ov.classList.add("is-visible");
   }
 
+  // Artificial (NQ) nests: an old, inactive nest that already has a GPS point is
+  // reassigned as an artificial nest. This auto-fills the discovery row (species
+  // "Artificial nest") and a first interval record with 2 host eggs added, with
+  // no data-entry pages -- Tara just confirms.
+  function makeArtificialNest(nestId) {
+    if (!nestId) return;
+    var c = (typeof niCoords === "function") ? niCoords(nestId) : null;
+    var lat = c ? c.lat : null, lng = c ? c.lng : null;
+    var today = fmtTime(new Date()).slice(0, 10);
+    var now = new Date();
+    var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+    var timeStr = pad(now.getHours()) + ":" + pad(now.getMinutes());
+
+    var discovery = {
+      nest_id: nestId,
+      species: "Artificial nest",
+      patch_id: defaultPatchForNest(nestId, lat, lng),
+      discovery_date: today,
+      discovery_stage: null,
+      selfie_stick: false,
+      artificial_candidate: true,
+      camera_or_control: "Control",
+      camera_deployment_date: null,
+      height: null,
+      substrate: null,
+      gps_point: nestId,
+      location_description: null
+    };
+
+    var interval = {
+      nest_id: nestId,
+      date: today,
+      time: timeStr,
+      current_state: "Active",
+      observer: "TNS",
+      notes: "Artificial nest set up (auto-filled).",
+      adult_present: "N",
+      adult_activity: "",
+      host_eggs: 2,          // 2 host eggs added per artificial nest
+      host_young: 0,
+      bhco_eggs: 0,
+      bhco_young: 0,
+      nest_status: "CN",
+      young_status: "NO"
+    };
+
+    showBusy("Setting up artificial nest…");
+    uploadNestRow(discovery, function () {
+      uploadIntervalRow(interval, function () {
+        hideBusy();
+        showUploadModal(nestId + " set up as an artificial nest (2 host eggs).");
+        closeMenu();
+      }, function (msg) {
+        hideBusy();
+        showUploadModal("Discovery saved, but the interval failed: " + msg);
+      });
+    }, function (msg) {
+      hideBusy();
+      showUploadModal("Couldn't set up artificial nest: " + msg);
+    });
+  }
+
   function startNewNestPoint(nestId) {
     resetAddForm();
     newNestId = nestId;
+    // This nest already exists (already discovered) -- we're only attaching a
+    // GPS location to it. Save must NOT route through the discovery/interval
+    // pages (that would create a duplicate nest). See saveAveraged.
+    newNestExisting = true;
     if (wpName) { wpName.value = nestId; wpName.readOnly = true; }
     if (wpNamePrefix) wpNamePrefix.style.display = "none";
     var clab = (wpClass && wpClass.closest) ? wpClass.closest(".field-field-label") : null;
@@ -601,10 +673,25 @@
       addStatus("No location samples yet -- give it a moment.");
       return;
     }
+
+    // Duplicate-name safeguard: block a BRAND-NEW nest (not an existing nest
+    // getting its GPS via startNewNestPoint) from taking the name of a point
+    // that already has a GPS location. Checked before averaging is torn down so
+    // Tara can just fix the name and Save again.
+    var forNest = newNestId;
+    var forExistingNest = newNestExisting;   // attaching GPS to an existing nest
+    var isNestClass = forNest ? true : !!(wpClass && wpClass.value === "Nest");
+    var intendedName = forNest ? forNest : currentName(fmtTime(new Date()));
+    if (isNestClass && !forExistingNest && nestNameHasGpsPoint(intendedName)) {
+      addStatus("A GPS point named " + intendedName + " already exists. " +
+        "Pick a different nest number, or use that nest's Modify to update it.");
+      return;
+    }
+
     var a = avg;               // snapshot the average before restarting
     stopAveraging();
-    var forNest = newNestId;
     newNestId = null;
+    newNestExisting = false;
 
     var now = new Date();
     var t = fmtTime(now);
@@ -639,16 +726,19 @@
 
     arr.push(wp);
     storeWaypoints(arr);
-    // Every new Nest waypoint goes to the discovery form -- whether its id came
-    // from the Nests page (forNest) or was auto-named here (wp.point_name).
+    // A brand-new Nest waypoint goes to the discovery form. A Nest waypoint that
+    // is just attaching GPS to an ALREADY-discovered nest (forExistingNest, set
+    // by startNewNestPoint) must NOT -- it would create a duplicate discovery.
     var isNestPoint = (wp.point_class === "Nest");
+    var goDiscovery = isNestPoint && !forExistingNest;
     if (wp.point_class === "Temp") {
       showUploadModal(wp.point_name + " added (temporary -- not saved).");
     } else {
       uploadToDrive("individual_points", wp.point_name + "_" + syncTimestamp() + ".geojson", waypointsFC([wp]), null, function () {
         markUploaded([wp.point_id]);
-        // The nest-discovery form is the acknowledgement for nest points.
-        if (!isNestPoint) {
+        // The nest-discovery form is the acknowledgement for brand-new nests;
+        // everything else (incl. GPS-only for an existing nest) confirms here.
+        if (!goDiscovery) {
           showUploadModal(forNest ? ("Location saved for " + forNest + ".") : (wp.point_name + " uploaded to Drive."));
         }
       });
@@ -658,11 +748,11 @@
     resetAddForm();
     addStatus("");
 
-    // For a nest point, go straight to the nest-discovery form; the GPS
-    // location, datetime, and the saved waypoint id are carried into it so the
-    // note/photo captured there can be attached back to this waypoint.
+    // For a brand-new nest point, go straight to the nest-discovery form; the
+    // GPS location, datetime, and the saved waypoint id are carried into it so
+    // the note/photo captured there can be attached back to this waypoint.
 
-    if (isNestPoint) {
+    if (goDiscovery) {
       openNestData(wp.point_name, a.lat, a.lng, now, wp.point_id);
     } else {
 
@@ -674,6 +764,7 @@
 
   function resetAddForm() {
     newNestId = null;
+    newNestExisting = false;
     if (wpName) { wpName.value = ""; wpName.readOnly = false; }
     if (wpNote) wpNote.value = "";
     if (wpClass) wpClass.selectedIndex = 0;
@@ -848,6 +939,8 @@
     data = data || {};
     var sp = ndEl("ndSpecies");
     var spVal = (data.species != null) ? String(data.species) : "";
+    // Back-compat: older rows wrote the code "ARNE" for artificial nests.
+    if (spVal === "ARNE") spVal = "Artificial nest";
     if (sp) {
       var known = false;
       Array.prototype.forEach.call(sp.options, function (o) { if (o.value === spVal) known = true; });
@@ -925,7 +1018,7 @@
       ivEl("ivHostYoung").value = numText(data.host_young);
       ivEl("ivBhcoEggs").value = numText(data.bhco_eggs);
       ivEl("ivBhcoYoung").value = numText(data.bhco_young);
-      ivEl("ivNestStatus").value = data.nest_status || "IN";
+      ivEl("ivNestStatus").value = data.nest_status || "CN";
       ivEl("ivYoungStatus").value = data.young_status || "NO";
       ivEl("ivObserverActive").value = data.observer || "TNS";
       ivEl("ivNotesActive").value = data.notes || "";

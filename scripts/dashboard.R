@@ -23,11 +23,8 @@ source("scripts/spatial/convert_gpx_geojson.R")
 
 # download and pre-process field data and process outputs -----------------
 
-# Weather woes:
-
-push_schedule(
-  today()
-) 
+# Weather is now handled directly in the schedule Google Sheet (the `field`
+# column), so no push is recorded here.
 
 source("scripts/utils/updater.R")
 
