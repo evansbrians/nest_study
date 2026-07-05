@@ -16,13 +16,12 @@ schedule_panels <-
   tryCatch(
     {
       schedule_data <- prep_schedule_data(.mark_tall_nests = TRUE)
-      
+
       updates <-
         read_rds(
           here("data/schedule_updates.rds")
         ) %>%
-        mutate(date = as_date(date)) %>%
-        apply_schedule_push()
+        mutate(date = as_date(date))
       
       weather <-
         tryCatch(
