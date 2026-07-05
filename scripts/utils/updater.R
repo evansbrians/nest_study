@@ -53,8 +53,8 @@ schedule <-
   # Remove Sundays and subset to to the current week:
   
   filter(
-    day == "Sun",
-    get_sampling_week(date) == 
+    # day = "Sun",
+    get_sampling_week(date) ==
       get_sampling_week(
         today()
       )

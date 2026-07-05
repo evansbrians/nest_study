@@ -3,79 +3,49 @@
 library(tidyverse)
 
 source(here::here("scripts/utils/functions/time_and_date_functions.R"))
+source(here::here("scripts/utils/functions/scheduling_functions.R"))
 
-# field-day shift ----------------------------------------------------------
+# The map is driven by the same prep_schedule_data() output as the schedule
+# panel, so the two cannot diverge. Giraffes are off here so nest ids match the
+# map layer names; field days only; the weather-day shift is already applied.
 
-# The sheet's field == TRUE days for this week. A cancelled non-Sunday day
-# (field == FALSE) drops out, so the regular plan slides forward: the i-th
-# planned day lands on the i-th field day (identity on a normal week).
+schedule_data <-
+  prep_schedule_data(.mark_tall_nests = FALSE) %>%
+  filter(field)
 
-field_days <-
-  read_rds(here::here("data/schedule_updates.rds")) %>%
-  mutate(date = as_date(date)) %>%
-  filter(
-    field == "TRUE",
-    isoweek(date) - 19 == get_sampling_week()
-  ) %>%
-  arrange(date) %>%
-  pull(date)
-
-shift_to_field_days <-
-  function(.data, .field_days = field_days) {
-    if (!"date" %in% names(.data) || nrow(.data) == 0) {
-      return(.data)
-    }
-    .data <- mutate(.data, date = as_date(date))
-    base_days <-
-      .data %>%
-      filter(isoweek(date) - 19 == get_sampling_week()) %>%
-      distinct(date) %>%
-      arrange(date) %>%
-      pull(date)
-    .data %>%
-      left_join(
-        tibble(
-          date = base_days,
-          .field_date = .field_days[seq_along(base_days)]
-        ),
-        by = "date"
-      ) %>%
-      mutate(date = coalesce(.field_date, date)) %>%
-      select(!.field_date)
-  }
-
-# get and process schedule data --------------------------------------------
+# patches and coverboards per date ------------------------------------------
 
 schedule <-
-  read_rds(here::here("data/season_schedule.rds")) %>%
-  unnest(patch_counts) %>% 
-  unnest(boards) %>% 
-  filter(
-    week == get_sampling_week()
-  ) %>% 
-  
-  # Subset to only relevant information:
-
-  select(
+  schedule_data %>%
+  transmute(
     date,
     patch = patch_count,
-    board_id
+    boards
   ) %>%
-  shift_to_field_days()
+  filter(!is.na(boards)) %>%
+  separate_longer_delim(boards, delim = ", ") %>%
+  rename(board_id = boards)
 
-# predator camera maintenance ----------------------------------------------
+# predator camera maintenance -----------------------------------------------
 
 next_pred_cam_maintenance <-
-  here::here("data", "predator_camera_maintenance.rds") %>%
-  read_rds() %>%
-  drop_na(camera_id) %>%
-  shift_to_field_days()
+  schedule_data %>%
+  transmute(
+    date,
+    patch = patch_count,
+    camera_id = predator_cameras
+  ) %>%
+  filter(!is.na(camera_id), camera_id != "-")
 
-# get and process nest data ------------------------------------------------
+# nests to check per date ---------------------------------------------------
 
 next_checks <-
-  read_rds(here::here("data/temp_nest_checking.rds")) %>%
+  schedule_data %>%
+  transmute(
+    date,
+    patch = patch_count,
+    check_nests
+  ) %>%
+  filter(check_nests != "-") %>%
   separate_longer_delim(check_nests, delim = ", ") %>%
-  rename(nest_id = check_nests) %>%
-  select(nest_id, patch, date) %>%
-  shift_to_field_days()
+  rename(nest_id = check_nests)
