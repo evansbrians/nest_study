@@ -507,6 +507,7 @@ map_tracking
             <option value="BC">Building</option>
             <option value="FY">Feeding young at nest</option>
             <option value="IC">Incubating</option>
+            <option value="FL">Flushed</option>
             <option value="NV">Near nest, no vocalizations</option>
             <option value="AC">Alarm calls near nest</option>
             <option value="TS">Territorial singing near nest</option>
