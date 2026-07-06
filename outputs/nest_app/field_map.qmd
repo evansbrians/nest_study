@@ -171,7 +171,22 @@ map_tracking
 
       <div class="conceal-bearing" id="concealBearing">Bearing: --</div>
 
-      <button type="button" id="concealCaptureBtn" class="field-button conceal-capture">Capture photo</button>
+      <!-- In-app live camera: one continuous getUserMedia stream for the whole
+           4-photo session, with the compass bearing overlaid on the preview so
+           it stays visible while aiming. Hidden until the stream is running;
+           falls back to the native #concealCamera input below if unavailable. -->
+      <div id="concealLive" class="conceal-live" hidden>
+        <div class="conceal-live-wrap">
+          <video id="concealVideo" class="conceal-video" autoplay muted playsinline></video>
+          <div class="conceal-live-overlay">
+            <div class="conceal-live-bearing" id="concealLiveBearing">--°</div>
+          </div>
+        </div>
+        <button type="button" id="concealShutterBtn" class="field-button conceal-capture">Capture photo</button>
+      </div>
+
+      <!-- Native-camera fallback (also used before the live stream starts). -->
+      <button type="button" id="concealCaptureBtn" class="field-button conceal-capture" hidden>Capture photo</button>
       <input type="file" id="concealCamera" accept="image/*" capture="environment" class="field-hidden-input">
 
       <div id="concealStatus" class="conceal-status"></div>

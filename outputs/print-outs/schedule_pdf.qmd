@@ -42,7 +42,7 @@ c(
 
 # get and process data ----------------------------------------------------
 
-schedule <- prep_schedule_data()
+schedule <- prep_schedule_data(.mark_tall_nests = FALSE)
 
 schedule_list <-
   schedule %>%

@@ -2910,6 +2910,21 @@
   // (full quality) and a JSON whose photo is the circled image as a reduced WebP
   // (JPEG fallback where the canvas can't encode WebP, e.g. iOS).
 
+  // Shared handle so showScreen()/closeMenu() (siblings in this IIFE) can drive
+  // the concealment live camera without reaching inside its own IIFE.
+  var concealCam = null;
+
+  // Start the live camera when the concealment screen is showing, stop it when
+  // it isn't. One continuous stream for the whole 4-photo session -- never
+  // stopped/restarted between shots, only when leaving the screen.
+  function syncConcealCamera() {
+    if (!concealCam) return;
+    var showing = overlay.classList.contains("is-open") &&
+      activeScreen() === "concealment";
+    if (showing) concealCam.start();
+    else concealCam.stop();
+  }
+
   (function () {
     var nestBtn = document.getElementById("concealNestBtn");
     var bearingEl = document.getElementById("concealBearing");
@@ -2923,6 +2938,13 @@
     var saveBtn = document.getElementById("concealSaveBtn");
     var discardBtn = document.getElementById("concealDiscardBtn");
     var listEl = document.getElementById("concealList");
+
+    // Live-camera elements (in-app getUserMedia preview).
+    var live = document.getElementById("concealLive");
+    var video = document.getElementById("concealVideo");
+    var shutterBtn = document.getElementById("concealShutterBtn");
+    var liveBearingEl = document.getElementById("concealLiveBearing");
+
     if (!captureBtn || !camera || !canvas) return;
 
     var selectedNest = null;
@@ -2984,11 +3006,120 @@
     if (nestBtn) nestBtn.addEventListener("click", openNestPicker);
 
     setInterval(function () {
-      if (!bearingEl) return;
-      bearingEl.textContent = (typeof window.fieldBearing === "number")
-        ? "Bearing: " + window.fieldBearing + "°" : "Bearing: --";
+      var have = (typeof window.fieldBearing === "number");
+      if (bearingEl) {
+        bearingEl.textContent = have ? "Bearing: " + window.fieldBearing + "°" : "Bearing: --";
+      }
+      // Same value, overlaid on the live preview so it stays visible while aiming.
+      if (liveBearingEl) {
+        liveBearingEl.textContent = have ? window.fieldBearing + "°" : "--°";
+      }
     }, 250);
 
+    // ---- Live in-app camera (getUserMedia) --------------------------------
+
+    // iOS Safari/WKWebView does NOT expose focus/exposure lock to JS
+    // (ImageCapture / applyConstraints focusMode/exposureMode are unsupported),
+    // so we don't attempt a hardware AE/AF lock -- it wouldn't work. The win is
+    // purely the continuous single stream (no per-shot relaunch) + the compass
+    // overlay staying visible.
+
+    var stream = null;
+    var starting = false;
+
+    function supportsLive() {
+      return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia &&
+        window.HTMLCanvasElement && video && live && shutterBtn);
+    }
+
+    // Fall back to the native <input capture> camera. Shown when getUserMedia is
+    // missing, throws, or permission is denied.
+    function useNativeFallback(msg) {
+      stopStream();
+      if (live) live.hidden = true;
+      if (captureBtn) captureBtn.hidden = false;
+      if (msg) status(msg);
+    }
+
+    function stopStream() {
+      if (video) { try { video.pause(); } catch (e) {} video.srcObject = null; }
+      if (stream) {
+        stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} });
+        stream = null;
+      }
+    }
+
+    function startStream() {
+      if (!supportsLive()) { useNativeFallback("Live camera unavailable -- using device camera."); return; }
+      if (stream || starting) return;   // already up / coming up: keep the one session
+      starting = true;
+      status("Starting camera…");
+      var constraints = { audio: false, video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 3840 }, height: { ideal: 2160 } } };
+      function attach(s) {
+        starting = false;
+        stream = s;
+        video.srcObject = s;
+        var p = video.play();
+        if (p && p.catch) p.catch(function () {});
+        if (live) live.hidden = false;
+        if (captureBtn) captureBtn.hidden = true;
+        status("");
+      }
+      navigator.mediaDevices.getUserMedia(constraints).then(attach).catch(function () {
+        // Retry once at a lower resolution before giving up to the native camera.
+        navigator.mediaDevices.getUserMedia({ audio: false,
+          video: { facingMode: { ideal: "environment" } } }).then(attach).catch(function () {
+          starting = false;
+          useNativeFallback("Camera blocked -- using device camera. Allow camera access for the live view.");
+        });
+      });
+    }
+
+    // Exposed to showScreen()/closeMenu() via the concealCam handle.
+    concealCam = {
+      start: function () { startStream(); },
+      stop: function () { stopStream(); }
+    };
+    // Release the camera if the app is backgrounded/hidden.
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) stopStream();
+      else if (typeof syncConcealCamera === "function") syncConcealCamera();
+    });
+    window.addEventListener("pagehide", stopStream);
+
+    // Grab the current live frame -> a JPEG Blob (the "original") + open the
+    // circle editor, exactly as the native-photo path does.
+    function captureLiveFrame() {
+      if (!selectedNest) { status("Choose a nest first."); return; }
+      if (!stream || !video.videoWidth) { status("Camera not ready yet."); return; }
+      capturedBearing = (typeof window.fieldBearing === "number") ? window.fieldBearing : null;
+      var w = video.videoWidth, h = video.videoHeight;
+      var grab = document.createElement("canvas");
+      grab.width = w; grab.height = h;
+      grab.getContext("2d").drawImage(video, 0, 0, w, h);
+      // Match the native flow: a full-quality JPEG File used as `originalFile`.
+      var complete = function (blob) {
+        if (!blob) { status("Couldn't capture frame."); return; }
+        blob.name = "conceal_" + ts() + ".jpg";
+        loadIntoEditor(blob);
+      };
+      if (grab.toBlob) grab.toBlob(complete, "image/jpeg", 0.92);
+      else complete(dataURLtoBlob(grab.toDataURL("image/jpeg", 0.92)));
+    }
+
+    function dataURLtoBlob(u) {
+      var parts = u.split(","), mime = (parts[0].match(/:(.*?);/) || [])[1] || "image/jpeg";
+      var bin = atob(parts[1]), arr = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      var b = new Blob([arr], { type: mime });
+      return b;
+    }
+
+    if (shutterBtn) shutterBtn.addEventListener("click", captureLiveFrame);
+
+    // Native fallback: capture the current bearing, then open the OS camera.
     captureBtn.addEventListener("click", function () {
       if (!selectedNest) { status("Choose a nest first."); return; }
       capturedBearing = (typeof window.fieldBearing === "number") ? window.fieldBearing : null;
@@ -3012,8 +3143,10 @@
       });
     }
 
-    camera.addEventListener("change", function () {
-      var f = camera.files && camera.files[0];
+    // Load a captured photo (native File or live-frame Blob) into the circle
+    // editor. Same downstream contract either way: `originalFile` is the
+    // untouched full-quality image, `canvas` is the reduced/circled version.
+    function loadIntoEditor(f) {
       if (!f) return;
       originalFile = f;
       var url = URL.createObjectURL(f);
@@ -3030,6 +3163,11 @@
       };
       img.onerror = function () { URL.revokeObjectURL(url); status("Couldn't read that photo."); };
       img.src = url;
+    }
+
+    camera.addEventListener("change", function () {
+      var f = camera.files && camera.files[0];
+      loadIntoEditor(f);
     });
 
     function canvasXY(e) {

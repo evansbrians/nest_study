@@ -41,6 +41,11 @@
     // Auto-start/stop averaging based on whether Add Waypoint is showing.
 
     if (typeof syncAveraging === "function") syncAveraging();
+
+    // Let the concealment module open/close its live camera as its screen
+    // is entered/left (one continuous stream while the screen is showing).
+
+    if (typeof syncConcealCamera === "function") syncConcealCamera();
   }
 
   function openMenu() {
@@ -59,6 +64,7 @@
     if (isWide) showScreen("main");
     updateBar();
     if (typeof syncAveraging === "function") syncAveraging();
+    if (typeof syncConcealCamera === "function") syncConcealCamera();
   }
 
   // Open the menu overlay without changing the current screen -- used by map
