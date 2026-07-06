@@ -15,20 +15,33 @@ source(
   )
 )
 
+# target date -------------------------------------------------------------
+
+# On Sundays, define the week based on tomorrow's date:
+
+target_date <- today() + 1
+
+# During the week, define the week based on today's date:
+
+target_date <- today()
+
+# Set the date as an environment variable:
+
+Sys.setenv(
+  REFERENCE_DATE = as.character(target_date)
+)
+
+# download and pre-process field data and process outputs -----------------
+
+source("scripts/utils/updater.R")
+
+autopush_updates()
+
 # download data points from garmin ----------------------------------------
 
 # This is just a fail safe in case you are still using the Garmin:
 
 source("scripts/spatial/convert_gpx_geojson.R")
-
-# download and pre-process field data and process outputs -----------------
-
-# Weather is now handled directly in the schedule Google Sheet (the `field`
-# column), so no push is recorded here.
-
-source("scripts/utils/updater.R")
-
-autopush_updates()
 
 # printing ----------------------------------------------------------------
 
