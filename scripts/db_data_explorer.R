@@ -180,3 +180,7 @@ data_counts <-
         )
     )
   }
+
+# End connection each time you're done! -----------------------------------
+
+dbDisconnect()
