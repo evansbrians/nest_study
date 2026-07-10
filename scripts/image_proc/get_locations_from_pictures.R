@@ -18,6 +18,8 @@ list.files(
   full.names = TRUE
 ) %>%
   set_names_from_path() %>%
+  discard_at(~"path_crossing_locations") %>% 
+  discard_at(~"boundary_locations") %>% 
   set_names(
     names(.) %>% 
       str_remove("_locations") %>% 
@@ -46,16 +48,16 @@ list.files(
 # Get image file metadata:
 
 meta <- 
-  exifr::read_exif("data/photos", recursive = TRUE)
+  exifr::read_exif("data/photos", recursive = TRUE) %>% 
+  janitor::clean_names()
 
 # process image metadata --------------------------------------------------
 
 nest_photos <-
   meta %>% 
-  janitor::clean_names() %>% 
   select(
-    matches("^(source|gps)")
-  ) %>% 
+    matches("^(file_modify|source|gps)")
+  ) %>%
   mutate(
     source_file,
     uri = 
@@ -74,6 +76,7 @@ nest_photos <-
     popup_content = glue("<img src='{uri}' style='width:250px;'>"),
     .keep = "none"
   ) %>% 
+  drop_na(lon) %>% 
   arrange(datetime) %>% 
   st_as_sf(
     coords = c("lon", "lat"),
