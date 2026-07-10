@@ -42,7 +42,7 @@ it across the page.*/
 
   --accent: #136aec;            /* primary blue */
   --accent-tint: #e9f1fd;       /* light wash of the accent */
-  --bg: #e9efce;               /* light app background (the menu surface) */
+  --bg: #eaddca;               /* light app background (the menu surface) */
   --surface: #ffffff;           /* cards, tiles, inputs */
   --text: #1c2024;              /* primary text */
   --text-muted: #5c6670;        /* secondary text */
