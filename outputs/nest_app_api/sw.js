@@ -23,16 +23,38 @@
  */
 "use strict";
 
-var SW_VERSION = "v4";
+var SW_VERSION = "v5";
 var CACHE = "nestapp-shell-" + SW_VERSION;
 
-// Install: best-effort precache of the shell, then activate immediately.
+// With embed-resources: false the app is split across files. Precache the
+// critical ones on install so a single online launch makes the app fully
+// offline-capable (the shell alone isn't enough anymore). Leaflet's generated
+// index_files/ libs aren't listed here (hashed names) but cache on first load
+// via stale-while-revalidate. Paths are relative to the SW scope (the app dir).
+var PRECACHE = [
+  "field_patches.js",
+  "field_icons.js",
+  "field_offline_tiles.js",
+  "field_data.js",
+  "src/js/nestapi_settings.js",
+  "src/js/nestapi_store.js",
+  "src/js/nestapi_client.js",
+  "src/js/nestapi_queue.js",
+  "src/js/nestapi_sync.js"
+];
+
+// Install: best-effort precache of the shell + critical assets, then activate.
 self.addEventListener("install", function (event) {
   event.waitUntil(
     caches.open(CACHE).then(function (cache) {
-      return cache.add(
-        new Request(self.registration.scope, { cache: "reload" })
-      ).catch(function () { /* offline at install: filled on first online nav */ });
+      var base = self.registration.scope;
+      var reqs = [new Request(base, { cache: "reload" })].concat(
+        PRECACHE.map(function (p) { return new Request(base + p, { cache: "reload" }); })
+      );
+      // Add each independently so one missing file can't fail the whole install.
+      return Promise.all(reqs.map(function (r) {
+        return cache.add(r).catch(function () {});
+      }));
     }).then(function () {
       return self.skipWaiting();
     })
