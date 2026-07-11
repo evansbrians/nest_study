@@ -23,7 +23,7 @@
  */
 "use strict";
 
-var SW_VERSION = "v3";
+var SW_VERSION = "v4";
 var CACHE = "nestapp-shell-" + SW_VERSION;
 
 // Install: best-effort precache of the shell, then activate immediately.
