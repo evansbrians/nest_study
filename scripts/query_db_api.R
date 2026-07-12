@@ -7,7 +7,7 @@ library(tidyverse)
 
 base_url <- "https://snednestudy.duckdns.org"
 
-# Define your API passwork:
+# Define your API password:
 
 token <- "a5d11ba12d29bdb83b0a5e4806fe111dbb740d6001499c2cdc171440cb05f357"
 
@@ -33,7 +33,7 @@ query_api <-
     
     # Define path:
     
-    str_c(.base_url, .query) %>% 
+    str_glue("{.base_url}/{.query}") %>% 
       
       # Submit query:
       
@@ -66,7 +66,7 @@ endpoints <-
   # Query the api:
   
   query_api(
-    .query = "/openapi.json",
+    .query = "openapi.json",
     .tibbular = FALSE
   ) %>% 
   
@@ -83,46 +83,46 @@ endpoints <-
 
 # Get a full table of data from the api.
 
-query_api("/nests")
+query_api("nests")
 
 # Note that some outputs are lists, so you don't want the response to be a
 # tibble For example, "lookups" power the dropdown menues:
 
-query_api("/lookups", .tibbular = FALSE)
+query_api("lookups", .tibbular = FALSE)
 
 # You'll see that some endpoints allow you to dig a bit deeper (see all of
 # the associated data as a list):
 
-query_api("/nests/N103", .tibbular = FALSE)
+query_api("nests/N103", .tibbular = FALSE)
 
 # You can extract a list item with purrr:
 
-query_api("/nests/N103", .tibbular = FALSE) %>% 
+query_api("nests/N103", .tibbular = FALSE) %>% 
   pluck("intervals")
 
 # Or extract using the query itself (here a tibble, so we can use my `tibbular =
 # TRUE` switch):
 
-query_api("/nests/N103/intervals")
+query_api("nests/N103/intervals")
 
 # There are some endpoint parameters that can simplify searching. You can do
 # so with "?[parameter]=[value]":
 
-query_api("/nests?patch=witch_hazel")
+query_api("nests?patch=witch_hazel")
 
 # You can add multiple parameters by separating queries with `&`:
 
-query_api("/nests?current=true&patch=witch_hazel")
+query_api("nests?current=true&patch=witch_hazel")
 
 # query gps ---------------------------------------------------------------
 
 # The shape of some objects can be tricky:
 
-query_api("/gps_points")
+query_api("gps_points")
 
 # ... but we can wrangle out the awkwardness:
 
-query_api("/gps_points", .tibbular = FALSE) %>% 
+query_api("gps_points", .tibbular = FALSE) %>% 
   
   # The information is in the "features" list:
   
@@ -148,17 +148,17 @@ query_api("/gps_points", .tibbular = FALSE) %>%
 
 # Note that we have parameters for GPS as well:
 
-query_api("/gps_points?class=coverboard")
+query_api("gps_points?class=coverboard")
 
 # query schedule ----------------------------------------------------------
 
-query_api("/schedule")
+query_api("schedule")
 
 # Parameters for the schedule may be super useful:
 
-query_api("/schedule?week=9")
+query_api("schedule?week=9")
 
 # ... but of course:
 
-query_api("/schedule") %>% 
+query_api("schedule") %>% 
   filter(week == 9)
