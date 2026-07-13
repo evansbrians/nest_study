@@ -555,6 +555,32 @@ lst(
     }
   )
 
+## push the schedule to the web API --------------------------------------
+
+# Push the current week + the next few weeks to the VM (schedule_load.R), so the
+# app advances to the new week on its own each Monday -- it selects the week
+# containing today's date, and next week is already loaded. Runs here because it
+# reads the live sheet (creds live on this workstation). Safe-fail: a failure
+# warns and updater.R continues; the app keeps the previously pushed schedule.
+
+message("Pushing schedule to the web API...")
+
+schedule_push_status <-
+  system2(
+    "Rscript",
+    c(
+      "brian_sandbox/migrate_to_db/server/schedule_load.R",
+      "--api", "https://snednestudy.duckdns.org",
+      "--token", "a5d11ba12d29bdb83b0a5e4806fe111dbb740d6001499c2cdc171440cb05f357"
+    )
+  )
+
+if (schedule_push_status != 0) {
+  warning(
+    "schedule_load.R failed -- the app keeps the previously pushed schedule."
+  )
+}
+
 ## refresh the local analysis DB from the VM -----------------------------
 
 # Replace the local DB with a fresh snapshot of the VM's live app data, then
