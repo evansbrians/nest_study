@@ -3324,6 +3324,69 @@
 
   var savedLayers = {};   // track id -> Leaflet polyline (when visible)
 
+  // All drawn tracks live in one feature group so a single Leaflet control
+  // checkbox can show/hide the whole tracks layer at once (individual tracks are
+  // still toggled from the manager). The control only appears while >=1 track is
+  // on the map.
+  var tracksGroup = null;
+  var tracksLayerOn = true;
+  var tracksControl = null;
+  var tracksControlCheckbox = null;
+
+  function ensureTracksGroup() {
+    if (!tracksGroup && window.L && window.L.featureGroup) {
+      tracksGroup = window.L.featureGroup();
+      if (tracksLayerOn && window.fieldMap) tracksGroup.addTo(window.fieldMap);
+    }
+    return tracksGroup;
+  }
+
+  function countDrawnTracks() {
+    var n = 0, k;
+    for (k in savedLayers) if (savedLayers.hasOwnProperty(k)) n++;
+    return n;
+  }
+
+  function setTracksLayerVisible(on) {
+    tracksLayerOn = on;
+    var grp = ensureTracksGroup();
+    if (!grp || !window.fieldMap) return;
+    if (on && !window.fieldMap.hasLayer(grp)) grp.addTo(window.fieldMap);
+    else if (!on && window.fieldMap.hasLayer(grp)) window.fieldMap.removeLayer(grp);
+  }
+
+  function updateTracksControl() {
+    if (!tracksControl) return;
+    var c = tracksControl.getContainer && tracksControl.getContainer();
+    if (c) c.style.display = countDrawnTracks() > 0 ? "" : "none";
+    if (tracksControlCheckbox) tracksControlCheckbox.checked = tracksLayerOn;
+  }
+
+  // Build the master "Tracks" checkbox control once, on demand (needs the map).
+  function ensureTracksControl() {
+    if (tracksControl || !window.fieldMap || !window.L) return;
+    var ctrl = window.L.control({ position: "topright" });
+    ctrl.onAdd = function () {
+      var div = window.L.DomUtil.create(
+        "div", "leaflet-control leaflet-bar field-tracks-control");
+      var label = window.L.DomUtil.create("label", "field-tracks-toggle", div);
+      var cb = window.L.DomUtil.create("input", "", label);
+      cb.type = "checkbox";
+      cb.checked = tracksLayerOn;
+      var span = window.L.DomUtil.create("span", "", label);
+      span.textContent = "Tracks";
+      window.L.DomEvent.disableClickPropagation(div);
+      window.L.DomEvent.on(cb, "change", function () {
+        setTracksLayerVisible(cb.checked);
+      });
+      tracksControlCheckbox = cb;
+      return div;
+    };
+    ctrl.addTo(window.fieldMap);
+    tracksControl = ctrl;
+    updateTracksControl();
+  }
+
   function loadTracks() {
     try { return JSON.parse(localStorage.getItem(TRACKS_KEY)) || []; }
     catch (e) { return []; }
@@ -3433,9 +3496,14 @@
   }
   function drawSavedTrack(t) {
     if (savedLayers[t.id] || !window.fieldMap || !window.L) return;
-    savedLayers[t.id] = window.L.polyline(
-      trackLatLngs(t), SAVED_STYLE
-    ).addTo(window.fieldMap).bindPopup(trackPopupHtml(t));
+    var line = window.L.polyline(trackLatLngs(t), SAVED_STYLE)
+      .bindPopup(trackPopupHtml(t));
+    savedLayers[t.id] = line;
+    var grp = ensureTracksGroup();
+    if (grp) grp.addLayer(line);
+    else line.addTo(window.fieldMap);
+    ensureTracksControl();
+    updateTracksControl();
   }
   // Update an on-map track's popup after edits
 
@@ -3443,8 +3511,12 @@
     if (savedLayers[t.id]) savedLayers[t.id].setPopupContent(trackPopupHtml(t));
   }
   function hideSavedTrack(id) {
-    if (savedLayers[id] && window.fieldMap) window.fieldMap.removeLayer(savedLayers[id]);
+    if (savedLayers[id]) {
+      if (tracksGroup) tracksGroup.removeLayer(savedLayers[id]);
+      else if (window.fieldMap) window.fieldMap.removeLayer(savedLayers[id]);
+    }
     delete savedLayers[id];
+    updateTracksControl();
   }
 
   // Persist one change to the track with the given id; returns the record.
@@ -3658,8 +3730,11 @@
   }
 
   // Persist a track locally, enqueue it to the server (createTrack -> POST
-  // /tracks, optimistic) so it appears on other devices, draw it, and keep a
-  // local GeoJSON copy on the device as an offline backup.
+  // /tracks, optimistic) so it appears on other devices, and draw it. The DB is
+  // the shared source of truth; the local store + queued POST are the backups,
+  // so we do NOT auto-download a GeoJSON here (that file landed in the user's
+  // Drive on every save and wasn't shareable). An explicit "Download (GeoJSON)"
+  // button in the track manager still exports one on demand.
 
   function commitSavedTrack(t) {
     var arr = loadTracks();
@@ -3668,8 +3743,6 @@
     syncTrackCreate(t);   // share to the server (optimistic; no-op without token)
     drawSavedTrack(t);
     renderTrackList();
-    // Local GeoJSON backup on the device (per-point accuracy preserved).
-    downloadTrack(t);
   }
 
   if (saveTrackBtn) {
@@ -3793,6 +3866,8 @@
 
   whenMapReady(function () {
     loadTracks().forEach(function (t) { if (t.visible) drawSavedTrack(t); });
+    ensureTracksControl();
+    updateTracksControl();
   });
   renderTrackList();
   updateReadout();
