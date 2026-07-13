@@ -325,7 +325,6 @@ function(el, x) {
     // was recording, restart the watch so it resumes on the SAME track.
 
     requestWakeLock();
-    if (lockOverlay && lockOverlay.style.display !== "none") updateLockStatus();
     if (trackIsRecording()) restartWatch();
   });
 
@@ -340,114 +339,114 @@ function(el, x) {
     });
   }
 
-  // lock-screen overlay ----------------------------------------------------
+  // lock-screen toggle -----------------------------------------------------
 
-  // A full-screen shield the tech can drop while the phone rides in a pocket
-  // or hand: it swallows map taps/pans so the track keeps recording
-  // undisturbed and shows that tracking is still live. Unlock is
-  // press-and-hold so an accidental brush can't dismiss it.
+  // A one-tap map lock for crawling through cover. The padlock starts OPEN; a
+  // tap closes it and freezes the map exactly where it is. While locked the map
+  // stays fully visible, but a transparent shield over the whole screen swallows
+  // every tap/pan/zoom so the view can't be nudged -- only the padlock itself
+  // stays live, and tapping it again unlocks. Belt-and-suspenders, Leaflet's own
+  // interaction handlers are disabled too (covers hardware keyboards / trackpads).
 
-  var lockOverlay = null;
-  var unlockHoldTimer = null;
+  var mapLocked = false;
+  var lockBlocker = null;
+  var lockButtonEl = null;
+  var lockBtnHome = null;   // where the padlock lives in the Leaflet control
 
-  function updateLockStatus() {
-    if (!lockOverlay) return;
-    if (trackIsRecording()) {
-      lockOverlay._statusEl.textContent = "Tracking active";
-      lockOverlay._hintEl.textContent =
-        "Recording your path — screen locked";
-    } else {
-      lockOverlay._statusEl.textContent = "Screen locked";
-      lockOverlay._hintEl.textContent = "Map taps are blocked";
-    }
-  }
+  // Open padlock: shackle up, right leg lifted off the body (unlocked look).
+  var LOCK_ICON_OPEN =
+    '<svg class="lock-screen-icon" viewBox="0 0 100 100"' +
+    ' xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+      '<rect x="24" y="44" width="52" height="40" rx="6"' +
+        ' fill="none" stroke="#fff" stroke-width="6"/>' +
+      '<path d="M34 44 V32 a16 16 0 0 1 32 0"' +
+        ' fill="none" stroke="#fff" stroke-width="6"/>' +
+    '</svg>';
 
-  function hideLockOverlay() {
-    if (unlockHoldTimer) { clearTimeout(unlockHoldTimer); unlockHoldTimer = null; }
-    if (lockOverlay) lockOverlay.style.display = "none";
-  }
+  // Closed padlock: both shackle legs meet the body (locked look).
+  var LOCK_ICON_CLOSED =
+    '<svg class="lock-screen-icon" viewBox="0 0 100 100"' +
+    ' xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+      '<rect x="24" y="44" width="52" height="40" rx="6"' +
+        ' fill="none" stroke="#fff" stroke-width="6"/>' +
+      '<path d="M34 44 V32 a16 16 0 0 1 32 0 V44"' +
+        ' fill="none" stroke="#fff" stroke-width="6"/>' +
+    '</svg>';
 
-  function buildLockOverlay() {
-    if (lockOverlay) return lockOverlay;
-
-    var ov = document.createElement("div");
-    ov.className = "field-lock-overlay";
-    ov.style.cssText =
+  // The transparent shield. It captures every interaction so nothing beneath it
+  // (map, markers, controls, the app menu bar) responds -- the padlock button is
+  // lifted above it so it alone stays tappable.
+  function buildLockBlocker() {
+    if (lockBlocker) return lockBlocker;
+    var b = document.createElement("div");
+    b.className = "field-lock-blocker";
+    b.style.cssText =
       "position:fixed;top:0;left:0;right:0;bottom:0;z-index:100000;" +
-      "display:flex;flex-direction:column;align-items:center;" +
-      "justify-content:center;gap:20px;text-align:center;color:#fff;" +
-      "background:rgba(10,20,35,0.94);font-family:inherit;" +
-      "-webkit-user-select:none;user-select:none;touch-action:none;";
-
-    var status = document.createElement("div");
-    status.style.cssText =
-      "font-size:22px;font-weight:700;line-height:1.4;padding:0 24px;";
-
-    var hint = document.createElement("div");
-    hint.style.cssText = "font-size:15px;opacity:0.85;padding:0 24px;";
-
-    var unlockBtn = document.createElement("button");
-    unlockBtn.type = "button";
-    unlockBtn.textContent = "Hold to unlock";
-    unlockBtn.style.cssText =
-      "min-width:220px;min-height:96px;border:none;border-radius:16px;" +
-      "background:#136aec;color:#fff;font-size:20px;font-weight:700;" +
-      "box-shadow:0 4px 16px rgba(0,0,0,0.4);" +
-      "-webkit-tap-highlight-color:transparent;touch-action:none;";
-
-    // Press-and-hold (~800 ms) to unlock; a brief brush just cancels.
-
-    var HOLD_MS = 800;
-
-    function beginHold(e) {
-      if (e.cancelable) e.preventDefault();
-      if (unlockHoldTimer) return;
-      unlockBtn.textContent = "Keep holding…";
-      unlockHoldTimer = setTimeout(function() {
-        unlockHoldTimer = null;
-        hideLockOverlay();
-      }, HOLD_MS);
-    }
-
-    function cancelHold() {
-      if (unlockHoldTimer) { clearTimeout(unlockHoldTimer); unlockHoldTimer = null; }
-      unlockBtn.textContent = "Hold to unlock";
-    }
-
-    unlockBtn.addEventListener("touchstart", beginHold, { passive: false });
-    unlockBtn.addEventListener("mousedown", beginHold);
-    ["touchend", "touchcancel", "mouseup", "mouseleave"].forEach(function(t) {
-      unlockBtn.addEventListener(t, cancelHold);
-    });
-
-    // Swallow every other tap/drag so the map underneath never moves.
-
+      "background:transparent;touch-action:none;" +
+      "-webkit-user-select:none;user-select:none;";
     ["click", "dblclick", "touchstart", "touchmove", "touchend",
       "pointerdown", "pointermove", "pointerup", "mousedown", "mousemove",
       "wheel", "contextmenu"].forEach(function(t) {
-      ov.addEventListener(t, function(e) {
-        if (e.target === unlockBtn || unlockBtn.contains(e.target)) return;
+      b.addEventListener(t, function(e) {
         if (e.cancelable) e.preventDefault();
         e.stopPropagation();
       }, { passive: false });
     });
-
-    ov.appendChild(status);
-    ov.appendChild(hint);
-    ov.appendChild(unlockBtn);
-    document.body.appendChild(ov);
-
-    lockOverlay = ov;
-    lockOverlay._statusEl = status;
-    lockOverlay._hintEl = hint;
-    return ov;
+    document.body.appendChild(b);
+    lockBlocker = b;
+    return b;
   }
 
-  function showLockOverlay() {
-    buildLockOverlay();
-    updateLockStatus();
-    lockOverlay.style.display = "flex";
+  function setMapInteractions(enabled) {
+    ["dragging", "touchZoom", "doubleClickZoom", "scrollWheelZoom",
+      "boxZoom", "keyboard", "tap"].forEach(function(h) {
+      if (map[h]) {
+        try { enabled ? map[h].enable() : map[h].disable(); } catch (e) {}
+      }
+    });
   }
+
+  function applyLockButton() {
+    if (!lockButtonEl) return;
+    lockButtonEl.innerHTML = mapLocked ? LOCK_ICON_CLOSED : LOCK_ICON_OPEN;
+    lockButtonEl.title = mapLocked ? "Unlock screen" : "Lock screen";
+    // Lift the padlock above the shield + tint it while active.
+    lockButtonEl.style.zIndex = mapLocked ? "100001" : "";
+    lockButtonEl.style.background = mapLocked ? "#136aecdd" : "";
+  }
+
+  function lockMap() {
+    mapLocked = true;
+    buildLockBlocker().style.display = "block";
+    setMapInteractions(false);
+    // The padlock sits in Leaflet's control container, whose own stacking
+    // context (z-index 1000) would trap it beneath the shield. Lift it to the
+    // body so it alone stays above the shield and tappable. Same CSS class ->
+    // same on-screen spot.
+    if (lockButtonEl && lockButtonEl.parentNode !== document.body) {
+      lockBtnHome = { parent: lockButtonEl.parentNode, next: lockButtonEl.nextSibling };
+      document.body.appendChild(lockButtonEl);
+    }
+    applyLockButton();
+  }
+
+  function unlockMap() {
+    mapLocked = false;
+    if (lockBlocker) lockBlocker.style.display = "none";
+    setMapInteractions(true);
+    applyLockButton();
+    // Return the padlock to its Leaflet control slot.
+    if (lockButtonEl && lockBtnHome) {
+      if (lockBtnHome.next && lockBtnHome.next.parentNode === lockBtnHome.parent) {
+        lockBtnHome.parent.insertBefore(lockButtonEl, lockBtnHome.next);
+      } else {
+        lockBtnHome.parent.appendChild(lockButtonEl);
+      }
+      lockBtnHome = null;
+    }
+  }
+
+  function toggleMapLock() { if (mapLocked) unlockMap(); else lockMap(); }
 
   var lockControl = L.control({ position: "bottomright" });
 
@@ -459,26 +458,17 @@ function(el, x) {
 
     button.type = "button";
     button.title = "Lock screen";
-
-    // SVG padlock (white, matching the crosshair control style):
-
-    button.innerHTML =
-      '<svg class="lock-screen-icon" viewBox="0 0 100 100"' +
-      ' xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
-        '<rect x="24" y="44" width="52" height="40" rx="6"' +
-          ' fill="none" stroke="#fff" stroke-width="6"/>' +
-        '<path d="M34 44 V32 a16 16 0 0 1 32 0 V44"' +
-          ' fill="none" stroke="#fff" stroke-width="6"/>' +
-      '</svg>';
+    button.innerHTML = LOCK_ICON_OPEN;
 
     L.DomEvent.disableClickPropagation(button);
     L.DomEvent.disableScrollPropagation(button);
 
     L.DomEvent.on(button, "click", function(e) {
       L.DomEvent.stop(e);
-      showLockOverlay();
+      toggleMapLock();
     });
 
+    lockButtonEl = button;
     return button;
   };
 
