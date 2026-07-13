@@ -37,8 +37,23 @@ var _apiFilterPatch = "__all__";
 // map_weather.js.
 var API_TEST_PATCHES = { test_snedgen_park: true, test_long_branch: true };
 function apiIsTestPatch(name) { return !!API_TEST_PATCHES[name]; }
+
+// Normalize a nest's patch to the app's test-patch KEY. Test-site nests have DB
+// patch_id "snedgen_park" / "long_branch" (or NSP##/NLB## ids), but the patch
+// dropdown + labels key them as "test_snedgen_park" / "test_long_branch" -- so
+// filtering by raw patch_id never matched. Mirrors field_map_app.js.
+function apiNestPatchKey(nest) {
+  var id = String((nest && nest.nest_id) || "");
+  if (/^NSP\d+$/.test(id)) return "test_snedgen_park";
+  if (/^NLB\d+$/.test(id)) return "test_long_branch";
+  var raw = String((nest && nest.patch_id) || "").toLowerCase();
+  if (raw === "snedgen_park") return "test_snedgen_park";
+  if (raw === "long_branch") return "test_long_branch";
+  return (nest && nest.patch_id) || null;
+}
+
 function apiIsTestNest(nest) {
-  return /^(NSP|NLB)\d+$/.test(String((nest && nest.nest_id) || ""));
+  return apiIsTestPatch(apiNestPatchKey(nest));
 }
 
 // Which patches are active given switch + dropdown. null = no spatial subset
@@ -104,8 +119,11 @@ function apiNestPassesFilter(nest, c) {
       if (apiPointToPatch(Number(c.lat), Number(c.lng), rings[i]) <= 50) return true;
     }
   }
-  // Test patches have no polygon: match by patch_id.
-  if (nest && nest.patch_id && nameSet[nest.patch_id] && apiIsTestPatch(nest.patch_id)) {
+  // Test patches have no polygon: match by the normalized test-patch key (the
+  // nest's raw patch_id is "snedgen_park"/"long_branch", the dropdown value is
+  // "test_snedgen_park"/"test_long_branch").
+  var pkey = apiNestPatchKey(nest);
+  if (pkey && nameSet[pkey] && apiIsTestPatch(pkey)) {
     return true;
   }
   return false;

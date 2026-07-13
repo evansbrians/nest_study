@@ -2089,6 +2089,20 @@
     return out;
   }
 
+  // The patch a nest is GROUPED under. Test-site nests must land under the
+  // "Test: ..." group, not their raw patch name: the DB stores their patch_id as
+  // "snedgen_park" / "long_branch", but the app keys/labels test patches as
+  // "test_snedgen_park" / "test_long_branch". Recognize a test nest by its id
+  // (NSP##/NLB##) OR by that raw patch name, and map it to the test key.
+  function apiNestPatchKey(n) {
+    var byName = testPatchForName(n && n.nest_id);
+    if (byName) return byName;
+    var raw = String((n && n.patch_id) || "").toLowerCase();
+    if (raw === "snedgen_park") return "test_snedgen_park";
+    if (raw === "long_branch") return "test_long_branch";
+    return (n && n.patch_id) || "Unknown";
+  }
+
   function fieldRenderNestsFromApi() {
     var doc = document.getElementById("nestsDoc");
     if (!doc) return;
@@ -2112,7 +2126,7 @@
     var byPatch = {};
     nests.forEach(function (n) {
       if (!n || !n.nest_id) return;
-      var p = n.patch_id || "Unknown";
+      var p = apiNestPatchKey(n);
       (byPatch[p] = byPatch[p] || []).push(n);
     });
 
