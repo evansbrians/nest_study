@@ -354,6 +354,11 @@ function apiSetSlotPhoto(slot, uri) {
     im.style.maxWidth = "180px";
     im.style.maxHeight = "180px";
     im.style.borderRadius = "4px";
+    // Tap the popup photo to open it full-screen (like the nest page).
+    im.style.cursor = "zoom-in";
+    im.addEventListener("click", function () {
+      if (typeof fieldOpenPhotoViewer === "function") fieldOpenPhotoViewer(uri);
+    });
     slot.appendChild(im);        // add to the DOM only after it has decoded
   };
   im.onerror = function () { slot.removeAttribute("data-loaded"); };

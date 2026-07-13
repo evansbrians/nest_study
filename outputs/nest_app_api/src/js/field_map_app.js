@@ -611,6 +611,11 @@
     im.style.maxWidth = "170px";
     im.style.marginTop = "6px";
     im.style.borderRadius = "4px";
+    // Tap the popup photo to open it full-screen (like the nest page).
+    im.style.cursor = "zoom-in";
+    im.addEventListener("click", function () {
+      if (typeof fieldOpenPhotoViewer === "function") fieldOpenPhotoViewer(uri);
+    });
     slot.appendChild(im);
   }
   function wpApiOnline() {
@@ -642,7 +647,8 @@
     var img = wpPhotoDataUri(w.photo);
     if (img) {
       html += '<br><img src="' + img +
-        '" style="max-width:170px;margin-top:6px;border-radius:4px">';
+        '" class="wp-popup-photo" style="max-width:170px;margin-top:6px;' +
+        'border-radius:4px;cursor:zoom-in">';
     } else if (w.hasPhoto && w.point_id) {
       // Filled on popupopen via a lazy GET /gps_points/<id>/photo.
       html += '<br><div class="wp-photo-slot" data-point="' +
@@ -685,6 +691,13 @@
       var el = ev.popup.getElement();
       var slot = el && el.querySelector(".wp-photo-slot");
       if (slot) wpLazyLoadPhoto(slot.getAttribute("data-point"), slot);
+      // Tap an already-shown popup photo to open it full-screen (nest-page style).
+      var inlineImg = el && el.querySelector(".wp-popup-photo");
+      if (inlineImg) {
+        inlineImg.addEventListener("click", function () {
+          if (typeof fieldOpenPhotoViewer === "function") fieldOpenPhotoViewer(inlineImg.src);
+        });
+      }
     });
     wpMarkers[w.point_id] = m;
     // Let the zoom scaler size the new icon to match
