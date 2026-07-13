@@ -847,17 +847,39 @@
     return prefix + suffix;
   }
 
-  // Start a BRAND-NEW nest that SHARES an existing nest's GPS point (e.g. a bird
-  // building over a previous nest, or a second nest at one location). Opens the
-  // discovery form for a fresh nest id in the same SITE namespace (N / NLB / NSP
-  // -- never NQ, which is the artificial flow), pre-linked to the shared point;
-  // on save the new nest gets its own id but the same gps_point_id.
+  // Does a discovery record already exist for this nest id? GET /nests only
+  // returns nests that have a row in the `nest` table (i.e. discovery was saved),
+  // so presence in window.fieldApiNests means "this nest is complete". A nest
+  // point whose discovery entry was interrupted mid-form has a GPS point but no
+  // such row, so it is absent here.
+  function nestHasDiscovery(nestId) {
+    var apiN = window.fieldApiNests || [];
+    for (var i = 0; i < apiN.length; i++) {
+      if (apiN[i] && apiN[i].nest_id === nestId) return true;
+    }
+    return false;
+  }
+
+  // Add discovery at an EXISTING nest's GPS point. Two cases:
+  //  * The point has NO discovery record yet (e.g. discovery entry was interrupted
+  //    mid-form, leaving only the GPS point) -> fill it in under the point's OWN
+  //    id. This completes the original nest rather than minting a new one.
+  //  * The point already HAS a discovery record -> this is a genuine SECOND nest
+  //    sharing the point (a bird building over a previous nest). Open the form for
+  //    a fresh id in the same SITE namespace (N / NLB / NSP -- never NQ), pre-
+  //    linked to the shared point; on save it gets its own id, same gps_point_id.
   function addNestAtExistingPoint(sourceNestId) {
     if (!sourceNestId) return;
     var pointId = pointIdForNest(sourceNestId);
     var c = (typeof niCoords === "function") ? niCoords(sourceNestId) : null;
     if (!pointId || !c) {
       showUploadModal("Can't add a nest here yet — this nest's GPS point isn't loaded. Try again once synced.");
+      return;
+    }
+    if (!nestHasDiscovery(sourceNestId)) {
+      // Reuse the point's own id. If a record somehow does exist but wasn't
+      // loaded, the server's PK guard rejects the duplicate (409) -- no dupe.
+      openNestData(sourceNestId, c.lat, c.lng, new Date(), pointId);
       return;
     }
     var pfx = /^NLB/.test(sourceNestId) ? "NLB" : (/^NSP/.test(sourceNestId) ? "NSP" : "N");
