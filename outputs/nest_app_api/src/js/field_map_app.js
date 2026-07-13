@@ -1341,6 +1341,55 @@
   wireNestPicker("ndCameraOrControlBtn", "ndCameraOrControl", "Camera or control", "Control", false, null);
   wireNestPicker("ndSubstrateBtn", "ndSubstrate", "Substrate", "Choose substrate", true, syncNestOther);
 
+  // Voice dictation for free-text fields (Web Speech API). Tap the mic to
+  // dictate into the field and tap again to stop; the transcript is appended to
+  // whatever is already there so a correction typed by hand isn't lost. The
+  // button hides itself where the browser has no speech recognition. Note: iOS
+  // and Android do the recognition server-side, so it needs a network
+  // connection and microphone permission.
+  function wireDictation(btn, target, onText) {
+    if (!btn || !target) return;
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { btn.style.display = "none"; return; }
+    var rec = null, listening = false, baseText = "";
+    btn.addEventListener("click", function () {
+      if (listening) { if (rec) { try { rec.stop(); } catch (e) {} } return; }
+      rec = new SR();
+      rec.lang = "en-US";
+      rec.interimResults = true;
+      rec.continuous = true;
+      // Start from the current text (+ a trailing space) so dictation appends.
+      baseText = target.value ? target.value.replace(/\s+$/, "") + " " : "";
+      rec.onstart = function () { listening = true; btn.classList.add("is-listening"); };
+      rec.onend = function () {
+        listening = false;
+        btn.classList.remove("is-listening");
+        rec = null;
+        if (onText) onText();
+      };
+      rec.onerror = function () { /* no-speech / not-allowed: onend still fires */ };
+      rec.onresult = function (ev) {
+        var finalTxt = "", interim = "";
+        for (var i = ev.resultIndex; i < ev.results.length; i++) {
+          var r = ev.results[i];
+          if (r.isFinal) finalTxt += r[0].transcript;
+          else interim += r[0].transcript;
+        }
+        if (finalTxt) baseText += finalTxt;
+        target.value = baseText + interim;
+        if (onText) onText();
+      };
+      try { rec.start(); }
+      catch (e) { listening = false; btn.classList.remove("is-listening"); }
+    });
+  }
+
+  wireDictation(
+    document.getElementById("ndLocationMic"),
+    ndEl("ndLocationDescription"),
+    function () { if (window.fieldSaveNestDraft) window.fieldSaveNestDraft(); }
+  );
+
   var ndSaveBtn = ndEl("nestDataSaveBtn");
   if (ndSaveBtn) ndSaveBtn.addEventListener("click", saveNestData);
 
@@ -3875,57 +3924,24 @@
 
   // ---- Concealment photos ------------------------------------------------
 
-  // Nest-concealment photos at ~1 m, free-form cardinal directions. The bearing
-  // is grabbed from the app compass the instant Capture is tapped (iOS+Android),
-  // then the native camera opens; the returned photo opens in a canvas editor to
-  // circle the nest in yellow. Two files go to Drive: the untouched original
-  // (full quality) and a JSON whose photo is the circled image as a reduced WebP
-  // (JPEG fallback where the canvas can't encode WebP, e.g. iOS).
-
-  // Shared handle so showScreen()/closeMenu() (siblings in this IIFE) can drive
-  // the concealment live camera without reaching inside its own IIFE.
-  var concealCam = null;
-
-  // Start the live camera when the concealment screen is showing, stop it when
-  // it isn't. One continuous stream for the whole 4-photo session -- never
-  // stopped/restarted between shots, only when leaving the screen.
-  function syncConcealCamera() {
-    if (!concealCam) return;
-    var showing = overlay.classList.contains("is-open") &&
-      activeScreen() === "concealment";
-    if (showing) concealCam.start();
-    else concealCam.stop();
-  }
+  // Nest-concealment photos are captured in the standalone Concealment Camera
+  // app (native iOS), which locks focus at ~1 m and stamps the compass bearing
+  // -- neither of which the in-app web camera can do (iOS Safari/WKWebView does
+  // not expose focus lock to JS). This screen just picks the nest and hands off
+  // to that app via its custom URL scheme; the native app owns capture, bearing,
+  // and (separately) upload.
 
   (function () {
     var nestBtn = document.getElementById("concealNestBtn");
-    var bearingEl = document.getElementById("concealBearing");
-    var captureBtn = document.getElementById("concealCaptureBtn");
-    var camera = document.getElementById("concealCamera");
+    var launchBtn = document.getElementById("concealLaunchBtn");
     var statusEl = document.getElementById("concealStatus");
-    var editor = document.getElementById("concealEditor");
-    var canvas = document.getElementById("concealCanvas");
-    var undoBtn = document.getElementById("concealUndoBtn");
-    var clearBtn = document.getElementById("concealClearBtn");
-    var saveBtn = document.getElementById("concealSaveBtn");
-    var discardBtn = document.getElementById("concealDiscardBtn");
-    var listEl = document.getElementById("concealList");
+    if (!launchBtn) return;
 
-    // Live-camera elements (in-app getUserMedia preview).
-    var live = document.getElementById("concealLive");
-    var video = document.getElementById("concealVideo");
-    var shutterBtn = document.getElementById("concealShutterBtn");
-    var liveBearingEl = document.getElementById("concealLiveBearing");
-
-    if (!captureBtn || !camera || !canvas) return;
+    // The custom URL scheme the Concealment Camera app registers (see its
+    // project.yml / Info.plist CFBundleURLTypes).
+    var CONCEAL_APP_URL = "concealcam://capture";
 
     var selectedNest = null;
-    var capturedBearing = null;
-    var originalFile = null;
-    var img = null;
-    var strokes = [];
-    var drawing = false;
-    var ctx = canvas.getContext("2d");
 
     function status(m) { if (statusEl) statusEl.textContent = m || ""; }
 
@@ -3977,255 +3993,16 @@
     }
     if (nestBtn) nestBtn.addEventListener("click", openNestPicker);
 
-    setInterval(function () {
-      var have = (typeof window.fieldBearing === "number");
-      if (bearingEl) {
-        bearingEl.textContent = have ? "Bearing: " + window.fieldBearing + "°" : "Bearing: --";
-      }
-      // Same value, overlaid on the live preview so it stays visible while aiming.
-      if (liveBearingEl) {
-        liveBearingEl.textContent = have ? window.fieldBearing + "°" : "--°";
-      }
-    }, 250);
-
-    // ---- Live in-app camera (getUserMedia) --------------------------------
-
-    // iOS Safari/WKWebView does NOT expose focus/exposure lock to JS
-    // (ImageCapture / applyConstraints focusMode/exposureMode are unsupported),
-    // so we don't attempt a hardware AE/AF lock -- it wouldn't work. The win is
-    // purely the continuous single stream (no per-shot relaunch) + the compass
-    // overlay staying visible.
-
-    var stream = null;
-    var starting = false;
-
-    function supportsLive() {
-      return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia &&
-        window.HTMLCanvasElement && video && live && shutterBtn);
-    }
-
-    // Fall back to the native <input capture> camera. Shown when getUserMedia is
-    // missing, throws, or permission is denied.
-    function useNativeFallback(msg) {
-      stopStream();
-      if (live) live.hidden = true;
-      if (captureBtn) captureBtn.hidden = false;
-      if (msg) status(msg);
-    }
-
-    function stopStream() {
-      if (video) { try { video.pause(); } catch (e) {} video.srcObject = null; }
-      if (stream) {
-        stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} });
-        stream = null;
-      }
-    }
-
-    function startStream() {
-      if (!supportsLive()) { useNativeFallback("Live camera unavailable -- using device camera."); return; }
-      if (stream || starting) return;   // already up / coming up: keep the one session
-      starting = true;
-      status("Starting camera…");
-      var constraints = { audio: false, video: {
-        facingMode: { ideal: "environment" },
-        width: { ideal: 3840 }, height: { ideal: 2160 } } };
-      function attach(s) {
-        starting = false;
-        stream = s;
-        video.srcObject = s;
-        var p = video.play();
-        if (p && p.catch) p.catch(function () {});
-        if (live) live.hidden = false;
-        if (captureBtn) captureBtn.hidden = true;
-        status("");
-      }
-      navigator.mediaDevices.getUserMedia(constraints).then(attach).catch(function () {
-        // Retry once at a lower resolution before giving up to the native camera.
-        navigator.mediaDevices.getUserMedia({ audio: false,
-          video: { facingMode: { ideal: "environment" } } }).then(attach).catch(function () {
-          starting = false;
-          useNativeFallback("Camera blocked -- using device camera. Allow camera access for the live view.");
-        });
-      });
-    }
-
-    // Exposed to showScreen()/closeMenu() via the concealCam handle.
-    concealCam = {
-      start: function () { startStream(); },
-      stop: function () { stopStream(); }
-    };
-    // Release the camera if the app is backgrounded/hidden.
-    document.addEventListener("visibilitychange", function () {
-      if (document.hidden) stopStream();
-      else if (typeof syncConcealCamera === "function") syncConcealCamera();
-    });
-    window.addEventListener("pagehide", stopStream);
-
-    // Grab the current live frame -> a JPEG Blob (the "original") + open the
-    // circle editor, exactly as the native-photo path does.
-    function captureLiveFrame() {
+    // Hand off to the native Concealment Camera app, passing the chosen nest id
+    // as the label so its filename / EXIF carry it. If the app isn't installed
+    // the deep link simply does nothing, so nudge the tech after a moment.
+    launchBtn.addEventListener("click", function () {
       if (!selectedNest) { status("Choose a nest first."); return; }
-      if (!stream || !video.videoWidth) { status("Camera not ready yet."); return; }
-      capturedBearing = (typeof window.fieldBearing === "number") ? window.fieldBearing : null;
-      var w = video.videoWidth, h = video.videoHeight;
-      var grab = document.createElement("canvas");
-      grab.width = w; grab.height = h;
-      grab.getContext("2d").drawImage(video, 0, 0, w, h);
-      // Match the native flow: a full-quality JPEG File used as `originalFile`.
-      var complete = function (blob) {
-        if (!blob) { status("Couldn't capture frame."); return; }
-        blob.name = "conceal_" + ts() + ".jpg";
-        loadIntoEditor(blob);
-      };
-      if (grab.toBlob) grab.toBlob(complete, "image/jpeg", 0.92);
-      else complete(dataURLtoBlob(grab.toDataURL("image/jpeg", 0.92)));
-    }
-
-    function dataURLtoBlob(u) {
-      var parts = u.split(","), mime = (parts[0].match(/:(.*?);/) || [])[1] || "image/jpeg";
-      var bin = atob(parts[1]), arr = new Uint8Array(bin.length);
-      for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-      var b = new Blob([arr], { type: mime });
-      return b;
-    }
-
-    if (shutterBtn) shutterBtn.addEventListener("click", captureLiveFrame);
-
-    // Native fallback: capture the current bearing, then open the OS camera.
-    captureBtn.addEventListener("click", function () {
-      if (!selectedNest) { status("Choose a nest first."); return; }
-      capturedBearing = (typeof window.fieldBearing === "number") ? window.fieldBearing : null;
-      camera.value = "";
-      camera.click();
-    });
-
-    function redraw() {
-      if (!img) return;
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      ctx.strokeStyle = "#ffeb00";
-      ctx.lineWidth = Math.max(3, canvas.width / 180);
-      ctx.lineJoin = "round";
-      ctx.lineCap = "round";
-      strokes.forEach(function (s) {
-        if (s.length < 2) return;
-        ctx.beginPath();
-        ctx.moveTo(s[0].x, s[0].y);
-        for (var i = 1; i < s.length; i++) ctx.lineTo(s[i].x, s[i].y);
-        ctx.stroke();
-      });
-    }
-
-    // Load a captured photo (native File or live-frame Blob) into the circle
-    // editor. Same downstream contract either way: `originalFile` is the
-    // untouched full-quality image, `canvas` is the reduced/circled version.
-    function loadIntoEditor(f) {
-      if (!f) return;
-      originalFile = f;
-      var url = URL.createObjectURL(f);
-      img = new Image();
-      img.onload = function () {
-        var scale = Math.min(1, 1024 / img.width);
-        canvas.width = Math.round(img.width * scale);
-        canvas.height = Math.round(img.height * scale);
-        strokes = [];
-        redraw();
-        URL.revokeObjectURL(url);
-        if (editor) editor.hidden = false;
-        status("Circle the nest, then Save.");
-      };
-      img.onerror = function () { URL.revokeObjectURL(url); status("Couldn't read that photo."); };
-      img.src = url;
-    }
-
-    camera.addEventListener("change", function () {
-      var f = camera.files && camera.files[0];
-      loadIntoEditor(f);
-    });
-
-    function canvasXY(e) {
-      var r = canvas.getBoundingClientRect();
-      var t = (e.touches && e.touches[0]) || e;
-      return { x: (t.clientX - r.left) * (canvas.width / r.width),
-               y: (t.clientY - r.top) * (canvas.height / r.height) };
-    }
-    function startStroke(e) { drawing = true; strokes.push([canvasXY(e)]); e.preventDefault(); }
-    function moveStroke(e) { if (!drawing) return; strokes[strokes.length - 1].push(canvasXY(e)); redraw(); e.preventDefault(); }
-    function endStroke() { drawing = false; }
-    canvas.addEventListener("mousedown", startStroke);
-    canvas.addEventListener("mousemove", moveStroke);
-    window.addEventListener("mouseup", endStroke);
-    canvas.addEventListener("touchstart", startStroke, { passive: false });
-    canvas.addEventListener("touchmove", moveStroke, { passive: false });
-    canvas.addEventListener("touchend", endStroke);
-
-    if (undoBtn) undoBtn.addEventListener("click", function () { strokes.pop(); redraw(); });
-    if (clearBtn) clearBtn.addEventListener("click", function () { strokes = []; redraw(); });
-    if (discardBtn) discardBtn.addEventListener("click", function () {
-      if (editor) editor.hidden = true; originalFile = null; img = null; strokes = []; status("");
-    });
-
-    function ts() { return new Date().toISOString().replace(/[:.]/g, "-"); }
-    function ext(f) {
-      var n = (f && f.name) || "";
-      var m = n.match(/\.([A-Za-z0-9]+)$/);
-      if (m) return m[1].toLowerCase();
-      var t = (f && f.type) || "";
-      if (t.indexOf("heic") >= 0) return "heic";
-      if (t.indexOf("png") >= 0) return "png";
-      return "jpg";
-    }
-
-    function uploadRaw(target, filename, kind, data, onDone) {
-      if (!WP_SYNC.relayUrl || WP_SYNC.relayUrl.indexOf("PASTE") === 0) { status("Drive sync not set up."); return; }
-      if (!navigator.onLine) { status("No signal -- try again when online."); return; }
-      fetch(WP_SYNC.relayUrl, {
-        method: "POST", mode: "no-cors",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ secret: WP_SYNC.secret, study: WP_SYNC.study,
-          target: target, filename: filename, kind: kind, data: data })
-      }).then(function () { if (onDone) onDone(); }).catch(function () { status("Upload failed."); });
-    }
-
-    if (saveBtn) saveBtn.addEventListener("click", function () {
-      if (!selectedNest || !originalFile) { status("Nothing to save."); return; }
-      var brg = (capturedBearing != null) ? Math.round(capturedBearing) : "NA";
-      var base = selectedNest.name + "_" + ts() + "_" + brg;
-      status("Saving…");
-
-      var fr = new FileReader();
-      fr.onload = function () {
-        var b64 = String(fr.result).split(",")[1] || "";
-        uploadRaw("concealment_photos", base + "." + ext(originalFile), "image", b64);
-      };
-      fr.readAsDataURL(originalFile);
-
-      var ref = canvas.toDataURL("image/webp", 0.9);
-      if (ref.indexOf("image/webp") < 0) ref = canvas.toDataURL("image/jpeg", 0.85);
-      var meta = JSON.stringify({
-        nest_id: selectedNest.name,
-        datetime: new Date().toISOString(),
-        bearing: (capturedBearing != null) ? Math.round(capturedBearing) : null,
-        photo: ref
-      });
-      uploadRaw("concealment_meta", base + ".json", "json", meta, function () {
-        showUploadModal(selectedNest.name + " photo uploaded.");
-      });
-
-      if (listEl) {
-        var li = document.createElement("li");
-        li.className = "field-mgr-item conceal-list-item";
-        var im = document.createElement("img");
-        im.src = ref; im.className = "field-photo-thumb";
-        var sp = document.createElement("span");
-        sp.className = "field-mgr-name";
-        sp.textContent = selectedNest.name + " · " + brg + "°";
-        li.appendChild(im); li.appendChild(sp);
-        listEl.insertBefore(li, listEl.firstChild);
-      }
-
-      if (editor) editor.hidden = true;
-      originalFile = null; img = null; strokes = [];
-      status("");
+      status("Opening Concealment Camera…");
+      window.location.href = CONCEAL_APP_URL + "?label=" + encodeURIComponent(selectedNest.name);
+      setTimeout(function () {
+        status("If nothing opened, install / enable the Concealment Camera app.");
+      }, 1500);
     });
   })();
 
