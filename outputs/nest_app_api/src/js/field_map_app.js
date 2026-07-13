@@ -319,7 +319,7 @@
       point_name: props.point_name,         // nest id or user-entered name
       // DB point_class(code) is lowercase (nest/other/landmark); the app carries
       // capitalized labels internally, so normalize at the API boundary only.
-      point_class: (props.point_class || "").toLowerCase(),
+      point_class: (props.point_class || "").toLowerCase().replace(/\s+/g, "_"),
       datetime: props.time,
       longitude: coords[0],
       latitude: coords[1],
@@ -651,9 +651,31 @@
     return html;
   }
 
+  // True if this waypoint is really a nest -- by class ("Nest"/"nest") OR by its
+  // name matching a known nest id (window.fieldApiNests). Nests are drawn solely
+  // by the API overlay (nestapi_map.js) with the proper status icon; their
+  // waypoint pin (a circle) must never coexist, or the nest shows two markers.
+  function isNestWaypoint(w) {
+    if (!w) return false;
+    if (String(w.point_class).toLowerCase() === "nest") return true;
+    var nm = w.point_name;
+    if (nm == null) return false;
+    var nests = window.fieldApiNests || [];
+    for (var i = 0; i < nests.length; i++) {
+      if (nests[i] && String(nests[i].nest_id) === String(nm)) return true;
+    }
+    return false;
+  }
+
   function addWaypointMarker(w) {
     var map = window.fieldMap;
-    if (!map || typeof L === "undefined" || wpMarkers[w.point_id]) return;
+    if (!map || typeof L === "undefined") return;
+    // The API overlay owns nest markers. Never draw a nest's waypoint pin, and
+    // remove any pin that was drawn before the point became a known nest (the
+    // guard only PREVENTS adding; a pin already on the map has to be removed) so
+    // a nest never shows two markers: a circle pin + the nest icon.
+    if (isNestWaypoint(w)) { removeWaypointMarker(w.point_id); return; }
+    if (wpMarkers[w.point_id]) return;
     // Hidden via the manager
 
     if (w.visible === false) return;
@@ -679,6 +701,9 @@
   // Update an on-map marker in place (position, color, popup) after an edit.
 
   function refreshWaypointMarker(w) {
+    // A nest that gained discovery data is now owned by the API overlay -- drop
+    // any lingering waypoint pin instead of refreshing it (no two markers).
+    if (isNestWaypoint(w)) { removeWaypointMarker(w.point_id); return; }
     var m = wpMarkers[w.point_id];
     if (!m) { addWaypointMarker(w); return; }
     m.setLatLng([w.latitude, w.longitude]);
@@ -1433,13 +1458,32 @@
     renderNavPoints();
   }
 
-  // Rebuild the local waypoint store from the server's gps_points so non-Temp
-  // waypoints survive a cache clear (they're already in the DB). Called by
-  // nestapi_wiring on boot with the raw GeoJSON. Restores only user waypoint
-  // classes (Other / Landmark) -- nests are drawn by the API nest overlay, and
-  // infra points (coverboards/cameras) aren't app waypoints. Temp waypoints are
-  // never uploaded, so they're correctly NOT restored (lost on a cache clear).
-  var WP_CLASS_FROM_CODE = { other: "Other", landmark: "Landmark" };
+  // Rebuild the local waypoint store from the server's gps_points so waypoints
+  // recorded on ANY device show on every device by default (they're already in
+  // the DB). Called by nestapi_wiring on boot + change-feed with the raw GeoJSON.
+  // Restores EVERY user waypoint class -- Other / Landmark / Path crossing /
+  // Boundary, plus any future class -- so a point in the DB is never silently
+  // missing on another tech's phone (bug: points missing on Tara's phone).
+  // Skipped: nests (drawn by the API nest overlay), Temp (device-only, never in
+  // the DB), and infra points (coverboards / trail cams / point counts) which
+  // have baked map markers + their own Waypoint-manager section -- a pin here too
+  // would double them.
+  var WP_CLASS_LABEL = {
+    other: "Other", landmark: "Landmark",
+    path_crossing: "Path crossing", boundary: "Boundary"
+  };
+  var WP_CLASS_SKIP = {
+    nest: true, temp: true,
+    coverboard: true, trailcam: true, point_count: true
+  };
+  function wpClassFromCode(code) {
+    code = String(code || "").toLowerCase();
+    if (WP_CLASS_SKIP[code]) return null;
+    return WP_CLASS_LABEL[code] ||
+      (code
+        ? code.replace(/_/g, " ").replace(/\b\w/g, function (ch) { return ch.toUpperCase(); })
+        : "Other");
+  }
   window.fieldMergeApiWaypoints = function (gpsFC) {
     var feats = (gpsFC && gpsFC.features) || [];
     if (!feats.length) return;
@@ -1452,8 +1496,8 @@
       var coords = (f && f.geometry && f.geometry.coordinates) || [];
       var pid = props.point_id;
       if (!pid || have[String(pid)]) return;
-      var cls = WP_CLASS_FROM_CODE[String(props.point_class || "").toLowerCase()];
-      if (!cls) return;                               // skip nests + infra classes
+      var cls = wpClassFromCode(props.point_class);
+      if (!cls) return;                               // skip nests + Temp + infra
       var lng = coords[0], lat = coords[1];
       if (lat == null || lng == null) return;
       var wp = {
@@ -2012,10 +2056,38 @@
   // recomputes patch counts. Idempotent -- safe to call on every reRender. Gated
   // on the API set being present: with no live nests it leaves the baked list in
   // place as the offline fallback rather than blanking the page.
+  // Nests discovered on THIS device (point_class "Nest" in the waypoint cache)
+  // that a live GET /nests hasn't reflected yet -- surfaced as lightweight rows
+  // so a just-entered nest appears on the Nests page immediately instead of
+  // vanishing until the change-feed round-trips. species_code UNKN keeps the
+  // discovery blank; is_current 1 groups it with live nests.
+  function localCreatedNests() {
+    var out = [];
+    loadWaypoints().forEach(function (w) {
+      if (!w || w.point_class !== "Nest" || !w.point_name) return;
+      out.push({
+        nest_id: w.point_name,
+        patch_id: (testPatchForName(w.point_name) || w.patch_id || null),
+        species_code: w.species_code || "UNKN",
+        is_current: 1,
+        _localCreated: true
+      });
+    });
+    return out;
+  }
+
   function fieldRenderNestsFromApi() {
     var doc = document.getElementById("nestsDoc");
     if (!doc) return;
-    var nests = window.fieldApiNests || [];
+    // Start from the live API set, then fold in any app-created nests the API
+    // hasn't caught up to yet (deduped by nest_id) so mobile point-entry nests
+    // show on the Nests page right away.
+    var nests = (window.fieldApiNests || []).slice();
+    var haveId = {};
+    nests.forEach(function (n) { if (n && n.nest_id) haveId[n.nest_id] = true; });
+    localCreatedNests().forEach(function (ln) {
+      if (ln.nest_id && !haveId[ln.nest_id]) { haveId[ln.nest_id] = true; nests.push(ln); }
+    });
     if (!nests.length) return;   // offline / not loaded: keep the baked fallback
 
     var groupRoot = doc.querySelector("#nest-view-patch .patch-accordion-group");

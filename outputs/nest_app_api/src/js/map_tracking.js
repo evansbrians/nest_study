@@ -172,12 +172,39 @@ function(el, x) {
   
   // location tracking ------------------------------------------------------
 
-  map.locate({
+  // The track recorder in field_map_app.js listens on this map's
+  // 'locationfound' events, so it depends entirely on the watch started here.
+  // If this watch dies, the arrow freezes AND the track silently stops
+  // growing. Everything below is written so the watch survives GPS errors and
+  // the page being backgrounded (pocketed phone) and can always be restarted.
+
+  var locateOptions = {
     watch: true,
     enableHighAccuracy: true,
     maximumAge: 1000,
     timeout: 15000
-  });
+  };
+
+  var lastWatchRestart = 0;
+
+  function startWatch() {
+    map.locate(locateOptions);
+  }
+
+  // Safe to call repeatedly. stopLocate clears the underlying geolocation
+  // watch but leaves our 'locationfound' / 'locationerror' handlers (and the
+  // track recorder's) attached, so restarting keeps feeding the SAME track.
+  // Debounced so a burst of timeouts or visibility flips can't thrash it.
+
+  function restartWatch() {
+    var now = Date.now();
+    if (now - lastWatchRestart < 3000) return;
+    lastWatchRestart = now;
+    map.stopLocate();
+    startWatch();
+  }
+
+  startWatch();
 
   map.on('locationfound', function(e) {
     latestLatLng = e.latlng;
@@ -238,7 +265,224 @@ function(el, x) {
 
   map.on('locationerror', function(e) {
     console.warn('Location error: ' + e.message);
+
+    // A transient GPS error (timeout / position-unavailable) must NOT end an
+    // in-progress track. Only an explicit Stop (user action, in
+    // field_map_app.js) does that. A suspended watch sometimes keeps firing
+    // errors without recovering, so we restart it; the same track keeps
+    // recording because the 'locationfound' handlers stay attached.
+    // code 1 = permission denied, where restarting cannot help.
+
+    if (e.code === 1) return;
+    restartWatch();
   });
+
+  // keep-alive: wake lock + resume -----------------------------------------
+
+  // The tech pockets the phone mid-walk and needs the track to keep going. A
+  // screen wake lock keeps the page alive (screen on) while a track records.
+  // The lock is dropped automatically whenever the page is hidden, so it has
+  // to be re-requested on return. A wake lock keeps the SCREEN on but cannot
+  // run JS with the screen truly off (the browser suspends us), so on resume
+  // we also restart the geolocation watch so fixes keep flowing into the SAME
+  // track (no new track is started here).
+
+  var wakeLock = null;
+
+  // Track state lives in field_map_app.js; we stay decoupled by reading the
+  // record button's label ("Stop track" only while recording).
+
+  function trackIsRecording() {
+    var btn = document.getElementById("trackToggleBtn");
+    return !!btn && /Stop/.test(btn.textContent || "");
+  }
+
+  function requestWakeLock() {
+    if (!("wakeLock" in navigator) || wakeLock || document.hidden) return;
+    navigator.wakeLock.request("screen")
+      .then(function(lock) {
+        wakeLock = lock;
+        lock.addEventListener("release", function() { wakeLock = null; });
+      })
+      .catch(function() { wakeLock = null; });
+  }
+
+  function releaseWakeLock() {
+    if (!wakeLock) return;
+    try { wakeLock.release(); } catch (err) {}
+    wakeLock = null;
+  }
+
+  function syncWakeLock() {
+    if (trackIsRecording()) requestWakeLock();
+    else releaseWakeLock();
+  }
+
+  document.addEventListener("visibilitychange", function() {
+    if (document.hidden) return;
+
+    // Back in the foreground: re-acquire the dropped wake lock and, if a track
+    // was recording, restart the watch so it resumes on the SAME track.
+
+    requestWakeLock();
+    if (lockOverlay && lockOverlay.style.display !== "none") updateLockStatus();
+    if (trackIsRecording()) restartWatch();
+  });
+
+  // The record button lives in field_map_app.js. field_map_app.js flips its
+  // label inside its own click handler, so we read the settled state on the
+  // next tick (order-independent) and match the wake lock to it.
+
+  var trackToggleBtn = document.getElementById("trackToggleBtn");
+  if (trackToggleBtn) {
+    trackToggleBtn.addEventListener("click", function() {
+      setTimeout(syncWakeLock, 0);
+    });
+  }
+
+  // lock-screen overlay ----------------------------------------------------
+
+  // A full-screen shield the tech can drop while the phone rides in a pocket
+  // or hand: it swallows map taps/pans so the track keeps recording
+  // undisturbed and shows that tracking is still live. Unlock is
+  // press-and-hold so an accidental brush can't dismiss it.
+
+  var lockOverlay = null;
+  var unlockHoldTimer = null;
+
+  function updateLockStatus() {
+    if (!lockOverlay) return;
+    if (trackIsRecording()) {
+      lockOverlay._statusEl.textContent = "Tracking active";
+      lockOverlay._hintEl.textContent =
+        "Recording your path — screen locked";
+    } else {
+      lockOverlay._statusEl.textContent = "Screen locked";
+      lockOverlay._hintEl.textContent = "Map taps are blocked";
+    }
+  }
+
+  function hideLockOverlay() {
+    if (unlockHoldTimer) { clearTimeout(unlockHoldTimer); unlockHoldTimer = null; }
+    if (lockOverlay) lockOverlay.style.display = "none";
+  }
+
+  function buildLockOverlay() {
+    if (lockOverlay) return lockOverlay;
+
+    var ov = document.createElement("div");
+    ov.className = "field-lock-overlay";
+    ov.style.cssText =
+      "position:fixed;top:0;left:0;right:0;bottom:0;z-index:100000;" +
+      "display:flex;flex-direction:column;align-items:center;" +
+      "justify-content:center;gap:20px;text-align:center;color:#fff;" +
+      "background:rgba(10,20,35,0.94);font-family:inherit;" +
+      "-webkit-user-select:none;user-select:none;touch-action:none;";
+
+    var status = document.createElement("div");
+    status.style.cssText =
+      "font-size:22px;font-weight:700;line-height:1.4;padding:0 24px;";
+
+    var hint = document.createElement("div");
+    hint.style.cssText = "font-size:15px;opacity:0.85;padding:0 24px;";
+
+    var unlockBtn = document.createElement("button");
+    unlockBtn.type = "button";
+    unlockBtn.textContent = "Hold to unlock";
+    unlockBtn.style.cssText =
+      "min-width:220px;min-height:96px;border:none;border-radius:16px;" +
+      "background:#136aec;color:#fff;font-size:20px;font-weight:700;" +
+      "box-shadow:0 4px 16px rgba(0,0,0,0.4);" +
+      "-webkit-tap-highlight-color:transparent;touch-action:none;";
+
+    // Press-and-hold (~800 ms) to unlock; a brief brush just cancels.
+
+    var HOLD_MS = 800;
+
+    function beginHold(e) {
+      if (e.cancelable) e.preventDefault();
+      if (unlockHoldTimer) return;
+      unlockBtn.textContent = "Keep holding…";
+      unlockHoldTimer = setTimeout(function() {
+        unlockHoldTimer = null;
+        hideLockOverlay();
+      }, HOLD_MS);
+    }
+
+    function cancelHold() {
+      if (unlockHoldTimer) { clearTimeout(unlockHoldTimer); unlockHoldTimer = null; }
+      unlockBtn.textContent = "Hold to unlock";
+    }
+
+    unlockBtn.addEventListener("touchstart", beginHold, { passive: false });
+    unlockBtn.addEventListener("mousedown", beginHold);
+    ["touchend", "touchcancel", "mouseup", "mouseleave"].forEach(function(t) {
+      unlockBtn.addEventListener(t, cancelHold);
+    });
+
+    // Swallow every other tap/drag so the map underneath never moves.
+
+    ["click", "dblclick", "touchstart", "touchmove", "touchend",
+      "pointerdown", "pointermove", "pointerup", "mousedown", "mousemove",
+      "wheel", "contextmenu"].forEach(function(t) {
+      ov.addEventListener(t, function(e) {
+        if (e.target === unlockBtn || unlockBtn.contains(e.target)) return;
+        if (e.cancelable) e.preventDefault();
+        e.stopPropagation();
+      }, { passive: false });
+    });
+
+    ov.appendChild(status);
+    ov.appendChild(hint);
+    ov.appendChild(unlockBtn);
+    document.body.appendChild(ov);
+
+    lockOverlay = ov;
+    lockOverlay._statusEl = status;
+    lockOverlay._hintEl = hint;
+    return ov;
+  }
+
+  function showLockOverlay() {
+    buildLockOverlay();
+    updateLockStatus();
+    lockOverlay.style.display = "flex";
+  }
+
+  var lockControl = L.control({ position: "bottomright" });
+
+  lockControl.onAdd = function(map) {
+    var button = L.DomUtil.create(
+      "button",
+      "leaflet-control lock-screen-control"
+    );
+
+    button.type = "button";
+    button.title = "Lock screen";
+
+    // SVG padlock (white, matching the crosshair control style):
+
+    button.innerHTML =
+      '<svg class="lock-screen-icon" viewBox="0 0 100 100"' +
+      ' xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+        '<rect x="24" y="44" width="52" height="40" rx="6"' +
+          ' fill="none" stroke="#fff" stroke-width="6"/>' +
+        '<path d="M34 44 V32 a16 16 0 0 1 32 0 V44"' +
+          ' fill="none" stroke="#fff" stroke-width="6"/>' +
+      '</svg>';
+
+    L.DomEvent.disableClickPropagation(button);
+    L.DomEvent.disableScrollPropagation(button);
+
+    L.DomEvent.on(button, "click", function(e) {
+      L.DomEvent.stop(e);
+      showLockOverlay();
+    });
+
+    return button;
+  };
+
+  lockControl.addTo(map);
 
   // compass heading --------------------------------------------------------
 

@@ -555,6 +555,26 @@ lst(
     }
   )
 
+## refresh the local analysis DB from the VM -----------------------------
+
+# Replace the local DB with a fresh snapshot of the VM's live app data, then
+# re-layer the batch tables (point counts / visits) from the field_data.rds
+# just written above. Safe-fail: a pull failure warns and leaves the local DB
+# untouched (the snapshot is validated before it is swapped in).
+
+message("Refreshing local DB from the VM...")
+
+if (system2("bash", "scripts/utils/refresh_local_db.sh") == 0) {
+  system2(
+    "Rscript",
+    c("brian_sandbox/migrate_to_db/server/nightly_load.R", "nest_study.sqlite")
+  )
+} else {
+  warning(
+    "refresh_local_db.sh failed -- local DB left unchanged; batch tables not reloaded."
+  )
+}
+
 ## render the field map app and re-externalize its data -------------------
 
 quarto::quarto_render("outputs/nest_app/field_map.qmd")

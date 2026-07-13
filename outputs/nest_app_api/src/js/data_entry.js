@@ -499,13 +499,12 @@
     buildCodedSelects();
     resetIntervalFields();
     ivEl("ivNestId").textContent = opts.nestId || "--";
-    ivEl("ivDate").textContent = dateStr;
-    ivEl("ivTime").textContent = timeStr;
     intervalCtx.time = timeStr;
     applyIntervalState();
     toggleIntervalEditChrome(false);
-    // Add flow: date/time are "now" (read-only header); no edit controls.
-    toggleIvDateTimeEdit(false, null, null);
+    // Add flow: pre-fill the date/time inputs with "now", but leave them editable
+    // so the user can correct them by hand (saveIntervalData reads the inputs).
+    toggleIvDateTimeEdit(true, dateStr, timeStr);
     showScreen("intervaldata");
   }
 
@@ -560,9 +559,11 @@
   }
 
   function saveIntervalData() {
-    // Edit mode: adopt the (possibly corrected) date + time before collecting so
-    // they ride into the record (and thence the PATCH's check_date/check_time).
-    if (intervalCtx && intervalCtx.mode === "edit") {
+    // Adopt the (possibly hand-edited) date + time before collecting so they ride
+    // into the record -- the POST's check_date/check_time on a new check, or the
+    // PATCH's on an edit. Both flows show the editable inputs, so read them either
+    // way (they are pre-filled with "now" when a new check opens).
+    if (intervalCtx) {
       var ivDe = ivEl("ivDateEdit"), ivTe = ivEl("ivTimeEdit");
       if (ivDe && ivDe.value) intervalCtx.date = ivDe.value;
       if (ivTe && ivTe.value) intervalCtx.time = ivTe.value;
@@ -663,8 +664,15 @@
   // reassigned as an artificial nest. This auto-fills the discovery row (species
   // "Artificial nest") and a first interval record with 2 host eggs added, with
   // no data-entry pages -- Tara just confirms.
+  // Guards a double-tap of "Make artificial nest" from enqueuing two creates
+  // (which would place two NQ nests -- the second auto-allocated by the server --
+  // at the same point). Cleared once the (fast, local) enqueue settles.
+  var _artInFlight = false;
+
   function makeArtificialNest(nestId) {
     if (!nestId) return;
+    if (_artInFlight) return;
+    _artInFlight = true;
 
     // Camera-vs-control designation, read from the nest-modify screen's optional
     // <select id="nmArtCameraOrControl"> (Control / Camera). Absent -> default
@@ -704,10 +712,12 @@
           });
         }
         flushSoon();
+        _artInFlight = false;
         showUploadModal("Artificial nest " + (artId ? artId + " " : "") +
           "placed at " + nestId + "'s point (2 host eggs).");
         closeMenu();
       }).catch(function (e) {
+        _artInFlight = false;
         showUploadModal("Couldn't set up artificial nest: " + ((e && e.message) || "unknown error"));
       });
       return;
@@ -757,14 +767,17 @@
     uploadNestRow(discovery, function () {
       uploadIntervalRow(interval, function () {
         hideBusy();
+        _artInFlight = false;
         showUploadModal(nestId + " set up as an artificial nest (2 host eggs).");
         closeMenu();
       }, function (msg) {
         hideBusy();
+        _artInFlight = false;
         showUploadModal("Discovery saved, but the interval failed: " + msg);
       });
     }, function (msg) {
       hideBusy();
+      _artInFlight = false;
       showUploadModal("Couldn't set up artificial nest: " + msg);
     });
   }
@@ -1254,6 +1267,7 @@
       check_date: nullIfBlank(row.date),
       check_time: nullIfBlank(row.time),
       current_state: row.current_state,            // 'Active' | 'Empty'
+      observer_id: nullIfBlank(row.observer),      // form observer (TNS/BSE/CMS/JLS)
       adult_present: nullIfBlank(row.adult_present),
       adult_activity: nullIfBlank(row.adult_activity),
       host_eggs: Number(row.host_eggs) || 0,
@@ -1415,7 +1429,7 @@
   function gpsPatchBody(w) {
     var body = {
       point_name: w.point_name,
-      point_class: (w.point_class || "").toLowerCase(),
+      point_class: (w.point_class || "").toLowerCase().replace(/\s+/g, "_"),
       latitude: w.latitude,
       longitude: w.longitude,
       elevation: (w.elevation != null) ? w.elevation : null,
@@ -1639,30 +1653,58 @@
     }
   }
 
+  // The interval PICKER + edit only need each check's rows (date/time/observer +
+  // counts) and its surrogate check_id -- NOT the nest's gps_point photo (which
+  // GET /nests/<id> base64-encodes inline) or its substrates. Fetch the lean
+  // GET /nests/<id>/intervals instead, so opening "Modify interval" is fast on
+  // cell. Bridges the schema field names (check_date/check_time/observer_id) onto
+  // the form names the edit form reads, and tags each row with its surrogate
+  // check_id -- matching the { data, row } shape fetchNestDetail produced.
+  function fetchNestIntervalsLight(nestId, cb) {
+    if (!apiEnabled() || !NestApi.api.isOnline()) { cb(null); return; }
+    NestApi.api.getNestIntervals(nestId).then(function (rows) {
+      if (!Array.isArray(rows)) { cb(null); return; }
+      var ivs = rows.map(function (iv) {
+        if (iv.date == null && iv.check_date != null) iv.date = iv.check_date;
+        if (iv.time == null && iv.check_time != null) iv.time = iv.check_time;
+        if (iv.observer == null && iv.observer_id != null) iv.observer = iv.observer_id;
+        return { data: iv, row: iv.check_id };
+      });
+      cb(ivs);
+    }).catch(function () { cb(null); });
+  }
+
   function modifyIntervalPick(nestId) {
-    // The interval picker + edit need each check's surrogate check_id, which the
-    // summary caches don't carry -- only GET /nests/<id> does. Show the picker
-    // instantly from cache when we have it; otherwise fetch once (and cache it),
-    // showing a light busy state only on that first, uncached open.
+    // Show the picker instantly from cache when we have it; otherwise fetch the
+    // lean intervals endpoint once (and cache it), with a light busy state only
+    // on that first, uncached open. The lean fetch avoids the heavy full-detail
+    // GET /nests/<id> (which dragged the point's base64 nav_photo along and made
+    // this slow). Cache is merged (not replaced) so a discovery-detail entry, if
+    // present, survives.
     var cached = _nestDetailCache[nestId];
-    if (cached) {
-      var have = cached.intervals || [];
+    if (cached && cached.intervals) {
+      var have = cached.intervals;
       if (!have.length) { showUploadModal("No interval checks yet for " + nestId + "."); return; }
       openIntervalPicker(nestId, have);
       // Still refresh in the background so newly-added checks appear.
       if (apiEnabled() && NestApi.api.isOnline()) {
-        fetchNestDetail(nestId, function (detail) { if (detail) _nestDetailCache[nestId] = detail; });
+        fetchNestIntervalsLight(nestId, function (ivs) {
+          if (ivs) {
+            _nestDetailCache[nestId] = _nestDetailCache[nestId] || {};
+            _nestDetailCache[nestId].intervals = ivs;
+          }
+        });
       }
       return;
     }
     showBusy("Loading interval checks…");
-    fetchNestDetail(nestId, function (detail) {
+    fetchNestIntervalsLight(nestId, function (ivs) {
       hideBusy();
-      if (!detail) { showUploadModal("Couldn't load — check signal."); return; }
-      _nestDetailCache[nestId] = detail;
-      var list = detail.intervals || [];
-      if (!list.length) { showUploadModal("No interval checks yet for " + nestId + "."); return; }
-      openIntervalPicker(nestId, list);
+      if (!ivs) { showUploadModal("Couldn't load — check signal."); return; }
+      _nestDetailCache[nestId] = _nestDetailCache[nestId] || {};
+      _nestDetailCache[nestId].intervals = ivs;
+      if (!ivs.length) { showUploadModal("No interval checks yet for " + nestId + "."); return; }
+      openIntervalPicker(nestId, ivs);
     });
   }
 
@@ -1740,9 +1782,11 @@
     }
   }
 
-  // Editable date + time controls for interval checks, injected once next to
-  // the read-only "Date"/"Time" spans. Shown only when MODIFYING an existing
-  // check. Returns { date, time } inputs.
+  // Editable date + time controls for interval checks. They live in the qmd
+  // markup (ids ivDateEdit / ivTimeEdit) and are used by BOTH the new-check and
+  // edit flows; this also injects them as a fallback should the markup be missing
+  // (legacy path -- anchored next to any "Date"/"Time" spans). Returns { date,
+  // time } inputs.
   function ensureIvDateTimeInputs() {
     var out = { date: ivEl("ivDateEdit"), time: ivEl("ivTimeEdit") };
     if (out.date && out.time) return out;
@@ -1884,8 +1928,6 @@
     };
     resetIntervalFields();
     ivEl("ivNestId").textContent = nestId;
-    ivEl("ivDate").textContent = (data && data.date) || "--";
-    ivEl("ivTime").textContent = (data && data.time) || "--";
     fillIntervalForm(data);
     toggleIntervalEditChrome(true);
     // Modifying a check: let the user correct its date + time.

@@ -260,58 +260,198 @@ function asDataUri(photo) {
 // /photos/<id> is auth-gated, so a plain <img src> would 401 -- we fetch the
 // bytes WITH the bearer token and hand the popup an object URL. Results (incl.
 // "no photo") are cached so a re-opened popup doesn't refetch.
+// In-memory photo cache: nest_id -> dataURI (a hit), false (known no photo), or
+// an in-flight Promise (de-dupes concurrent callers).
 var _apiNestPhotoCache = {};
+
+// The change feed (nestapi_wiring.js) calls this when a photo/gps_point change
+// arrives from another device, so a "no photo" miss cached before the photo
+// synced is dropped and the next popup open re-fetches. Memory only -- the
+// persistent IndexedDB cache is keyed per nest and additive, so it is kept
+// (a genuinely new nest is simply absent from it and gets fetched fresh).
+window.NestApiData = window.NestApiData || {};
+window.NestApiData.clearNestPhotoCache = function () { _apiNestPhotoCache = {}; };
 
 function apiCredsOnline() {
   return !!(window.NestApi && NestApi.settings && NestApi.settings.hasCreds() &&
     NestApi.api && NestApi.api.isOnline());
 }
 
-// GET /photos/<id> with the bearer token -> object URL (bytes are binary, so
-// NestApi.api.request -- which parses text/JSON -- can't be used here).
-function apiFetchPhotoObjectUrl(photoId) {
+// ---- Persistent photo cache (IndexedDB via NestApi.store `meta`) ----------
+//
+// A nest's photo is fetched ONCE and reused across sessions, so popups open
+// instantly from cache with no broken-image "?" flash and only NEW nests are
+// fetched on later opens. Held as one meta blob { nest_id: dataURI }, mirrored
+// in memory (_apiNestPhotoIdb) after a one-time load so reads are cheap.
+var IDB_PHOTO_KEY = "apiNestPhotos";
+var _apiNestPhotoIdb = null;      // nest_id -> dataURI (null until loaded)
+var _apiNestPhotoIdbLoad = null;  // in-flight load promise
+
+function apiStoreOk() {
+  return !!(window.NestApi && NestApi.store &&
+    typeof NestApi.store.getMeta === "function");
+}
+
+function apiLoadPhotoIdb() {
+  if (_apiNestPhotoIdb) return Promise.resolve(_apiNestPhotoIdb);
+  if (_apiNestPhotoIdbLoad) return _apiNestPhotoIdbLoad;
+  if (!apiStoreOk()) { _apiNestPhotoIdb = {}; return Promise.resolve(_apiNestPhotoIdb); }
+  _apiNestPhotoIdbLoad = NestApi.store.getMeta(IDB_PHOTO_KEY).then(function (v) {
+    _apiNestPhotoIdb = (v && typeof v === "object") ? v : {};
+    return _apiNestPhotoIdb;
+  }).catch(function () { _apiNestPhotoIdb = {}; return _apiNestPhotoIdb; });
+  return _apiNestPhotoIdbLoad;
+}
+
+// Persist one nest's photo (data URI) to the mirror + IndexedDB. The store write
+// is debounced so a prefetch burst coalesces into one write.
+var _apiPhotoWriteTimer = null;
+var _apiPhotoWriteDirty = false;
+function apiPersistPhoto(nestId, uri) {
+  if (!nestId || !uri || !apiStoreOk()) return;
+  if (!_apiNestPhotoIdb) _apiNestPhotoIdb = {};
+  if (_apiNestPhotoIdb[nestId] === uri) return;
+  _apiNestPhotoIdb[nestId] = uri;
+  _apiPhotoWriteDirty = true;
+  if (_apiPhotoWriteTimer) return;
+  _apiPhotoWriteTimer = setTimeout(function () {
+    _apiPhotoWriteTimer = null;
+    if (!_apiPhotoWriteDirty) return;
+    _apiPhotoWriteDirty = false;
+    NestApi.store.setMeta(IDB_PHOTO_KEY, _apiNestPhotoIdb).catch(function () {});
+  }, 800);
+}
+
+// Blob -> data URL (persistable + directly usable in an <img>). GET /photos/<id>
+// is auth-gated binary, so it is fetched WITH the bearer token, not as a bare src.
+function apiBlobToDataUrl(blob) {
+  return new Promise(function (resolve) {
+    try {
+      var fr = new FileReader();
+      fr.onload = function () { resolve(fr.result || null); };
+      fr.onerror = function () { resolve(null); };
+      fr.readAsDataURL(blob);
+    } catch (e) { resolve(null); }
+  });
+}
+function apiFetchPhotoDataUrl(photoId) {
   var base = NestApi.settings.getUrl();
   var token = NestApi.settings.getToken();
   var headers = {};
   if (token) headers.Authorization = "Bearer " + token;
   return fetch(base + "/photos/" + encodeURIComponent(photoId), { headers: headers })
     .then(function (r) { return r.ok ? r.blob() : null; })
-    .then(function (b) { return b ? URL.createObjectURL(b) : null; });
+    .then(function (b) { return b ? apiBlobToDataUrl(b) : null; });
 }
 
+// Insert the photo into a popup slot ONLY once its bytes have decoded, via
+// img.onload -- so a still-loading src is never shown as a broken-image "?" box.
 function apiSetSlotPhoto(slot, uri) {
   if (!slot || !uri || slot.getAttribute("data-loaded")) return;
   slot.setAttribute("data-loaded", "1");
-  var im = document.createElement("img");
+  var im = new Image();
+  im.onload = function () {
+    im.style.maxWidth = "180px";
+    im.style.maxHeight = "180px";
+    im.style.borderRadius = "4px";
+    slot.appendChild(im);        // add to the DOM only after it has decoded
+  };
+  im.onerror = function () { slot.removeAttribute("data-loaded"); };
   im.src = uri;
-  im.style.maxWidth = "180px";
-  im.style.maxHeight = "180px";
-  im.style.borderRadius = "4px";
-  slot.appendChild(im);
 }
 
-function apiLazyLoadNestPhoto(nestId, slot) {
-  if (!nestId || !slot || !apiCredsOnline()) return;
-  var cached = _apiNestPhotoCache[nestId];
-  if (cached === false) return;                       // known: no photo anywhere
-  if (typeof cached === "string") { apiSetSlotPhoto(slot, cached); return; }
-  if (cached === "pending") return;
-  _apiNestPhotoCache[nestId] = "pending";
-  NestApi.api.getNest(nestId).then(function (detail) {
-    // 1. the point's nav_photo (base64) the map didn't already carry.
-    var uri = asDataUri(detail && detail.gps_point && detail.gps_point.nav_photo);
-    if (uri) { _apiNestPhotoCache[nestId] = uri; apiSetSlotPhoto(slot, uri); return null; }
-    // 2. a disk photo from the `photo` table (discovery preferred).
-    var photos = (detail && detail.photos) || [];
-    var pick = photos.filter(function (p) { return p && p.kind === "discovery"; })[0] || photos[0];
-    if (!pick || pick.photo_id == null) { _apiNestPhotoCache[nestId] = false; return null; }
-    return apiFetchPhotoObjectUrl(pick.photo_id).then(function (url) {
-      _apiNestPhotoCache[nestId] = url || false;
-      if (url) apiSetSlotPhoto(slot, url);
-      return null;
+// Resolve a nest's best photo as a data URI (Promise -> dataURI | false). Order:
+// in-memory cache, then the persistent IndexedDB cache, then the network (the
+// gps point's nav_photo, else a disk photo from the `photo` table, discovery
+// preferred). Persists any hit so later sessions skip the fetch. false == the
+// nest truly has no photo anywhere.
+function apiResolveNestPhoto(nestId) {
+  if (!nestId) return Promise.resolve(false);
+  nestId = String(nestId);
+  var mem = _apiNestPhotoCache[nestId];
+  if (typeof mem === "string") return Promise.resolve(mem);
+  if (mem === false) return Promise.resolve(false);
+  if (mem && typeof mem.then === "function") return mem;   // in-flight
+  var job = apiLoadPhotoIdb().then(function (idb) {
+    var cached = idb && idb[nestId];
+    if (typeof cached === "string" && cached) {
+      _apiNestPhotoCache[nestId] = cached;
+      return cached;
+    }
+    if (!apiCredsOnline()) { _apiNestPhotoCache[nestId] = undefined; return false; }
+    return NestApi.api.getNest(nestId).then(function (detail) {
+      var navUri = asDataUri(detail && detail.gps_point && detail.gps_point.nav_photo);
+      if (navUri) return navUri;
+      var photos = (detail && detail.photos) || [];
+      var pick = photos.filter(function (p) { return p && p.kind === "discovery"; })[0] ||
+        photos[0];
+      if (!pick || pick.photo_id == null) return null;
+      return apiFetchPhotoDataUrl(pick.photo_id);
+    }).then(function (uri) {
+      if (uri) {
+        _apiNestPhotoCache[nestId] = uri;
+        apiPersistPhoto(nestId, uri);
+        return uri;
+      }
+      _apiNestPhotoCache[nestId] = false;   // known: no photo anywhere
+      return false;
     });
-  }).catch(function () { _apiNestPhotoCache[nestId] = undefined; });   // allow a retry
+  }).catch(function () {
+    _apiNestPhotoCache[nestId] = undefined;   // allow a retry
+    return false;
+  });
+  _apiNestPhotoCache[nestId] = job;
+  return job;
 }
+
+// Fill a popup's photo slot from the cache (instant when prefetched), else a
+// lazy fetch -- either way the image is only shown once decoded (apiSetSlotPhoto).
+function apiLazyLoadNestPhoto(nestId, slot) {
+  if (!nestId || !slot) return;
+  apiResolveNestPhoto(nestId).then(function (uri) {
+    if (uri) apiSetSlotPhoto(slot, uri);
+  });
+}
+
+// Background prefetch: after boot, resolve every nest's photo into the cache so
+// popups open instantly with no "?" flash. IndexedDB-backed, so only nests not
+// already cached are fetched on later sessions. Throttled (a few in flight) so it
+// never competes with the field UI. No-op offline / without creds. Safe to call
+// repeatedly (skips anything already cached).
+var _apiPrefetchRunning = false;
+function apiPrefetchNestPhotos() {
+  if (_apiPrefetchRunning || !apiCredsOnline()) return;
+  _apiPrefetchRunning = true;
+  apiLoadPhotoIdb().then(function () {
+    var todo = [];
+    (window.fieldApiNests || []).forEach(function (n) {
+      if (!n || !n.nest_id) return;
+      var id = String(n.nest_id);
+      var m = _apiNestPhotoCache[id];
+      if (typeof m === "string" || m === false || (m && typeof m.then === "function")) return;
+      if (_apiNestPhotoIdb && typeof _apiNestPhotoIdb[id] === "string") {
+        _apiNestPhotoCache[id] = _apiNestPhotoIdb[id];   // warm memory from disk
+        return;
+      }
+      todo.push(id);
+    });
+    if (!todo.length) { _apiPrefetchRunning = false; return; }
+    var next = 0, active = 0, MAX = 3;
+    function step() {
+      while (active < MAX && next < todo.length) {
+        active++;
+        apiResolveNestPhoto(todo[next++]).then(function () {
+          active--;
+          if (next < todo.length) step();
+          else if (active === 0) _apiPrefetchRunning = false;
+        });
+      }
+      if (next >= todo.length && active === 0) _apiPrefetchRunning = false;
+    }
+    step();
+  }).catch(function () { _apiPrefetchRunning = false; });
+}
+window.NestApiData.prefetchNestPhotos = apiPrefetchNestPhotos;
 
 // Rich popup mirroring make_nest_popup (the nest_app popup): discovery + latest-
 // check summary, optional nav photo, and the standard nest actions.
@@ -328,23 +468,26 @@ function apiNestPopupHtml(nest, photo) {
   //  1. a photo field carried on the nest row itself (if the API ever inlines one),
   //  2. niFindPhoto(nest_id) -- the app-cached / baked discovery photo for this nest,
   //  3. the gps point's nav_photo (passed in as `photo`), taken at discovery here.
+  // Seed any photo the map already holds into the cache so the slot fills
+  // INSTANTLY from cache on open -- but never embed a still-loading <img> into the
+  // popup markup (that raw <img> is exactly the broken-image "?" box). The slot's
+  // image is swapped in only once decoded (apiSetSlotPhoto's img.onload).
   var rawPhoto =
     nest.discovery_photo || nest.photo || nest.nav_photo ||
     (typeof niFindPhoto === "function" ? niFindPhoto(id) : null) ||
     photo;
   var img = asDataUri(rawPhoto);
-
-  // Order: photo first, then the nest details, then the action buttons.
-  var html = '<div style="font-family:Times;min-width:190px;">';
-  if (img) {
-    html += '<div style="margin:0 0 6px;"><img src="' + img +
-      '" style="max-width:180px;max-height:180px;border-radius:4px;"></div>';
-  } else {
-    // No photo in what the map already holds (typical for old/migrated nests):
-    // leave a slot the popupopen handler fills via a lazy GET /nests/<id>.
-    html += '<div class="api-nest-photo-slot" data-nest="' + esc(id) +
-      '" style="margin:0 0 6px;"></div>';
+  if (img && typeof _apiNestPhotoCache[id] !== "string") {
+    _apiNestPhotoCache[id] = img;
+    apiPersistPhoto(id, img);
   }
+
+  // Order: photo first, then the nest details, then the action buttons. Always an
+  // (initially empty) slot the popupopen handler fills from cache, else a lazy
+  // fetch -- so a loading image never shows as a broken box.
+  var html = '<div style="font-family:Times;min-width:190px;">';
+  html += '<div class="api-nest-photo-slot" data-nest="' + esc(id) +
+    '" style="margin:0 0 6px;"></div>';
   html +=
     "<h3 style=\"margin:0 0 4px;\"><strong>" + esc(id) +
     "</strong>. Species: " + (species ? esc(String(species)) : "—") + "</h3>" +
@@ -394,6 +537,32 @@ function pickDisplayForPoint(list) {
   return pool[0];
 }
 
+// Deterministic screen-pixel offset for the i-th of n markers stacked at one
+// point, so co-located (or near-co-located) nests each get a visible, separately
+// tappable marker instead of collapsing into one (bug: N004/N005/N103 hidden
+// under a near-neighbour). A lone marker at a point gets none; a stack fans out
+// evenly around a small ring.
+function apiStackPixelOffset(i, n) {
+  if (!n || n <= 1) return null;
+  var R = 15;                            // ring radius, screen px
+  var ang = (2 * Math.PI * i) / n;
+  return [Math.round(R * Math.cos(ang)), Math.round(R * Math.sin(ang))];
+}
+
+// Place a marker at its TRUE coordinate plus any stack offset. The offset is
+// applied in screen space (through the map projection) so the fan stays constant
+// across zooms; the zoomend handler re-runs this to keep it stable. Navigation
+// still resolves each nest's own real coordinate (fieldNavigateNest), so the
+// display nudge never moves where "Navigate" actually sends you.
+function apiPlaceStackedMarker(map, m) {
+  if (!m || !m._apiBaseLatLng || typeof m.setLatLng !== "function") return;
+  var base = m._apiBaseLatLng;
+  var off = m._apiStackOffset;
+  if (!off || (!off[0] && !off[1])) { m.setLatLng(base); return; }
+  var pt = map.latLngToLayerPoint(L.latLng(base[0], base[1]));
+  m.setLatLng(map.layerPointToLatLng(L.point(pt.x + off[0], pt.y + off[1])));
+}
+
 // Navigate to a nest by id (popup action). Prefers the API point coords, falls
 // back to whatever niCoords knows.
 window.fieldNavigateNest = function (nestId) {
@@ -426,6 +595,7 @@ window.fieldRenderApiNests = function () {
       if (!_apiNestLayer) return;
       var s = apiZoomScale();
       _apiNestLayer.eachLayer(function (m) {
+        apiPlaceStackedMarker(map, m);   // keep the stack fan constant in screen px
         if (!m || m._apiIconId == null || typeof m.setIcon !== "function") return;
         var ic = apiNestLeafletIcon(m._apiIconId, m._apiIsCurrent, s);
         if (ic) m.setIcon(ic);
@@ -460,72 +630,106 @@ window.fieldRenderApiNests = function () {
     return null;
   }
 
-  // Group nests that share a display location by their rounded lat,lng, so EVERY
-  // nest at one physical point -- resolved via gps_point_id OR the niCoords
-  // fallback -- collapses to a SINGLE marker (pickDisplayForPoint lets the
-  // current nest win). Keying on gps_point_id split a concluded nest and a
-  // co-located current nest (different point ids, same spot) into TWO stacked
-  // markers; the faded one sat UNDER the full-opacity current marker, which
-  // intercepted every tap, so the concluded nest's popup could never open
-  // (bug #6). Position keying leaves a standalone concluded nest its own marker
-  // -- popup and all -- while never burying it beneath a current one.
-  var byPoint = {};
-  var coordByKey = {};
+  // make_field_map.R drops a host N### wherever its artificial NQ### twin exists
+  // (they are the SAME physical structure), so build that host-drop set first --
+  // an ID-based merge, not a location one, so genuinely distinct near-neighbour
+  // nests are never dropped.
+  var dropHost = {};
   nests.forEach(function (n) {
+    if (n && /^NQ/i.test(String(n.nest_id))) {
+      dropHost["N" + String(n.nest_id).replace(/^NQ/i, "")] = true;
+    }
+  });
+
+  // Collapse nests that share ONE physical GPS point (same gps_point_id) into a
+  // single display winner FIRST. A host nest and its artificial NQ twin -- or any
+  // duplicate/near-duplicate nest rows -- are the SAME structure at the SAME
+  // point, so they must never fan into two offset markers (bug: a new/artificial
+  // nest showing two markers, one status icon + one neutral). pickDisplayForPoint
+  // picks the artificial/current winner, mirroring make_field_map.R's "current
+  // nest wins per shared point". This is more robust than the id-based dropHost
+  // above, which fails when the server allocates an NQ id whose number differs
+  // from its host's. Nests with no gps_point_id stand alone (keyed by nest_id),
+  // so genuinely distinct near-neighbour points still get their own markers.
+  var byGps = {};
+  nests.forEach(function (n) {
+    if (!n) return;
+    if (dropHost[String(n.nest_id)]) return;   // host merged into its NQ twin
+    var key = n.gps_point_id ? ("gp:" + n.gps_point_id) : ("nid:" + n.nest_id);
+    (byGps[key] = byGps[key] || []).push(n);
+  });
+
+  // Group the per-point winners by rounded lat,lng to detect stacks. Each winner
+  // keeps its OWN marker; a small deterministic pixel offset (apiStackPixelOffset)
+  // fans out genuinely distinct co-located points so each stays visible and
+  // separately tappable (N004/N005/N103), without collapsing them into one.
+  var byPoint = {};
+  Object.keys(byGps).forEach(function (gk) {
+    var n = pickDisplayForPoint(byGps[gk]);
     if (!n) return;
     var c = coordForNest(n);
     if (!c) return;   // no resolvable coordinate anywhere -> genuinely unmappable
+    // "Subset to today's data" / patch dropdown: skip nests outside the active
+    // patch set (matches the baked map) BEFORE they influence a stack's offsets.
+    if (!apiNestPassesFilter(n, c)) return;
     var key = "ll:" + Number(c.lat).toFixed(6) + "," + Number(c.lng).toFixed(6);
-    coordByKey[key] = c;
-    (byPoint[key] = byPoint[key] || []).push(n);
+    (byPoint[key] = byPoint[key] || []).push({ nest: n, coord: c });
   });
 
   if (_apiNestLayer) { map.removeLayer(_apiNestLayer); _apiNestLayer = null; }
   _apiNestLayer = L.layerGroup();
 
   Object.keys(byPoint).forEach(function (pid) {
-    var nest = pickDisplayForPoint(byPoint[pid]);
-    var c = coordByKey[pid];
-    if (!c) return;
-    // "Subset to today's data" / patch dropdown: skip nests that aren't in the
-    // active patch set, matching the baked map's behaviour (bug #3).
-    if (!apiNestPassesFilter(nest, c)) return;
-    var faded = !apiNestIsCurrent(nest);   // concluded nests render at 50%
-    var iconId = apiNestIconId(nest);
-    var licon = apiNestLeafletIcon(iconId, !faded);
-    var m;
-    if (licon) {
-      m = L.marker([c.lat, c.lng], { icon: licon, opacity: faded ? 0.5 : 1 });
-      // Remember what to rebuild on zoom (see the zoomend handler): the icon id
-      // and whether the 1.15 current-nest bump applies.
-      m._apiIconId = iconId;
-      m._apiIsCurrent = !faded;
-    } else {
-      // Fallback if the inlined icons aren't present: a colored dot.
-      m = L.circleMarker([c.lat, c.lng], {
-        radius: 7,
-        weight: 2,
-        color: "#ffffff",
-        fillColor: apiNestIsArtificial(nest) ? "#2b6cb0" : "#2f855a",
-        fillOpacity: faded ? 0.45 : 0.95
+    var group = byPoint[pid];
+    // Stable order so each nest's offset is deterministic across re-renders.
+    group.sort(function (a, b) {
+      return String(a.nest.nest_id).localeCompare(String(b.nest.nest_id));
+    });
+    var count = group.length;
+    group.forEach(function (item, i) {
+      var nest = item.nest;
+      var c = item.coord;
+      var faded = !apiNestIsCurrent(nest);   // concluded nests render at 50%
+      var iconId = apiNestIconId(nest);
+      var licon = apiNestLeafletIcon(iconId, !faded);
+      var m;
+      if (licon) {
+        m = L.marker([c.lat, c.lng], { icon: licon, opacity: faded ? 0.5 : 1 });
+        // Remember what to rebuild on zoom (see the zoomend handler): the icon id
+        // and whether the 1.15 current-nest bump applies.
+        m._apiIconId = iconId;
+        m._apiIsCurrent = !faded;
+      } else {
+        // Fallback if the inlined icons aren't present: a colored dot.
+        m = L.circleMarker([c.lat, c.lng], {
+          radius: 7,
+          weight: 2,
+          color: "#ffffff",
+          fillColor: apiNestIsArtificial(nest) ? "#2b6cb0" : "#2f855a",
+          fillOpacity: faded ? 0.45 : 0.95
+        });
+      }
+      // Fan co-located nests apart so each is individually visible/clickable.
+      m._apiBaseLatLng = [c.lat, c.lng];
+      m._apiStackOffset = apiStackPixelOffset(i, count);
+      apiPlaceStackedMarker(map, m);
+      m.bindPopup(apiNestPopupHtml(nest, c.photo));
+      // Old/migrated nests carry no photo in fieldMapPoints; fill the popup's
+      // photo slot on open via a lazy GET /nests/<id> (see apiLazyLoadNestPhoto).
+      m.on("popupopen", function (ev) {
+        var el = ev.popup && ev.popup.getElement && ev.popup.getElement();
+        var slot = el && el.querySelector(".api-nest-photo-slot");
+        if (slot) apiLazyLoadNestPhoto(slot.getAttribute("data-nest"), slot);
       });
-    }
-    m.bindPopup(apiNestPopupHtml(nest, c.photo));
-    // Old/migrated nests carry no photo in fieldMapPoints; fill the popup's
-    // photo slot on open via a lazy GET /nests/<id> (see apiLazyLoadNestPhoto).
-    m.on("popupopen", function (ev) {
-      var el = ev.popup && ev.popup.getElement && ev.popup.getElement();
-      var slot = el && el.querySelector(".api-nest-photo-slot");
-      if (slot) apiLazyLoadNestPhoto(slot.getAttribute("data-nest"), slot);
+      // Id label, hidden by default (shows on hover -- like the baked map).
+      m.bindTooltip(String(nest.nest_id), {
+        permanent: false,
+        direction: "top",
+        offset: [0, -6],
+        className: "api-nest-label"
+      });
+      _apiNestLayer.addLayer(m);
     });
-    // Id label, hidden by default (shows on hover -- like the baked map).
-    m.bindTooltip(String(nest.nest_id), {
-      permanent: false,
-      direction: "top",
-      offset: [0, -6],
-      className: "api-nest-label"
-    });
-    _apiNestLayer.addLayer(m);
   });
 
   _apiNestLayer.addTo(map);

@@ -90,13 +90,13 @@
         hasPhoto: !!(props.has_nav_photo || props.nav_photo || props.photo)
       };
     }).filter(function (p) {
-      // Keep any point with real coordinates. A nest's GPS point can have a
-      // NULL point_name (some migrated points); dropping it here would strip
-      // its coordinate from the overlay and the nest would never render (bug:
-      // some nests missing from the map). Nest points resolve by point_id, so
-      // a missing name is fine; other classes still need a name to be useful.
-      if (p.lat == null || p.lng == null) return false;
-      return !!p.name || String(p.point_class).toLowerCase() === "nest";
+      // Keep EVERY point that has real coordinates. Points are in the DB because
+      // someone recorded them, so by default they must be available to render on
+      // every device -- dropping any here (previously: nameless non-nest points)
+      // silently hid DB points from other techs (bug: points missing on Tara's
+      // phone). Nest points resolve by point_id and a NULL point_name is common
+      // for migrated points; other classes render/lookup fine without a name too.
+      return p.lat != null && p.lng != null;
     });
   }
 
@@ -430,6 +430,22 @@
     try {
       if (typeof window.fieldRenderApiNests === "function") window.fieldRenderApiNests();
     } catch (e) {}
+    // Warm the nest-photo cache SILENTLY, in the background, only once the map +
+    // UI have settled -- deferred to browser idle time (fallback: a short timer)
+    // so photo fetching never competes with the initial render. IndexedDB-backed
+    // and idempotent, so only new nests are ever fetched.
+    var warmPhotos = function () {
+      try {
+        if (window.NestApiData && typeof window.NestApiData.prefetchNestPhotos === "function") {
+          window.NestApiData.prefetchNestPhotos();
+        }
+      } catch (e) {}
+    };
+    if (typeof window.requestIdleCallback === "function") {
+      window.requestIdleCallback(warmPhotos, { timeout: 4000 });
+    } else {
+      setTimeout(warmPhotos, 1500);
+    }
     // Nudge any open nest-detail maps / lists to refresh from new globals.
     try {
       if (typeof window.fieldRefresh === "function") window.fieldRefresh();
@@ -474,6 +490,16 @@
         if ((ent === "nest" || ent === "interval_check") && e && e.entity_id &&
             window.NestApiData && typeof window.NestApiData.invalidateNest === "function") {
           try { window.NestApiData.invalidateNest(String(e.entity_id)); } catch (x) {}
+        }
+        // A photo or gps_point change on another device (e.g. Brian adds a nest
+        // point + discovery photo) means a nest that was PHOTOLESS here may now
+        // have one. The map popup lazy-fetches per nest and caches the result --
+        // including a "no photo" miss taken before the photo synced -- so drop
+        // that cache to force a re-fetch. (The cache lives in nestapi_map.js and
+        // registers this hook; no-op until it does.)
+        if ((ent === "photo" || ent === "gps_point") &&
+            window.NestApiData && typeof window.NestApiData.clearNestPhotoCache === "function") {
+          try { window.NestApiData.clearNestPhotoCache(); } catch (x) {}
         }
       }
     }
