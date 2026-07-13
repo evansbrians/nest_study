@@ -1327,6 +1327,7 @@
             preview.appendChild(im);
           }
           if (meta && meta.annotated) fieldSaveImageToPhone(annotated, nestPhotoName || null);
+          if (window.fieldSaveNestDraft) window.fieldSaveNestDraft();
           if (status) status.textContent = "Photo attached.";
         });
       });
@@ -1344,7 +1345,24 @@
   if (ndSaveBtn) ndSaveBtn.addEventListener("click", saveNestData);
 
   var ndCancelBtn = ndEl("nestDataCancelBtn");
-  if (ndCancelBtn) ndCancelBtn.addEventListener("click", function () { closeMenu(); });
+  if (ndCancelBtn) ndCancelBtn.addEventListener("click", function () {
+    if (window.fieldClearNestDraft) window.fieldClearNestDraft();
+    closeMenu();
+  });
+
+  // Auto-save the in-progress discovery form to storage as fields change, so an
+  // iOS PWA eviction (e.g. when the camera opens) can't lose the entry. Covers
+  // text inputs, checkboxes, and native selects; the big pickers + photo nudge
+  // the save from their own handlers.
+  var ndScreenEl = document.querySelector('.field-screen[data-name="nestdata"]');
+  if (ndScreenEl) {
+    ndScreenEl.addEventListener("input", function () {
+      if (window.fieldSaveNestDraft) window.fieldSaveNestDraft();
+    });
+    ndScreenEl.addEventListener("change", function () {
+      if (window.fieldSaveNestDraft) window.fieldSaveNestDraft();
+    });
+  }
 
   var intervalCtx = null;
 
@@ -1368,7 +1386,23 @@
   if (ivSaveBtn) ivSaveBtn.addEventListener("click", saveIntervalData);
 
   var ivCancelBtn = ivEl("intervalCancelBtn");
-  if (ivCancelBtn) ivCancelBtn.addEventListener("click", function () { closeMenu(); });
+  if (ivCancelBtn) ivCancelBtn.addEventListener("click", function () {
+    if (window.fieldClearIntervalDraft) window.fieldClearIntervalDraft();
+    closeMenu();
+  });
+
+  // Auto-save the in-progress interval check to storage as fields change, so an
+  // iOS PWA eviction can't lose it. All native inputs/selects, so one delegated
+  // pair of listeners on the screen covers every field.
+  var ivScreenEl = document.querySelector('.field-screen[data-name="intervaldata"]');
+  if (ivScreenEl) {
+    ivScreenEl.addEventListener("input", function () {
+      if (window.fieldSaveIntervalDraft) window.fieldSaveIntervalDraft();
+    });
+    ivScreenEl.addEventListener("change", function () {
+      if (window.fieldSaveIntervalDraft) window.fieldSaveIntervalDraft();
+    });
+  }
 
   // Post-save "Add nest discovery data?" prompt (Yes/No), built on first use.
 

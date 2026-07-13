@@ -236,6 +236,9 @@
       openFieldPicker(sel, title, multi, function () {
         pickerLabel(sel, btn, placeholder, multi);
         if (extra) extra();
+        // Picker changes the hidden <select> programmatically (no input event),
+        // so nudge the discovery draft save here.
+        if (typeof scheduleNestDraftSave === "function") scheduleNestDraftSave();
       });
     });
   }
@@ -309,6 +312,126 @@
     if (st) st.textContent = "";
   }
 
+  // --- discovery draft persistence ---------------------------------------
+  // iOS can evict a backgrounded PWA -- notably when the camera launches for the
+  // nest photo -- and cold-reload on return, wiping an in-progress discovery
+  // form. To survive that, mirror the form's fields to localStorage as they
+  // change (keyed by nest id) and restore them the next time this nest's ADD
+  // form opens. The draft is cleared once the nest saves, or the form is
+  // cancelled. Edit mode (openNestDataEdit) never drafts.
+
+  var ND_DRAFT_PREFIX = "nestDiscoveryDraft:";
+  var _ndDraftKey = null;
+  var _ndDraftTimer = null;
+
+  function ndDraftKeyFor(nestId) { return ND_DRAFT_PREFIX + String(nestId || ""); }
+
+  function ndSelectedSubstrates() {
+    var su = ndEl("ndSubstrate");
+    if (!su) return [];
+    return Array.prototype.filter.call(su.options, function (o) { return o.selected; })
+      .map(function (o) { return o.value; });
+  }
+
+  function collectNestDraft() {
+    return {
+      species: ndEl("ndSpecies") ? ndEl("ndSpecies").value : "",
+      speciesOther: ndEl("ndSpeciesOther") ? ndEl("ndSpeciesOther").value : "",
+      patch: ndEl("ndPatchId") ? ndEl("ndPatchId").value : "",
+      stage: ndEl("ndDiscoveryStage") ? ndEl("ndDiscoveryStage").value : "",
+      selfie: ndEl("ndSelfieStick") ? ndEl("ndSelfieStick").checked : false,
+      artcand: ndEl("ndArtificialCandidate") ? ndEl("ndArtificialCandidate").checked : false,
+      camctl: ndEl("ndCameraOrControl") ? ndEl("ndCameraOrControl").value : "Control",
+      camdate: ndEl("ndCameraDeploymentDate") ? ndEl("ndCameraDeploymentDate").value : "",
+      height: ndEl("ndHeight") ? ndEl("ndHeight").value : "",
+      substrate: ndSelectedSubstrates(),
+      substrateOther: ndEl("ndSubstrateOther") ? ndEl("ndSubstrateOther").value : "",
+      location: ndEl("ndLocationDescription") ? ndEl("ndLocationDescription").value : "",
+      note: ndEl("ndNote") ? ndEl("ndNote").value : "",
+      photo: nestPhoto || null,
+      photoName: nestPhotoName || null
+    };
+  }
+
+  function nestDraftHasContent(d) {
+    if (!d) return false;
+    return !!(d.species || d.speciesOther || d.stage || d.height ||
+      (d.substrate && d.substrate.length) || d.substrateOther ||
+      d.location || d.note || d.photo || d.selfie || d.artcand ||
+      (d.camctl && d.camctl !== "Control") || d.camdate);
+  }
+
+  function saveNestDraft() {
+    if (!_ndDraftKey) return;
+    try {
+      var d = collectNestDraft();
+      if (nestDraftHasContent(d)) localStorage.setItem(_ndDraftKey, JSON.stringify(d));
+      else localStorage.removeItem(_ndDraftKey);
+    } catch (e) {}
+  }
+
+  // Debounced so rapid typing writes once things settle.
+  function scheduleNestDraftSave() {
+    if (_ndDraftTimer) clearTimeout(_ndDraftTimer);
+    _ndDraftTimer = setTimeout(function () { _ndDraftTimer = null; saveNestDraft(); }, 400);
+  }
+  window.fieldSaveNestDraft = scheduleNestDraftSave;
+
+  function clearNestDraft() {
+    if (_ndDraftTimer) { clearTimeout(_ndDraftTimer); _ndDraftTimer = null; }
+    if (_ndDraftKey) { try { localStorage.removeItem(_ndDraftKey); } catch (e) {} }
+  }
+  window.fieldClearNestDraft = clearNestDraft;
+
+  function loadNestDraft(nestId) {
+    try {
+      var raw = localStorage.getItem(ndDraftKeyFor(nestId));
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+
+  function applyNestDraft(d) {
+    if (!d) return;
+    if (d.species && ndEl("ndSpecies")) ndEl("ndSpecies").value = d.species;
+    if (ndEl("ndSpeciesOther")) ndEl("ndSpeciesOther").value = d.speciesOther || "";
+    if (d.patch && ndEl("ndPatchId")) ndEl("ndPatchId").value = d.patch;
+    if (ndEl("ndDiscoveryStage")) ndEl("ndDiscoveryStage").value = d.stage || "";
+    if (ndEl("ndSelfieStick")) ndEl("ndSelfieStick").checked = !!d.selfie;
+    if (ndEl("ndArtificialCandidate")) ndEl("ndArtificialCandidate").checked = !!d.artcand;
+    if (ndEl("ndCameraOrControl")) ndEl("ndCameraOrControl").value = d.camctl || "Control";
+    if (ndEl("ndCameraDeploymentDate")) ndEl("ndCameraDeploymentDate").value = d.camdate || "";
+    if (ndEl("ndCameraDateWrap")) ndEl("ndCameraDateWrap").style.display = (d.camctl === "Camera") ? "" : "none";
+    if (ndEl("ndHeight")) ndEl("ndHeight").value = d.height || "";
+    if (ndEl("ndLocationDescription")) ndEl("ndLocationDescription").value = d.location || "";
+    if (ndEl("ndNote")) ndEl("ndNote").value = d.note || "";
+    var su = ndEl("ndSubstrate");
+    if (su && d.substrate) {
+      Array.prototype.forEach.call(su.options, function (o) {
+        o.selected = d.substrate.indexOf(o.value) >= 0;
+      });
+    }
+    if (ndEl("ndSubstrateOther")) ndEl("ndSubstrateOther").value = d.substrateOther || "";
+    if (d.photo) {
+      nestPhoto = d.photo;
+      nestPhotoName = d.photoName || null;
+      var preview = ndEl("ndPhotoPreview");
+      if (preview) {
+        preview.innerHTML = "";
+        var im = document.createElement("img");
+        im.src = d.photo; im.className = "field-photo-thumb";
+        preview.appendChild(im);
+      }
+    }
+    // Re-sync the picker button labels + conditional "Other" rows so the visible
+    // UI matches the restored hidden <select> values.
+    syncNestOther();
+    pickerLabel(ndEl("ndSpecies"), ndEl("ndSpeciesBtn"), "Choose species", false);
+    pickerLabel(ndEl("ndSubstrate"), ndEl("ndSubstrateBtn"), "Choose substrate", true);
+    pickerLabel(ndEl("ndDiscoveryStage"), ndEl("ndDiscoveryStageBtn"), "— select —", false);
+    pickerLabel(ndEl("ndCameraOrControl"), ndEl("ndCameraOrControlBtn"), "Control", false);
+    pickerLabel(ndEl("ndPatchId"), ndEl("ndPatchBtn"), "Patch", false);
+  }
+
   function openNestData(nestId, lat, lng, date, pointId) {
     nestDataCtx = { nestId: nestId, lat: lat, lng: lng, date: date, pointId: pointId, mode: "add" };
     buildNestChoices();
@@ -320,6 +443,14 @@
     toggleNestEditChrome(false);
     // Add flow: the discovery date is fixed to the waypoint's capture date.
     toggleNdDateEdit(false, null);
+    // Restore any in-progress draft for this nest (survives an iOS reload).
+    _ndDraftKey = ndDraftKeyFor(nestId);
+    var draft = loadNestDraft(nestId);
+    if (nestDraftHasContent(draft)) {
+      applyNestDraft(draft);
+      var st = ndEl("nestDataStatus");
+      if (st) st.textContent = "Restored your in-progress entry.";
+    }
     showScreen("nestdata");
   }
 
@@ -436,6 +567,9 @@
           }
         }
 
+        // Saved: the draft is no longer needed.
+        clearNestDraft();
+
         // The interval-check form is the acknowledgement; skip the modal.
 
         openIntervalData({ nestId: nestDataCtx ? nestDataCtx.nestId : null, mode: "add" });
@@ -488,6 +622,99 @@
     if (st) st.textContent = "";
   }
 
+  // --- interval draft persistence ----------------------------------------
+  // Same iOS-eviction safeguard as the discovery form: mirror the in-progress
+  // interval-check form to localStorage (keyed by nest id), restore it when the
+  // nest's ADD-check form reopens, and clear it on save/cancel. Edit mode never
+  // drafts. The interval form is all native inputs/selects, so one delegated
+  // input/change listener on the screen captures every change.
+
+  var IV_DRAFT_PREFIX = "nestIntervalDraft:";
+  var _ivDraftKey = null;
+  var _ivDraftTimer = null;
+
+  function ivDraftKeyFor(nestId) { return IV_DRAFT_PREFIX + String(nestId || ""); }
+
+  function collectIntervalDraft() {
+    return {
+      state: ivState(),
+      date: ivEl("ivDateEdit") ? ivEl("ivDateEdit").value : "",
+      time: ivEl("ivTimeEdit") ? ivEl("ivTimeEdit").value : "",
+      observer: ivEl("ivObserver") ? ivEl("ivObserver").value : "",
+      notes: ivEl("ivNotes") ? ivEl("ivNotes").value : "",
+      adultPresent: ivEl("ivAdultPresent") ? ivEl("ivAdultPresent").value : "",
+      adultActivity: ivEl("ivAdultActivity") ? ivEl("ivAdultActivity").value : "",
+      hostEggs: ivEl("ivHostEggs") ? ivEl("ivHostEggs").value : "",
+      hostYoung: ivEl("ivHostYoung") ? ivEl("ivHostYoung").value : "",
+      bhcoEggs: ivEl("ivBhcoEggs") ? ivEl("ivBhcoEggs").value : "",
+      bhcoYoung: ivEl("ivBhcoYoung") ? ivEl("ivBhcoYoung").value : "",
+      nestStatus: ivEl("ivNestStatus") ? ivEl("ivNestStatus").value : "",
+      youngStatus: ivEl("ivYoungStatus") ? ivEl("ivYoungStatus").value : "",
+      observerActive: ivEl("ivObserverActive") ? ivEl("ivObserverActive").value : "",
+      notesActive: ivEl("ivNotesActive") ? ivEl("ivNotesActive").value : "",
+      presumedFate: ivEl("ivPresumedFate") ? ivEl("ivPresumedFate").value : ""
+    };
+  }
+
+  function intervalDraftHasContent(d) {
+    if (!d) return false;
+    return !!(d.state === "Active" || d.notes || d.notesActive || d.presumedFate ||
+      d.hostEggs || d.hostYoung || d.bhcoEggs || d.bhcoYoung ||
+      (d.observer && d.observer !== "TNS") ||
+      (d.adultPresent && d.adultPresent !== "N"));
+  }
+
+  function saveIntervalDraft() {
+    if (!_ivDraftKey) return;
+    try {
+      var d = collectIntervalDraft();
+      if (intervalDraftHasContent(d)) localStorage.setItem(_ivDraftKey, JSON.stringify(d));
+      else localStorage.removeItem(_ivDraftKey);
+    } catch (e) {}
+  }
+
+  function scheduleIntervalDraftSave() {
+    if (_ivDraftTimer) clearTimeout(_ivDraftTimer);
+    _ivDraftTimer = setTimeout(function () { _ivDraftTimer = null; saveIntervalDraft(); }, 400);
+  }
+  window.fieldSaveIntervalDraft = scheduleIntervalDraftSave;
+
+  function clearIntervalDraft() {
+    if (_ivDraftTimer) { clearTimeout(_ivDraftTimer); _ivDraftTimer = null; }
+    if (_ivDraftKey) { try { localStorage.removeItem(_ivDraftKey); } catch (e) {} }
+  }
+  window.fieldClearIntervalDraft = clearIntervalDraft;
+
+  function loadIntervalDraft(nestId) {
+    try {
+      var raw = localStorage.getItem(ivDraftKeyFor(nestId));
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+
+  function applyIntervalDraft(d) {
+    if (!d) return;
+    if (d.state) {
+      var radios = overlay.querySelectorAll('input[name="ivCurrentState"]');
+      for (var i = 0; i < radios.length; i++) radios[i].checked = (radios[i].value === d.state);
+    }
+    if (d.observer && ivEl("ivObserver")) ivEl("ivObserver").value = d.observer;
+    if (ivEl("ivNotes")) ivEl("ivNotes").value = d.notes || "";
+    if (d.adultPresent && ivEl("ivAdultPresent")) ivEl("ivAdultPresent").value = d.adultPresent;
+    if (d.adultActivity && ivEl("ivAdultActivity")) ivEl("ivAdultActivity").value = d.adultActivity;
+    if (ivEl("ivHostEggs")) ivEl("ivHostEggs").value = d.hostEggs || "";
+    if (ivEl("ivHostYoung")) ivEl("ivHostYoung").value = d.hostYoung || "";
+    if (ivEl("ivBhcoEggs")) ivEl("ivBhcoEggs").value = d.bhcoEggs || "";
+    if (ivEl("ivBhcoYoung")) ivEl("ivBhcoYoung").value = d.bhcoYoung || "";
+    if (d.nestStatus && ivEl("ivNestStatus")) ivEl("ivNestStatus").value = d.nestStatus;
+    if (d.youngStatus && ivEl("ivYoungStatus")) ivEl("ivYoungStatus").value = d.youngStatus;
+    if (d.observerActive && ivEl("ivObserverActive")) ivEl("ivObserverActive").value = d.observerActive;
+    if (ivEl("ivNotesActive")) ivEl("ivNotesActive").value = d.notesActive || "";
+    if (ivEl("ivPresumedFate")) ivEl("ivPresumedFate").value = d.presumedFate || "";
+    // Re-sync the state-dependent field groups to the restored state.
+    applyIntervalState();
+  }
+
   function openIntervalData(opts) {
     opts = opts || {};
     var mode = opts.mode || "add";
@@ -505,6 +732,14 @@
     // Add flow: pre-fill the date/time inputs with "now", but leave them editable
     // so the user can correct them by hand (saveIntervalData reads the inputs).
     toggleIvDateTimeEdit(true, dateStr, timeStr);
+    // Restore any in-progress draft for this nest (survives an iOS reload).
+    _ivDraftKey = ivDraftKeyFor(opts.nestId);
+    var draft = loadIntervalDraft(opts.nestId);
+    if (intervalDraftHasContent(draft)) {
+      applyIntervalDraft(draft);
+      var st = ivEl("intervalStatus");
+      if (st) st.textContent = "Restored your in-progress check.";
+    }
     showScreen("intervaldata");
   }
 
@@ -579,7 +814,7 @@
       return;
     }
     uploadIntervalRow(rec,
-      function () { applyPresumedFate(rec); showUploadModal("Interval check saved for " + intervalCtx.nestId + "."); closeMenu(); },
+      function () { clearIntervalDraft(); applyPresumedFate(rec); showUploadModal("Interval check saved for " + intervalCtx.nestId + "."); closeMenu(); },
       function (msg) { if (status) status.textContent = msg; });
   }
 
@@ -1895,6 +2130,9 @@
 
   function openNestDataEdit(nestId, data, row) {
     nestDataCtx = { nestId: nestId, mode: "edit", sheetRow: row, date: (data && data.discovery_date) || null };
+    // Edit mode never drafts -- clear the key so the screen's input listeners
+    // don't persist edits as an add-draft.
+    _ndDraftKey = null;
     buildNestChoices();
     resetNestFields();
     ndEl("ndNestId").textContent = nestId;
@@ -1948,6 +2186,8 @@
       nestId: nestId, mode: "edit", sheetRow: row,
       date: (data && data.date) || null, time: (data && data.time) || null
     };
+    // Edit mode never drafts.
+    _ivDraftKey = null;
     resetIntervalFields();
     ivEl("ivNestId").textContent = nestId;
     fillIntervalForm(data);
