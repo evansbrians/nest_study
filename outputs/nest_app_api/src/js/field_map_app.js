@@ -1302,6 +1302,23 @@
 
   var ndPhoto = ndEl("ndPhoto");
   if (ndPhoto) {
+    // Tapping the photo control launches the OS camera/picker, which backgrounds
+    // (and on iOS often reloads) the PWA. Flush the discovery draft synchronously
+    // FIRST so the species/height/etc. entered so far survive that -- otherwise a
+    // reload lands the tech back on the map with a blank form.
+    ["pointerdown", "click"].forEach(function (evt) {
+      ndPhoto.addEventListener(evt, function () {
+        if (window.fieldFlushNestDraft) window.fieldFlushNestDraft();
+      });
+    });
+    // Whenever the app is hidden (backgrounded, screen off, camera opened),
+    // flush any in-progress discovery + interval draft so an iOS eviction can't
+    // lose it.
+    document.addEventListener("visibilitychange", function () {
+      if (!document.hidden) return;
+      if (window.fieldFlushNestDraft) window.fieldFlushNestDraft();
+      if (window.fieldFlushIntervalDraft) window.fieldFlushIntervalDraft();
+    });
     ndPhoto.addEventListener("change", function () {
       var file = ndPhoto.files && ndPhoto.files[0];
       var preview = ndEl("ndPhotoPreview");

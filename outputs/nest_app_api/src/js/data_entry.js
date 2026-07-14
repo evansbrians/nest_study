@@ -377,6 +377,16 @@
   }
   window.fieldSaveNestDraft = scheduleNestDraftSave;
 
+  // Synchronous flush -- write the current form to storage RIGHT NOW, not on the
+  // 400 ms debounce. Called the instant the photo control is tapped (before the
+  // camera can background/evict the PWA) and when the app is hidden, so opening
+  // the camera can never lose the species/height/etc. entered so far.
+  function flushNestDraft() {
+    if (_ndDraftTimer) { clearTimeout(_ndDraftTimer); _ndDraftTimer = null; }
+    saveNestDraft();
+  }
+  window.fieldFlushNestDraft = flushNestDraft;
+
   function clearNestDraft() {
     if (_ndDraftTimer) { clearTimeout(_ndDraftTimer); _ndDraftTimer = null; }
     if (_ndDraftKey) { try { localStorage.removeItem(_ndDraftKey); } catch (e) {} }
@@ -684,6 +694,14 @@
     if (_ivDraftKey) { try { localStorage.removeItem(_ivDraftKey); } catch (e) {} }
   }
   window.fieldClearIntervalDraft = clearIntervalDraft;
+
+  // Synchronous flush of the interval draft (mirrors the discovery one), for the
+  // app-backgrounded safety net.
+  function flushIntervalDraft() {
+    if (_ivDraftTimer) { clearTimeout(_ivDraftTimer); _ivDraftTimer = null; }
+    saveIntervalDraft();
+  }
+  window.fieldFlushIntervalDraft = flushIntervalDraft;
 
   function loadIntervalDraft(nestId) {
     try {
