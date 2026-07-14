@@ -1878,29 +1878,61 @@
       addRow("Status", info.last_status);
     }
 
-    var il = document.getElementById("niIntervals");
-    if (il) {
+    // Render the interval-check history into #niIntervals (newest first).
+    function niRenderIntervals(list) {
+      var il = document.getElementById("niIntervals");
+      if (!il) return;
       il.innerHTML = "";
-      var ivs = (info.intervals || []).slice().reverse();
+      var ivs = (list || []).slice().reverse();
       if (!ivs.length) {
         var none = document.createElement("li");
         none.textContent = "No interval checks yet.";
         il.appendChild(none);
-      } else {
-        ivs.forEach(function (iv) {
-          var parts = niIntervalParts(iv);
-          var li = document.createElement("li");
-          li.appendChild(document.createTextNode(parts.line));
-          if (parts.sub) {
-            var sub = document.createElement("ul");
-            var sli = document.createElement("li");
-            sli.textContent = parts.sub;
-            sub.appendChild(sli);
-            li.appendChild(sub);
-          }
-          il.appendChild(li);
-        });
+        return;
       }
+      ivs.forEach(function (iv) {
+        var parts = niIntervalParts(iv);
+        var li = document.createElement("li");
+        li.appendChild(document.createTextNode(parts.line));
+        if (parts.sub) {
+          var sub = document.createElement("ul");
+          var sli = document.createElement("li");
+          sli.textContent = parts.sub;
+          sub.appendChild(sli);
+          li.appendChild(sub);
+        }
+        il.appendChild(li);
+      });
+    }
+
+    // Show whatever the summary carried right away (its single latest check),
+    // then fetch the nest's FULL interval history from the API and re-render.
+    // The /nests summary only provides the one latest check, so without this the
+    // info page never shows a nest's earlier checks -- and for a concluded nest
+    // (is_current 0) that lone check was all you'd ever see. Cache the full set
+    // into fieldNestInfo so a reopen is instant and the merge keeps it (richer).
+    niRenderIntervals(info.intervals || []);
+    if (window.NestApi && NestApi.api &&
+        typeof NestApi.api.getNestIntervals === "function" && NestApi.api.isOnline()) {
+      NestApi.api.getNestIntervals(nestId).then(function (rows) {
+        if (!Array.isArray(rows) || niCurrentNest !== nestId) return;
+        var full = rows.map(function (iv) {
+          return {
+            date: iv.date || iv.check_date || null,
+            host_eggs: iv.host_eggs,
+            host_young: iv.host_young,
+            bhco_eggs: iv.bhco_eggs,
+            bhco_young: iv.bhco_young
+          };
+        }).sort(function (a, b) {
+          var ka = a.date || "", kb = b.date || "";
+          return ka < kb ? -1 : (ka > kb ? 1 : 0);
+        });
+        if (window.fieldNestInfo && window.fieldNestInfo[nestId]) {
+          window.fieldNestInfo[nestId].intervals = full;
+        }
+        niRenderIntervals(full);
+      }).catch(function () {});
     }
 
     niBuildMap(nestId);

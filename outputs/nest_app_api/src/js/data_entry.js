@@ -1990,6 +1990,14 @@
   window.NestApiData.invalidateNest = function (nestId) {
     if (nestId && _nestDetailCache[nestId]) delete _nestDetailCache[nestId];
   };
+  // Drop every cached nest detail. Used when the change feed reports an
+  // interval_check edit: the event carries the check's surrogate id, not the
+  // parent nest, so we can't target one nest -- clear all (refilled on demand).
+  window.NestApiData.invalidateAllNests = function () {
+    Object.keys(_nestDetailCache).forEach(function (k) {
+      delete _nestDetailCache[k];
+    });
+  };
 
   function openIntervalPicker(nestId, list) {
     var overlay = document.createElement("div");

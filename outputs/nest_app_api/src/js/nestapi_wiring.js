@@ -485,11 +485,21 @@
         var e = events[i];
         var ent = e && (e.entity || e.entity_type);
         if (ent) _pendingEntities[String(ent)] = true;
-        // Drop any cached full-detail for a touched nest so its next Modify
-        // open re-fetches fresh (cheap: only on demand, not now).
-        if ((ent === "nest" || ent === "interval_check") && e && e.entity_id &&
+        // Drop cached full-detail so the next Modify open re-fetches fresh.
+        // A "nest" event's entity_id IS the nest id, so we target that nest.
+        if (ent === "nest" && e && e.entity_id &&
             window.NestApiData && typeof window.NestApiData.invalidateNest === "function") {
           try { window.NestApiData.invalidateNest(String(e.entity_id)); } catch (x) {}
+        }
+        // An "interval_check" event's entity_id is the CHECK's surrogate id
+        // (e.g. 471), NOT the nest -- and a routine check emits no accompanying
+        // nest event -- so targeting entity_id invalidated a non-existent key
+        // and left the nest's cached interval list stale until a full reload.
+        // The event doesn't carry the parent nest id, so drop the whole detail
+        // cache on any interval change; it's cheap and refilled on demand.
+        if (ent === "interval_check" &&
+            window.NestApiData && typeof window.NestApiData.invalidateAllNests === "function") {
+          try { window.NestApiData.invalidateAllNests(); } catch (x) {}
         }
         // A photo or gps_point change on another device (e.g. Brian adds a nest
         // point + discovery photo) means a nest that was PHOTOLESS here may now
@@ -566,11 +576,22 @@
   function startSync() {
     if (!sync || syncStarted || !settings.hasCreds()) return;
     syncStarted = true;
+    var onBatch = function (events) { scheduleRefresh(events); };
     // onChange: a non-empty batch arrived. Debounced + selective (see above) so
     // background sync from other devices doesn't jank the field UI.
-    sync.start(function (events) {
-      scheduleRefresh(events);
-    });
+    sync.start(onBatch);
+    // Stop polling while the app is hidden/backgrounded so idle field phones
+    // don't keep hitting the server; resume on return (the loop re-reads the
+    // persisted cursor, so nothing entered while away is missed).
+    if (typeof document !== "undefined" && document.addEventListener) {
+      document.addEventListener("visibilitychange", function () {
+        if (document.hidden) {
+          sync.stop();
+        } else if (!sync.isRunning()) {
+          sync.start(onBatch);
+        }
+      });
+    }
   }
 
   // ---- Boot --------------------------------------------------------------

@@ -7,8 +7,16 @@ window.NestApi = window.NestApi || {};
   "use strict";
 
   var CURSOR_KEY = "changeCursor";
-  var WAIT_SECONDS = 25; // matches the server's long-poll window
-  var BACKOFF_MS = 3000; // pause after an error before re-arming
+  // Short-poll, NOT long-poll. A held long-poll (wait=25) keeps a plumber
+  // worker busy for the whole window; with a single-threaded R server a few
+  // field phones then starve every other query -- the API "goes slow for
+  // everyone." Instead we ask for whatever is ready NOW (wait=0) and pause
+  // POLL_INTERVAL_MS between polls, so each request returns in milliseconds and
+  // releases the worker. Trade-off: live updates land within POLL_INTERVAL_MS
+  // rather than instantly, which is fine in the field.
+  var WAIT_SECONDS = 0;
+  var POLL_INTERVAL_MS = 6000; // gap between polls (idle / foregrounded)
+  var BACKOFF_MS = 4000; // pause after an error before retrying
 
   var running = false;
   var currentCursor = 0;
@@ -54,7 +62,9 @@ window.NestApi = window.NestApi || {};
           // never let a handler error kill the loop
         }
       }
-      // re-arm immediately (getChanges already blocked server-side)
+      // Pause before the next poll so we never hold a server worker between
+      // checks (the server returns immediately with wait=0).
+      if (running && POLL_INTERVAL_MS > 0) await sleep(POLL_INTERVAL_MS);
     }
   }
 
