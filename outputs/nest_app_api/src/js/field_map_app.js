@@ -4016,7 +4016,15 @@
     launchBtn.addEventListener("click", function () {
       if (!selectedNest) { status("Choose a nest first."); return; }
       status("Opening Concealment Camera…");
-      window.location.href = CONCEAL_APP_URL + "?label=" + encodeURIComponent(selectedNest.name);
+      var url = CONCEAL_APP_URL + "?label=" + encodeURIComponent(selectedNest.name);
+      // Hand the API token across too so the camera app never needs its own
+      // Settings/token entry -- it stores what we pass and uploads with it. Uses
+      // the same per-user token this app already holds (revocable server-side).
+      var token = (window.NestApi && window.NestApi.settings &&
+                   typeof window.NestApi.settings.getToken === "function")
+        ? window.NestApi.settings.getToken() : "";
+      if (token) url += "&token=" + encodeURIComponent(token);
+      window.location.href = url;
       setTimeout(function () {
         status("If nothing opened, install / enable the Concealment Camera app.");
       }, 1500);
