@@ -516,7 +516,12 @@ function(el, x) {
 
     if (names === null) {
 
-      // Show everything at full opacity, except test-site nests (prefixed).
+      // Show every patch, except test-site nests (prefixed). Opacity still
+      // applies: the non-current fade AND -- when "Subset to today's data" is on
+      // -- the not-scheduled-today fade. This branch used to ignore `fade`
+      // entirely, which meant coverboards and trailcams (which never appear in
+      // fieldNestFade) sat at full opacity in the All-patches view no matter
+      // what the schedule said. Same rule as the per-patch branch below.
 
       eachPatchFeature(function (layer, gname) {
         if (gname === "Nests" && isTestNestLayer(layer)) {
@@ -524,7 +529,8 @@ function(el, x) {
           return;
         }
         if (!map.hasLayer(layer)) map.addLayer(layer);
-        setLayerOpacity(layer, fadeFor(layer, window.fieldNestFade));
+        setLayerOpacity(layer, Math.min(fadeFor(layer, window.fieldNestFade),
+                                        fadeFor(layer, fade)));
       });
     } else {
       var ringsList = [];

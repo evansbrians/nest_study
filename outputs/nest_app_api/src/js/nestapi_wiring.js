@@ -182,24 +182,26 @@
 
   function applyMapPointStyles(rows) {
     if (!Array.isArray(rows) || !rows.length) return false;
-    var fade = Object.create(null);
-    var big = Object.create(null);
+    var todayFade = Object.create(null);   // -> window.fieldToday.fade
+    var nestFade = Object.create(null);    // -> window.fieldNestFade
+    var big = Object.create(null);         // -> window.fieldNestBig
     rows.forEach(function (r) {
       if (!r || r.lat === null || r.lat === undefined ||
           r.lng === null || r.lng === undefined) return;
       var key = Number(r.lat).toFixed(6) + "," + Number(r.lng).toFixed(6);
-      var op = Number(r.opacity);
-      if (!isNaN(op) && op < 1) fade[key] = op;
-      var sz = Number(r.size);
-      if (!isNaN(sz) && sz > 1) big[key] = true;
+      // Keep the two fades SEPARATE, exactly as applyFilter applies them: the
+      // non-current fade always, the today fade only while the today-subset is
+      // on. (The view also gives a combined `opacity`, but using that alone
+      // would make the toggle unable to tell them apart.)
+      if (Number(r.is_current) === 0) nestFade[key] = 0.5;
+      if (Number(r.scheduled_today) === 0) todayFade[key] = 0.5;
+      if (Number(r.size) > 1) big[key] = true;
     });
-    _mapPointFade = fade;
+    _mapPointFade = todayFade;
     _mapPointBig = big;
-    // The view's opacity ALREADY includes the per-nest (non-current) fade, so
-    // neutralize the old baked map rather than double-applying it via Math.min.
-    window.fieldNestFade = Object.create(null);
+    window.fieldNestFade = nestFade;
     window.fieldNestBig = big;
-    if (window.fieldToday) window.fieldToday.fade = fade;
+    if (window.fieldToday) window.fieldToday.fade = todayFade;
     rebroadcastFilterState();
     return true;
   }
