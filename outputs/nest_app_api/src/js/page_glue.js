@@ -4,7 +4,8 @@
 
 (function(){var el=document.getElementById("speciesInfoDoc");if(el&&window.fieldSpeciesHTML)el.innerHTML=window.fieldSpeciesHTML;})();
 
-(function(){var el=document.getElementById("nestsDoc");if(el&&window.fieldNestsHTML)el.innerHTML=window.fieldNestsHTML;})();
+// The Nests page is filled at runtime from the API (fieldRenderNestsFromApi);
+// it is no longer seeded from a baked window.fieldNestsHTML (refactor stage A).
 
 document.addEventListener("DOMContentLoaded", function () {
   var doc = document.getElementById("nestsDoc");

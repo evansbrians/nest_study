@@ -15,16 +15,13 @@ source("scripts/utils/functions/utility_functions.R")
 source("scripts/utils/functions/db_functions.R")
 source("scripts/utils/functions/scheduling_functions.R")
 source("scripts/utils/functions/weather_functions.R")
-source("scripts/utils/externalize_field_data.R")
 
-# The API token + URL the schedule push and DB pull use (kept here so the daily
-# run is copy-and-paste reproducible):
+# The URL and API token used by the schedule push and DB pull:
 
 api_url <- "https://snednestudy.duckdns.org"
 api_token <- "a5d11ba12d29bdb83b0a5e4806fe111dbb740d6001499c2cdc171440cb05f357"
 
-# Nests + GPS points now flow through the app into the VM database; only the
-# sheets below are still hand-entered, so those are all we read from Sheets:
+# The sheets that are still hand-entered:
 
 urls <-
   c(
@@ -45,15 +42,15 @@ urls <-
 ## coverboards ------------------------------------------------------------
 
 coverboards <-
-
+  
   # Read data:
-
+  
   read_sheet(
     urls$coverboards
   ) %>%
-
+  
   # Process data:
-
+  
   mutate(
     date = as_date(date)
   ) %>%
@@ -70,9 +67,9 @@ coverboards <-
 ## point counts -----------------------------------------------------------
 
 point_counts <-
-
+  
   # Read data:
-
+  
   read_sheet(
     urls$point_counts,
     col_types = "c"
@@ -83,9 +80,9 @@ point_counts <-
       ~ as.numeric(.x)
     )
   ) %>%
-
+  
   # Process data:
-
+  
   pivot_longer(
     `< 25 m`:`> 100 m`,
     names_to = "distance",
@@ -108,9 +105,9 @@ point_counts <-
 ## visits -----------------------------------------------------------------
 
 visits <-
-
+  
   # Read data:
-
+  
   read_sheet(
     urls$visits
   ) %>%
@@ -123,9 +120,9 @@ visits <-
   mutate(
     date = as_date(date)
   ) %>%
-
+  
   # Process data:
-
+  
   pivot_longer(
     point_count:patch_maintenance,
     names_to = "activity",
@@ -144,17 +141,17 @@ visits <-
 ## camera maintenance -----------------------------------------------------
 
 predator_cameras <-
-
+  
   # Read data:
-
+  
   urls$predator_cameras %>%
   read_sheet() %>%
   mutate(
     date = as_date(date)
   ) %>%
-
+  
   # Process data:
-
+  
   nest(maintenance_activities = date:notes)
 
 # weather forecast --------------------------------------------------------
@@ -169,9 +166,7 @@ read_rds("data/weather.rds") %>%
 
 # sheet field data -> file ------------------------------------------------
 
-# Write the sheet-derived tables first: nightly_load.R (run after the DB pull
-# below) reads point counts + visits back from here to re-layer them into the
-# freshly pulled DB. Nests are added to this file after the pull.
+# Write the sheet-derived tables first:
 
 field_data <-
   lst(
@@ -188,8 +183,6 @@ write_rds(field_data, "data/field_data.rds")
 # Replace the local DB with a fresh snapshot of the VM's live app data (nests,
 # gps points, intervals, photos, tracks, schedule), then re-layer the sheet
 # batch tables (point counts / visits) from the field_data.rds just written.
-# Safe-fail: a pull failure warns and leaves the local DB untouched (the snapshot
-# is validated before it is swapped in).
 
 message("Refreshing local DB from the VM...")
 
@@ -199,7 +192,10 @@ db_refreshed <-
 if (db_refreshed) {
   system2(
     "Rscript",
-    c("brian_sandbox/migrate_to_db/server/nightly_load.R", "nest_study.sqlite")
+    c(
+      "brian_sandbox/migrate_to_db/server/nightly_load.R",
+      "nest_study.sqlite"
+    )
   )
 } else {
   warning(
@@ -210,8 +206,8 @@ if (db_refreshed) {
 # database-entered field data ---------------------------------------------
 
 # Now that the DB holds the latest app-entered data, pull the nests (in the
-# field_data `nests` shape) and re-derive the per-class spatial point files from
-# gps_point -- these replace the old Google-Sheet nest read and the Google Drive
+# field_data `nests` shape) and re-derive the spatial point files from
+# gps_point. This replaces the old Google-Sheet nest read and the Google Drive
 # waypoint ingest.
 
 con <- connect_nest_db("nest_study.sqlite")
@@ -235,24 +231,7 @@ write_spatial_from_db(con)
 
 dbDisconnect(con)
 
-## nests to check ---------------------------------------------------------
-
-# Active nests to check (feeds the nest page and the map fade):
-
-current_nests <- get_current_nests(.nests = nests)
-
-# database field data -> file ---------------------------------------------
-
-write_rds(current_nests, "data/current_nests.rds")
-
 # push the schedule to the web API ----------------------------------------
-
-# Push the current week + the next few weeks to the VM (schedule_load.R) so the
-# app advances to the new week on its own each Monday -- it selects the week
-# containing today's date, and next week is already loaded. Runs here (after the
-# DB pull) because the schedule's current-nests lookup now reads the database via
-# field_data.rds. Safe-fail: a failure warns and updater.R continues; the app
-# keeps the previously pushed schedule.
 
 message("Pushing schedule to the web API...")
 
@@ -268,15 +247,24 @@ schedule_push_status <-
 
 if (schedule_push_status != 0) {
   warning(
-    "schedule_load.R failed -- the app keeps the previously pushed schedule."
+    "schedule_load.R failed, the app is stuck on the previous schedule."
   )
 }
 
-# render the field map app and re-externalize its data --------------------
+# render the printable PDF schedule ---------------------------------------
 
-quarto::quarto_render("outputs/nest_app/field_map.qmd")
+# The daily printable schedule (outputs/print-outs/schedule_pdf.pdf), built from
+# the current-nests and schedule data written above.
 
-externalize_field_data()
+tryCatch(
+  quarto::quarto_render("outputs/print-outs/schedule_pdf.qmd"),
+  error = function(e) {
+    message(
+      "Skipping the printable schedule PDF: ", 
+      conditionMessage(e)
+    )
+  }
+)
 
 # Let's hold onto field data and clear the rest from the global environment:
 

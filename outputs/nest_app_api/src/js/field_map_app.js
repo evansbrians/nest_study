@@ -2021,10 +2021,12 @@
     };
   }
 
-  // Fold every API nest into window.fieldNestInfo so its detail page works, even
-  // for nests only in the DB. Prefer live API values for the summary fields; keep
-  // the baked interval history when it is richer than the single latest-check the
-  // list load provides. Baked entries for nests absent from the API are untouched.
+  // Populate window.fieldNestInfo purely from the live API (GET /nests) -- the
+  // nest detail page reads window.fieldNestInfo[id]. There is no baked nest data
+  // any more, so the API is the single source of truth; this removes the old
+  // baked-vs-API merge that could serve stale data (the NQ045 bug). The one
+  // thing we preserve is a fuller interval history the info page already fetched
+  // live, since the /nests summary carries only the latest check.
   function fieldMergeApiNestInfo() {
     var nests = window.fieldApiNests || [];
     if (!window.fieldNestInfo) window.fieldNestInfo = {};
@@ -2032,21 +2034,11 @@
     nests.forEach(function (n) {
       if (!n || !n.nest_id) return;
       var api = apiNestToInfo(n);
-      var baked = storeInfo[n.nest_id] || {};
-      var intervals =
-        (baked.intervals && baked.intervals.length > api.intervals.length)
-          ? baked.intervals : api.intervals;
-      storeInfo[n.nest_id] = {
-        species: api.species || baked.species,
-        patch_id: api.patch_id || baked.patch_id,
-        substrate: api.substrate || baked.substrate,
-        height: api.height || baked.height,
-        location_description: api.location_description || baked.location_description,
-        discovery_date: api.discovery_date || baked.discovery_date,
-        last_check: api.last_check || baked.last_check,
-        last_status: api.last_status || baked.last_status,
-        intervals: intervals
-      };
+      var prev = storeInfo[n.nest_id];
+      if (prev && prev.intervals && prev.intervals.length > api.intervals.length) {
+        api.intervals = prev.intervals;
+      }
+      storeInfo[n.nest_id] = api;
     });
   }
 
