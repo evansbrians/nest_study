@@ -186,9 +186,12 @@
     var nestFade = Object.create(null);    // -> window.fieldNestFade
     var big = Object.create(null);         // -> window.fieldNestBig
     rows.forEach(function (r) {
-      if (!r || r.lat === null || r.lat === undefined ||
-          r.lng === null || r.lng === undefined) return;
-      var key = Number(r.lat).toFixed(6) + "," + Number(r.lng).toFixed(6);
+      if (!r) return;
+      // Use the key the VIEW formatted (TEXT, 6dp). Do NOT rebuild it from
+      // r.lat/r.lng: the JSON serializer rounds doubles to 4 decimals, so
+      // 38.891863 arrives as 38.8919 and every key misses its marker.
+      var key = r.key;
+      if (!key) return;
       // Keep the two fades SEPARATE, exactly as applyFilter applies them: the
       // non-current fade always, the today fade only while the today-subset is
       // on. (The view also gives a combined `opacity`, but using that alone
