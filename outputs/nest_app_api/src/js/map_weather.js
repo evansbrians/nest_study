@@ -102,15 +102,20 @@ function(el, x) {
     window.fieldMapPoints.forEach(function (p) {
       if (p.lat == null || p.lng == null || isNaN(p.lat) || isNaN(p.lng)) return;
       if (!p.group) return;
+      // A point whose icon_id has no png of its own -- landmarks, and anything
+      // else without a custom icon -- gets Leaflet's built-in marker-icon.png
+      // instead of being dropped. Previously these were skipped outright, so
+      // they never appeared on the map at all.
       var ic = window.fieldIcons[p.icon_id];
-      if (!ic) return;
-      var marker = window.L.marker([p.lat, p.lng], {
-        icon: window.L.icon({
-          iconUrl: ic.iconUrl,
-          iconSize: [ic.iconWidth, ic.iconHeight],
-          iconAnchor: [ic.iconAnchorX, ic.iconAnchorY]
-        })
-      });
+      var marker = ic
+        ? window.L.marker([p.lat, p.lng], {
+            icon: window.L.icon({
+              iconUrl: ic.iconUrl,
+              iconSize: [ic.iconWidth, ic.iconHeight],
+              iconAnchor: [ic.iconAnchorX, ic.iconAnchorY]
+            })
+          })
+        : window.L.marker([p.lat, p.lng]);   // stock Leaflet pin
       var popupHtml = p.popup;
       if (p.group === "Nests") {
         var photo = nestPhotoFor(p.name);
