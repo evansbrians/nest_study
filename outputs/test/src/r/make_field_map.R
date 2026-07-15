@@ -603,11 +603,13 @@ nest_big_json <-
 # the two planes drifted apart in the first place. (nest_fade_json/nest_big_json
 # above are now unused and can be deleted with the rest of the bake in stage C.)
 
-field_schedule_js <-
-  str_c(
-    "window.fieldSchedule = ", field_schedule_json, ";\n",
-    field_today_selector
-  )
+# window.fieldSchedule and the inline fieldToday selector are NO LONGER BAKED.
+# "Today" is a live fact: nestapi_wiring's rebuildFieldToday() derives
+# window.fieldToday = {date, patches} from GET /schedule and fires
+# "fieldtoday:changed". Baking a render-time copy meant the map's idea of today
+# went stale the moment the schedule was re-pushed -- and per-marker opacity now
+# comes from each v_map_point row, not from a baked fade map.
+field_schedule_js <- ""
 
 # embed offline satellite tiles --------------------------------------------
 

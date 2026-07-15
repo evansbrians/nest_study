@@ -154,23 +154,26 @@
     patchButtonLabel();
   }
 
-  // The embedded data may load a beat after this script; wait for it.
+  // Patch geometry (window.fieldPatches) is static shell data, so it is present
+  // as soon as field_patches.js has parsed. window.fieldToday is NO LONGER baked
+  // -- it is built from the LIVE schedule (GET /schedule -> rebuildFieldToday),
+  // so it simply does not exist yet on first paint. Waiting on it here would
+  // gate the dropdown on a network round-trip; instead build it now from what we
+  // have, and rebuild when the schedule lands (nestapi_wiring fires the event).
 
-  var dataReady = function () {
-    if (!window.fieldPatches) return false;
-    if (todayToggle && todayToggle.checked && typeof window.fieldToday === "undefined") {
-      return false;
-    }
-    return true;
-  };
-  if (dataReady()) {
+  if (window.fieldPatches) {
     rebuildPatchDropdown();
   } else {
     var pt = 0;
     var piv = setInterval(function () {
-      if (dataReady() || ++pt > 50) { clearInterval(piv); rebuildPatchDropdown(); }
+      if (window.fieldPatches || ++pt > 50) { clearInterval(piv); rebuildPatchDropdown(); }
     }, 100);
   }
+  // The live schedule decides which patches are "today", so the dropdown has to
+  // be rebuilt once it arrives (and on each later change-feed refresh).
+  window.addEventListener("fieldtoday:changed", function () {
+    try { rebuildPatchDropdown(); } catch (e) {}
+  });
 
   if (patchSelect) {
     patchSelect.addEventListener("change", function () {

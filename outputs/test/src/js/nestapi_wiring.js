@@ -258,6 +258,11 @@
     // patches drive the today-subset (hide/show). Per-marker opacity is NOT
     // here any more: it rides on each marker's v_map_point row (opacityFor).
     window.fieldToday = { date: pick, patches: patches };
+    // The patch dropdown + Nests-page "today" flags are built from this, and it
+    // is no longer baked -- so tell them it now exists / just changed.
+    try {
+      window.dispatchEvent(new Event("fieldtoday:changed"));
+    } catch (e) {}
     return true;
   }
 
