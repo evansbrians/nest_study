@@ -79,6 +79,18 @@ endpoints <-
   names() %>%
   as_tibble_col("endpoints")
 
+# debugging visibility issues ---------------------------------------------
+
+# Based on the various transparency issues, I made a view table that the app
+# uses to define icons:
+
+query_api("map_points")
+
+# You can query that table:
+
+query_api("map_points?class=coverboard") %>% 
+  filter(status == "Scheduled today")
+
 # query nests -------------------------------------------------------------
 
 # Get a full table of data from the api.

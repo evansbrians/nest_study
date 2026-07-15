@@ -30,13 +30,18 @@ document.addEventListener("DOMContentLoaded", function () {
     );
   }
 
+  // Each of these is guarded: applyGroup() used to dereference groupToggle
+  // unconditionally, so a single missing control threw and took the rest of this
+  // handler (applyCurrent + applyToday) down with it.
   function applyGroup() {
+    if (!groupToggle) return;
     var grouped = groupToggle.checked;
     if (allView) allView.style.display = grouped ? "none" : "block";
     if (patchView) patchView.style.display = grouped ? "block" : "none";
   }
 
   function applyCurrent() {
+    if (!currentToggle) return;
     if (currentToggle.checked) doc.classList.add("show-current-only");
     else doc.classList.remove("show-current-only");
   }
