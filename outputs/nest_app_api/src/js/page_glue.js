@@ -75,11 +75,27 @@ document.addEventListener("DOMContentLoaded", function () {
     };
   }
 
+  // A nest resolves to its GPS point by FOREIGN KEY (nest.gps_point_id ->
+  // v_map_point.idx), never by name: two nests (an NQ and its host N twin) can
+  // share one point, so the point's name does not identify the nest.
+
   function nestPoint(nestId) {
+    var nests = window.fieldApiNests || [];
+    var pointId = null;
+
+    for (var i = 0; i < nests.length; i++) {
+      if (nests[i] && nests[i].nest_id === nestId && nests[i].gps_point_id) {
+        pointId = nests[i].gps_point_id;
+        break;
+      }
+    }
+    if (!pointId) return null;
+
     var pts = window.fieldMapMarkers || [];
-    for (var i = 0; i < pts.length; i++) {
-      var p = pts[i];
-      if (p.name === nestId && p.lat != null && p.lng != null &&
+
+    for (var j = 0; j < pts.length; j++) {
+      var p = pts[j];
+      if (p && p.idx === pointId && p.lat != null && p.lng != null &&
           !isNaN(p.lat) && !isNaN(p.lng)) {
         return p;
       }
@@ -121,7 +137,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     pts.forEach(function (p) {
-      var op = (p.name === nestId) ? 1 : 0.3;
+      var op = (p.idx === target.idx) ? 1 : 0.3;
       var ic = window.fieldIcons && window.fieldIcons[p.icon];
       var marker;
       if (ic) {

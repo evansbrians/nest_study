@@ -1107,19 +1107,63 @@
 
   function padNest(n) { return String(n).padStart(3, "0"); }
 
-  // THE marker lookup: name -> its v_map_point row (window.fieldMapMarkers,
-  // GET /map_points). One row per GPS point, so this is the app's single
-  // answer for "where is <name>". Returns null if it has no usable position.
+  // The marker rows are window.fieldMapMarkers (GET /map_points, the
+  // v_map_point view): ONE row per GPS point. A point is a different level of
+  // observation from a nest -- two nests (an NQ and its host N twin) can share
+  // one point -- so a nest resolves to its point by FOREIGN KEY, never by name.
+
+  function usablePoint(r) {
+    return !!r && r.lat != null && r.lng != null &&
+           !isNaN(r.lat) && !isNaN(r.lng);
+  }
+
+  // point_id -> its row (v_map_point exposes gps_point.point_id as `idx`).
+
+  function mapPointById(pointId) {
+    var rows = window.fieldMapMarkers || [];
+
+    if (!pointId) return null;
+
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i] && rows[i].idx === pointId && usablePoint(rows[i])) {
+        return rows[i];
+      }
+    }
+    return null;
+  }
+
+  // Name -> row. Only valid for things a name DOES identify (a GPS point's own
+  // name); do not use it to find a nest's point.
 
   function mapPointByName(name) {
     var rows = window.fieldMapMarkers || [];
 
     for (var i = 0; i < rows.length; i++) {
-      var r = rows[i];
+      if (rows[i] && rows[i].name === name && usablePoint(rows[i])) {
+        return rows[i];
+      }
+    }
+    return null;
+  }
 
-      if (r && r.name === name && r.lat != null && r.lng != null &&
-          !isNaN(r.lat) && !isNaN(r.lng)) {
-        return r;
+  // THE nest -> point lookup: follow nest.gps_point_id to the point's row.
+  // Falls back to a cached waypoint's point_id for a nest created offline that
+  // the API has not returned yet.
+
+  function mapPointForNest(nestId) {
+    var nests = window.fieldApiNests || [];
+
+    for (var i = 0; i < nests.length; i++) {
+      if (nests[i] && nests[i].nest_id === nestId && nests[i].gps_point_id) {
+        return mapPointById(nests[i].gps_point_id);
+      }
+    }
+
+    var arr = loadWaypoints();
+
+    for (var j = 0; j < arr.length; j++) {
+      if (arr[j].point_name === nestId && arr[j].point_id) {
+        return mapPointById(arr[j].point_id);
       }
     }
     return null;
@@ -1725,7 +1769,7 @@
   var niCurrentNest = null;
 
   function niCoords(nestId) {
-    var p = mapPointByName(nestId);
+    var p = mapPointForNest(nestId);
     if (p) return { lat: p.lat, lng: p.lng };
 
     var arr = loadWaypoints();
@@ -1800,11 +1844,11 @@
     layer.addTo(map);
     map.setView([c.lat, c.lng], 18);
 
-    // Same marker as the main map: the nest's real icon, straight off its
-    // v_map_point row. (This used to read a hardcoded "nest_inactive", so an
-    // active nest drew the inactive icon here.)
+    // Same marker as the main map: the icon off this nest's point row. A shared
+    // point resolves to one nest (artificial wins), so an N twin shows its NQ's
+    // icon here -- exactly what the main map shows for that point.
 
-    var p = mapPointByName(nestId);
+    var p = mapPointForNest(nestId);
     var ic = (p && window.fieldIcons) ? window.fieldIcons[p.icon] : null;
     if (ic) {
       window.L.marker([c.lat, c.lng], {
