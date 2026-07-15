@@ -479,6 +479,13 @@ window.NestApiData.prefetchNestPhotos = apiPrefetchNestPhotos;
 // calls this on popupopen -- the only hook the renderer needs from here.
 window.NestApiData.lazyLoadNestPhoto = apiLazyLoadNestPhoto;
 
+// THE resolver: nest_id -> dataURI | false. Checks memory, then IndexedDB, then
+// the network -- the gps point's nav_photo, ELSE a disk photo from the `photo`
+// table. Exposed so the nest-info page uses this same path instead of its own
+// weaker one (it only looked at nav_photo, so a nest whose photo lives in the
+// photo table -- e.g. NQ060 -- showed in the popup but not on its page).
+window.NestApiData.resolveNestPhoto = apiResolveNestPhoto;
+
 window.fieldNavigateNest = function (nestId) {
   var idx = apiPointCoordIndex();
   var nest = (window.fieldApiNests || []).filter(function (n) {

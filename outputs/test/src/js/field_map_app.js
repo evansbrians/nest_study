@@ -1820,19 +1820,16 @@
     ph.style.display = "";
   }
 
-  // Lazy-fetch a nest's GPS-point photo (list is now photo-free) and show it.
+  // Lazy-fetch a nest's photo for the info page, through the SAME resolver the
+  // map popups use (NestApiData.resolveNestPhoto): memory -> IndexedDB -> the
+  // gps point's nav_photo -> a disk photo from the `photo` table. This page used
+  // to look at nav_photo alone, so a nest whose photo lives in the photo table
+  // (e.g. NQ060) appeared in its popup but not on its page -- two resolvers, two
+  // answers. One resolver, one answer.
   function niLazyInfoPhoto(nestId, ph) {
-    if (!wpApiOnline()) return;
-    var pts = window.fieldMapPoints || [];
-    var pid = null, has = false;
-    for (var i = 0; i < pts.length; i++) {
-      if (pts[i] && pts[i].name === nestId) {
-        pid = pts[i].point_id; has = !!pts[i].hasPhoto; break;
-      }
-    }
-    if (!pid || !has) return;
-    NestApi.api.getGpsPointPhoto(pid).then(function (r) {
-      var uri = wpPhotoDataUri(r && r.nav_photo);
+    if (!window.NestApiData ||
+        typeof window.NestApiData.resolveNestPhoto !== "function") return;
+    window.NestApiData.resolveNestPhoto(nestId).then(function (uri) {
       if (uri) niSetInfoPhoto(ph, uri);
     }).catch(function () {});
   }
