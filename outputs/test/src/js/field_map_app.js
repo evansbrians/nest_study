@@ -1682,9 +1682,13 @@
   }
 
   // Zoom the map tight (level 19) onto a point and drop back to the map view.
-  function zoomToPoint(lat, lng) {
+  // Jump the main map to a point and close the menu over it. `zoom` defaults to
+  // 19 (the old fixed behaviour); the nest-info map passes 18.
+  function zoomToPoint(lat, lng, zoom) {
     if (lat == null || lng == null) return;
-    if (window.fieldMap) window.fieldMap.setView([lat, lng], 19);
+    if (window.fieldMap) {
+      window.fieldMap.setView([lat, lng], (zoom == null) ? 19 : zoom);
+    }
     closeMenu();
   }
 
@@ -1805,6 +1809,13 @@
         radius: 7, color: "#136aec", weight: 2, fillColor: "#8ec5ff", fillOpacity: 0.9
       }).addTo(map);
     }
+
+    // Tapping this mini-map jumps to the MAIN map, centred on the nest at z18.
+    // (The mini-map is deliberately non-interactive -- dragging/zoom disabled --
+    // so a tap has no other meaning, and "show me this nest on the real map" is
+    // what you'd want it to do.)
+    map.on("click", function () { zoomToPoint(c.lat, c.lng, 18); });
+    host.style.cursor = "pointer";
 
     host._nimap = map;
     setTimeout(function () { try { map.invalidateSize(); } catch (e) {} }, 250);

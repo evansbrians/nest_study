@@ -210,7 +210,12 @@ function(el, x) {
 
       map.layerManager.addLayer(marker, "marker", gname + "-" + (idx++), gname);
     });
-    scaleIconsForZoom();
+
+    // The markers are added to their groups but NOT yet subject to the current
+    // patch/today filter -- applyFilter() ran long before these arrived. Re-run
+    // it so the initial view is today's patches rather than everything. noFit:
+    // keep the map where the user has it (a live refresh must not yank the view).
+    applyFilter({ noFit: true });
   }
 
   // Re-render whenever fresh rows land (boot, or a live change-feed refresh).
@@ -590,7 +595,8 @@ function(el, x) {
     return null;
   }
 
-  function applyFilter() {
+  function applyFilter(opts) {
+    var noFit = !!(opts && opts.noFit);
     var names = activePatchNames();
 
     if (names === null) {
@@ -651,12 +657,16 @@ function(el, x) {
       });
     }
 
-    var tv = activeTestView(names || []);
-    if (tv) {
-      map.setView([tv.lat, tv.lng], tv.zoom);
-    } else {
-      var b = patchBounds(names);
-      if (b) map.fitBounds(b, { padding: [25, 25], maxZoom: 19 });
+    // Re-fit only when the USER changed the filter. A re-render (new nest, live
+    // refresh) must not move the map out from under them.
+    if (!noFit) {
+      var tv = activeTestView(names || []);
+      if (tv) {
+        map.setView([tv.lat, tv.lng], tv.zoom);
+      } else {
+        var b = patchBounds(names);
+        if (b) map.fitBounds(b, { padding: [25, 25], maxZoom: 19 });
+      }
     }
 
     // Re-apply icon sizes after the move.
