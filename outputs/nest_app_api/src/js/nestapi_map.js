@@ -526,13 +526,11 @@ function apiNestPopupHtml(nest, photo) {
     "<li><strong>N young (last check)</strong>: " + dash(nest.last_young) + "</li>" +
     "</ul>" +
     '<div style="margin-top:4px;">' +
+    // Per Tara: nest popups carry Navigate, a link to this nest on the Nests page
+    // (fieldOpenNestInfo), and Modify. Only "Add interval" was removed.
     '<button type="button" class="field-popup-btn" onclick="window.fieldNavigateNest(\'' + idJs + '\')">Navigate</button> ' +
+    '<button type="button" class="field-popup-btn" onclick="window.fieldOpenNestInfo(\'' + idJs + '\')">Nest page</button> ' +
     '<button type="button" class="field-popup-btn" onclick="window.fieldOpenNestModify(\'' + idJs + '\')">Modify</button>' +
-    // "Add interval" is only wired when field_map_app.js has exposed the global,
-    // so the popup degrades gracefully in a build without it.
-    (typeof window.fieldAddInterval === "function"
-      ? ' <button type="button" class="field-popup-btn" onclick="window.fieldAddInterval(\'' + idJs + '\')">Add interval</button>'
-      : '') +
     '</div></div>';
   return html;
 }
