@@ -1679,7 +1679,7 @@ breakpoint, so the phone layout is untouched. */
 </div>
 <div class="cell">
 <div class="cell-output-display">
-<div class="leaflet html-widget html-fill-item" id="htmlwidget-5fe0158bd02a9d5abfdc" style="width:100%;height:464px;"></div>
+<div class="leaflet html-widget html-fill-item" id="htmlwidget-1a2fac51eb704c931530" style="width:100%;height:464px;"></div>
 <style>/* fonts -----------------------------------------------------------------*/
 
 .leaflet-container,
@@ -2041,7 +2041,7 @@ It's tiny, but readability is required. */
   }
 }
 </style>
-<script type="application/json" data-for="htmlwidget-5fe0158bd02a9d5abfdc">{"x":{"options":{"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"attributionControl":false},"calls":[{"method":"addProviderTiles","args":["Esri.WorldImagery",null,"Satellite",{"minZoom":0,"maxZoom":21,"maxNativeZoom":19,"tileSize":256,"subdomains":"abc","errorTileUrl":"","tms":false,"noWrap":false,"zoomOffset":0,"zoomReverse":false,"opacity":1,"zIndex":1,"detectRetina":false}]},{"method":"addProviderTiles","args":["OpenStreetMap",null,"Street Map",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addWMSTiles","args":["https://opengeo.ncep.noaa.gov/geoserver/conus/conus_cref_qcd/ows",null,"Precipitation",{"styles":"","format":"image/png","transparent":true,"version":"1.3.0","opacity":0.5,"attribution":"Precipitation &copy; NOAA/NWS OpenGeo","layers":"conus_cref_qcd"}]},{"method":"addWMSTiles","args":["https://opengeo.ncep.noaa.gov/geoserver/klwx/ows",null,"NEXRAD",{"styles":"","format":"image/png","transparent":true,"version":"1.1.1","opacity":0.65,"attribution":"NEXRAD &copy; NOAA/NWS","layers":"klwx_sr_bref"}]},{"method":"addLayersControl","args":[["Satellite","Street Map"],["Precipitation","NEXRAD","Patches","Coverboards","Trail Cameras","Point Counts","Nests"],{"collapsed":true,"autoZIndex":true,"position":"topright"}]},{"method":"addScaleBar","args":[{"maxWidth":300,"metric":true,"imperial":false,"updateWhenIdle":true,"position":"bottomleft"}]},{"method":"hideGroup","args":[["Precipitation","NEXRAD","Coverboards","Trail Cameras","Point Counts","Nests"]]}]},"evals":[],"jsHooks":{"render":[{"code":"function(el, x, data) {\n  return (// JavaScript function for adding location and compass bearing to a map\n\nfunction(el, x) {\n\n  var map = this;\n  \n  // Check if mobile and get out of here if it isn't!\n  \n  var isMobile = \n    window.matchMedia(\"(max-width: 768px)\").matches ||\n    window.matchMedia(\"(pointer: coarse)\").matches;\n  \n  if (!isMobile) {\n    return;\n  } \n  \n  // No double-crosshairs (caused by multiple onRender fires):\n  \n  if (map._fieldToolsInit) {\n    return;\n  }\n  map._fieldToolsInit = true;\n  \n  // Define the mode as field/mobile so that CSS sizing decisions are defined by\n  // the above's recognition of the mobile device:\n  \n  document.documentElement.classList.add(\"field-mobile\");\n  document.body.classList.add(\"field-mobile\");\n  \n  // ... Otherwise, start setting the other variables:\n  \n  var accuracyCircle = null;\n  var headingMarker = null;\n  var firstFix = true;\n  var latestLatLng = null;\n  var orientationBound = false;\n  \n  // detecting screen orientation angle ------------------------------------\n  \n  function getScreenAngle() {\n    \n    // Standard orientation should work on iPhones and Androids and is defined\n    // by a screen.orientation.angle of 0 (regular), 90 (rotated sideways\n    // counterclockwise), 180 (flipped), and 270 (rotated sideways clockwise) :\n    \n    if (\n      screen.orientation &&\n      typeof screen.orientation.angle === \"number\"\n    ) {\n      return screen.orientation.angle;\n    }\n    \n    // Older iPhones had a window.orientation number (0, 90, -90, and 180, as\n    // above):\n    \n    if (typeof window.orientation === \"number\") {\n      return window.orientation;\n    }\n    \n    // Sometimes the browser says it's in landscape, but doesn't provide a \n    // number (annoying!). In that case, we'll set the orietation based on\n    // the width and height of the window:\n    \n    if (window.innerWidth > window.innerHeight) {\n      return 90;\n    }\n  \n    // Otherwise, we'll assume that the phone is in portrait mode and facing\n    // forward, so we don't need to add a correction:\n  \n    return 0;\n  }\n  \n  // Centering:\n  \n  function centerOnLatestLocation() {\n    if (!latestLatLng) return;\n  \n    map.invalidateSize(false);\n  \n    map.setView(\n      latestLatLng,\n      map.getZoom(),\n      {\n        animate: false\n      }\n    );\n  }\n  \n  // Make sure the position of the arrow is still centered on rotation.\n  // Rotating phone orientations are a pain!\n  \n  function refreshMapSizeAndCenter() {\n    [100, 300, 600].forEach(function(delay) {\n      setTimeout(function() {\n        map.invalidateSize(false);\n      }, delay);\n    });\n\n    // No auto-recenter on GPS: the map defaults to the selected patch and only\n    // centers on the user's location when the crosshair button is tapped\n    // (which calls centerOnLatestLocation directly).\n  }\n\n  window.addEventListener(\"resize\", refreshMapSizeAndCenter);\n  window.addEventListener(\"orientationchange\", refreshMapSizeAndCenter);\n  \n  // accuracy text control -------------------------------------------------\n\n  var accuracyControl = L.control({ position: \"bottomleft\" });\n  var accuracyDiv = null;\n\n  accuracyControl.onAdd = function(map) {\n    accuracyDiv = L.DomUtil.create(\n      \"div\",\n      \"leaflet-control location-accuracy-control\"\n    );\n\n    accuracyDiv.innerHTML = \"Accuracy: -- m\";\n    return accuracyDiv;\n  };\n\n  accuracyControl.addTo(map);\n  \n  // center on location button ---------------------------------------------\n  \n  var centerControl = L.control({ position: \"bottomright\" });\n\n  centerControl.onAdd = function(map) {\n    var button = L.DomUtil.create(\n      \"button\",\n      \"leaflet-control center-location-control\"\n    );\n  \n    button.type = \"button\";\n    \n    // SVG crosshairs:\n    \n    button.innerHTML =\n      '<svg class=\"center-location-icon\" viewBox=\"0 0 100 100\"' +\n      ' xmlns=\"http://www.w3.org/2000/svg\" aria-hidden=\"true\">' +\n        '<circle cx=\"50\" cy=\"50\" r=\"30\" fill=\"none\"' +\n          ' stroke=\"#fff\" stroke-width=\"6\"/>' +\n        '<line x1=\"50\" y1=\"4\" x2=\"50\" y2=\"96\"' +\n          ' stroke=\"#fff\" stroke-width=\"6\"/>' +\n        '<line x1=\"4\" y1=\"50\" x2=\"96\" y2=\"50\"' +\n          ' stroke=\"#fff\" stroke-width=\"6\"/>' +\n      '<\/svg>';\n    button.title = \"Center on my location\";\n  \n    L.DomEvent.disableClickPropagation(button);\n    L.DomEvent.disableScrollPropagation(button);\n  \n    L.DomEvent.on(button, \"click\", function(e) {\n      L.DomEvent.stop(e);\n      \n      // Also grants orientation access:\n      \n      enableOrientation();\n  \n      if (latestLatLng) {\n        centerOnLatestLocation();\n      } else if (accuracyDiv) {\n        accuracyDiv.innerHTML = \"Locating ...\";\n      }\n    });\n    \n    return button;\n  };\n\n  centerControl.addTo(map);\n  \n  // location tracking ------------------------------------------------------\n\n  // The track recorder in field_map_app.js listens on this map's\n  // 'locationfound' events, so it depends entirely on the watch started here.\n  // If this watch dies, the arrow freezes AND the track silently stops\n  // growing. Everything below is written so the watch survives GPS errors and\n  // the page being backgrounded (pocketed phone) and can always be restarted.\n\n  var locateOptions = {\n    watch: true,\n    enableHighAccuracy: true,\n    maximumAge: 1000,\n    timeout: 15000\n  };\n\n  var lastWatchRestart = 0;\n\n  function startWatch() {\n    map.locate(locateOptions);\n  }\n\n  // Safe to call repeatedly. stopLocate clears the underlying geolocation\n  // watch but leaves our 'locationfound' / 'locationerror' handlers (and the\n  // track recorder's) attached, so restarting keeps feeding the SAME track.\n  // Debounced so a burst of timeouts or visibility flips can't thrash it.\n\n  function restartWatch() {\n    var now = Date.now();\n    if (now - lastWatchRestart < 3000) return;\n    lastWatchRestart = now;\n    map.stopLocate();\n    startWatch();\n  }\n\n  startWatch();\n\n  map.on('locationfound', function(e) {\n    latestLatLng = e.latlng;\n    \n    if (firstFix) {\n      refreshMapSizeAndCenter();\n      firstFix = false;\n    }\n    \n    // Update accuracy text\n\n    if (accuracyDiv) {\n      accuracyDiv.innerHTML =\n        \"Accuracy: \" + Math.round(e.accuracy) + \" m\";\n    }\n    \n    /* Add an accuracy circle */\n\n    if (accuracyCircle) {\n      accuracyCircle.setLatLng(e.latlng).setRadius(e.accuracy);\n    } else {\n      accuracyCircle = L.circle(e.latlng, {\n        radius: e.accuracy,\n        color: '#136aec',\n        fillColor: '#136aec',\n        fillOpacity: 0.15,\n        weight: 1,\n        interactive: false\n      }).addTo(map);\n    }\n\n    // The arrow serves as the position marker. It's created on the first GPS\n    // fix and repositioned on every subsequent fix. Rotation is handled\n    // separately by handleOrientation below.\n\n    if (headingMarker) {\n      headingMarker.setLatLng(e.latlng);\n    } else {\n      headingMarker = L.marker(e.latlng, {\n        icon: L.divIcon({\n          html: '<svg class=\"heading-arrow\" viewBox=\"0 0 40 40\"' +\n            ' width=\"50\" height=\"50\" xmlns=\"http://www.w3.org/2000/svg\">' +\n            '<g class=\"heading-group\">' +\n              '<polygon points=\"20,4 34,36 20,27 6,36\"' +\n                ' fill=\"#136aec\" stroke=\"white\"' +\n                ' stroke-width=\"1.5\" stroke-linejoin=\"round\"/>' +\n            '<\/g>' +\n          '<\/svg>',\n          className: '',\n          iconSize: [50, 50],\n          iconAnchor: [25, 25]\n        }),\n        interactive: false,\n        zIndexOffset: 1000\n      }).addTo(map);\n    }\n  });\n\n  map.on('locationerror', function(e) {\n    console.warn('Location error: ' + e.message);\n\n    // A transient GPS error (timeout / position-unavailable) must NOT end an\n    // in-progress track. Only an explicit Stop (user action, in\n    // field_map_app.js) does that. A suspended watch sometimes keeps firing\n    // errors without recovering, so we restart it; the same track keeps\n    // recording because the 'locationfound' handlers stay attached.\n    // code 1 = permission denied, where restarting cannot help.\n\n    if (e.code === 1) return;\n    restartWatch();\n  });\n\n  // keep-alive: wake lock + resume -----------------------------------------\n\n  // The tech pockets the phone mid-walk and needs the track to keep going. A\n  // screen wake lock keeps the page alive (screen on) while a track records.\n  // The lock is dropped automatically whenever the page is hidden, so it has\n  // to be re-requested on return. A wake lock keeps the SCREEN on but cannot\n  // run JS with the screen truly off (the browser suspends us), so on resume\n  // we also restart the geolocation watch so fixes keep flowing into the SAME\n  // track (no new track is started here).\n\n  var wakeLock = null;\n\n  // Track state lives in field_map_app.js; we stay decoupled by reading the\n  // record button's label (\"Stop track\" only while recording).\n\n  function trackIsRecording() {\n    var btn = document.getElementById(\"trackToggleBtn\");\n    return !!btn && /Stop/.test(btn.textContent || \"\");\n  }\n\n  function requestWakeLock() {\n    if (!(\"wakeLock\" in navigator) || wakeLock || document.hidden) return;\n    navigator.wakeLock.request(\"screen\")\n      .then(function(lock) {\n        wakeLock = lock;\n        lock.addEventListener(\"release\", function() { wakeLock = null; });\n      })\n      .catch(function() { wakeLock = null; });\n  }\n\n  function releaseWakeLock() {\n    if (!wakeLock) return;\n    try { wakeLock.release(); } catch (err) {}\n    wakeLock = null;\n  }\n\n  function syncWakeLock() {\n    if (trackIsRecording()) requestWakeLock();\n    else releaseWakeLock();\n  }\n\n  document.addEventListener(\"visibilitychange\", function() {\n    if (document.hidden) return;\n\n    // Back in the foreground: re-acquire the dropped wake lock and, if a track\n    // was recording, restart the watch so it resumes on the SAME track.\n\n    requestWakeLock();\n    if (trackIsRecording()) restartWatch();\n  });\n\n  // The record button lives in field_map_app.js. field_map_app.js flips its\n  // label inside its own click handler, so we read the settled state on the\n  // next tick (order-independent) and match the wake lock to it.\n\n  var trackToggleBtn = document.getElementById(\"trackToggleBtn\");\n  if (trackToggleBtn) {\n    trackToggleBtn.addEventListener(\"click\", function() {\n      setTimeout(syncWakeLock, 0);\n    });\n  }\n\n  // lock-screen toggle -----------------------------------------------------\n\n  // A one-tap map lock for crawling through cover. The padlock starts OPEN; a\n  // tap closes it and freezes the map exactly where it is. While locked the map\n  // stays fully visible, but a transparent shield over the whole screen swallows\n  // every tap/pan/zoom so the view can't be nudged -- only the padlock itself\n  // stays live, and tapping it again unlocks. Belt-and-suspenders, Leaflet's own\n  // interaction handlers are disabled too (covers hardware keyboards / trackpads).\n\n  var mapLocked = false;\n  var lockBlocker = null;\n  var lockButtonEl = null;\n  var lockBtnHome = null;   // where the padlock lives in the Leaflet control\n\n  // Open padlock: shackle up, right leg lifted off the body (unlocked look).\n  var LOCK_ICON_OPEN =\n    '<svg class=\"lock-screen-icon\" viewBox=\"0 0 100 100\"' +\n    ' xmlns=\"http://www.w3.org/2000/svg\" aria-hidden=\"true\">' +\n      '<rect x=\"24\" y=\"44\" width=\"52\" height=\"40\" rx=\"6\"' +\n        ' fill=\"none\" stroke=\"#fff\" stroke-width=\"6\"/>' +\n      '<path d=\"M34 44 V32 a16 16 0 0 1 32 0\"' +\n        ' fill=\"none\" stroke=\"#fff\" stroke-width=\"6\"/>' +\n    '<\/svg>';\n\n  // Closed padlock: both shackle legs meet the body (locked look).\n  var LOCK_ICON_CLOSED =\n    '<svg class=\"lock-screen-icon\" viewBox=\"0 0 100 100\"' +\n    ' xmlns=\"http://www.w3.org/2000/svg\" aria-hidden=\"true\">' +\n      '<rect x=\"24\" y=\"44\" width=\"52\" height=\"40\" rx=\"6\"' +\n        ' fill=\"none\" stroke=\"#fff\" stroke-width=\"6\"/>' +\n      '<path d=\"M34 44 V32 a16 16 0 0 1 32 0 V44\"' +\n        ' fill=\"none\" stroke=\"#fff\" stroke-width=\"6\"/>' +\n    '<\/svg>';\n\n  // The transparent shield. It captures every interaction so nothing beneath it\n  // (map, markers, controls, the app menu bar) responds -- the padlock button is\n  // lifted above it so it alone stays tappable.\n  function buildLockBlocker() {\n    if (lockBlocker) return lockBlocker;\n    var b = document.createElement(\"div\");\n    b.className = \"field-lock-blocker\";\n    b.style.cssText =\n      \"position:fixed;top:0;left:0;right:0;bottom:0;z-index:100000;\" +\n      \"background:transparent;touch-action:none;\" +\n      \"-webkit-user-select:none;user-select:none;\";\n    [\"click\", \"dblclick\", \"touchstart\", \"touchmove\", \"touchend\",\n      \"pointerdown\", \"pointermove\", \"pointerup\", \"mousedown\", \"mousemove\",\n      \"wheel\", \"contextmenu\"].forEach(function(t) {\n      b.addEventListener(t, function(e) {\n        if (e.cancelable) e.preventDefault();\n        e.stopPropagation();\n      }, { passive: false });\n    });\n    document.body.appendChild(b);\n    lockBlocker = b;\n    return b;\n  }\n\n  function setMapInteractions(enabled) {\n    [\"dragging\", \"touchZoom\", \"doubleClickZoom\", \"scrollWheelZoom\",\n      \"boxZoom\", \"keyboard\", \"tap\"].forEach(function(h) {\n      if (map[h]) {\n        try { enabled ? map[h].enable() : map[h].disable(); } catch (e) {}\n      }\n    });\n  }\n\n  function applyLockButton() {\n    if (!lockButtonEl) return;\n    lockButtonEl.innerHTML = mapLocked ? LOCK_ICON_CLOSED : LOCK_ICON_OPEN;\n    lockButtonEl.title = mapLocked ? \"Unlock screen\" : \"Lock screen\";\n    // Lift the padlock above the shield + tint it while active.\n    lockButtonEl.style.zIndex = mapLocked ? \"100001\" : \"\";\n    lockButtonEl.style.background = mapLocked ? \"#136aecdd\" : \"\";\n  }\n\n  function lockMap() {\n    mapLocked = true;\n    buildLockBlocker().style.display = \"block\";\n    setMapInteractions(false);\n    // The padlock sits in Leaflet's control container, whose own stacking\n    // context (z-index 1000) would trap it beneath the shield. Lift it to the\n    // body so it alone stays above the shield and tappable. Same CSS class ->\n    // same on-screen spot.\n    if (lockButtonEl && lockButtonEl.parentNode !== document.body) {\n      lockBtnHome = { parent: lockButtonEl.parentNode, next: lockButtonEl.nextSibling };\n      document.body.appendChild(lockButtonEl);\n    }\n    applyLockButton();\n  }\n\n  function unlockMap() {\n    mapLocked = false;\n    if (lockBlocker) lockBlocker.style.display = \"none\";\n    setMapInteractions(true);\n    applyLockButton();\n    // Return the padlock to its Leaflet control slot.\n    if (lockButtonEl && lockBtnHome) {\n      if (lockBtnHome.next && lockBtnHome.next.parentNode === lockBtnHome.parent) {\n        lockBtnHome.parent.insertBefore(lockButtonEl, lockBtnHome.next);\n      } else {\n        lockBtnHome.parent.appendChild(lockButtonEl);\n      }\n      lockBtnHome = null;\n    }\n  }\n\n  function toggleMapLock() { if (mapLocked) unlockMap(); else lockMap(); }\n\n  var lockControl = L.control({ position: \"bottomright\" });\n\n  lockControl.onAdd = function(map) {\n    var button = L.DomUtil.create(\n      \"button\",\n      \"leaflet-control lock-screen-control\"\n    );\n\n    button.type = \"button\";\n    button.title = \"Lock screen\";\n    button.innerHTML = LOCK_ICON_OPEN;\n\n    L.DomEvent.disableClickPropagation(button);\n    L.DomEvent.disableScrollPropagation(button);\n\n    L.DomEvent.on(button, \"click\", function(e) {\n      L.DomEvent.stop(e);\n      toggleMapLock();\n    });\n\n    lockButtonEl = button;\n    return button;\n  };\n\n  lockControl.addTo(map);\n\n  // compass heading --------------------------------------------------------\n\n  // Position is managed by locationfound, so setHeading only needs to update\n  // the rotation of the existing marker.\n\n  function setHeading(degrees) {\n    if (!headingMarker) return;\n    var markerEl = headingMarker.getElement();\n    if (markerEl) {\n      var g = markerEl.querySelector('.heading-group');\n      if (g) {\n      g.setAttribute('transform', 'rotate(' + degrees + ', 20, 20)');\n      }\n    }\n  }\n  \n  // Convert a device-orientatin event into a true-north heading ... note:\n  // - iOS: event.webkitCompassHeading is clockwise heading from true true-north\n  // - Android: event.alpha is degrees counter-clockwise from north\n\n  function handleOrientation(event, forceAbsolute) {\n    var heading;\n  \n    if (typeof event.webkitCompassHeading === \"number\") {\n      heading = event.webkitCompassHeading;\n    } else if (\n      typeof event.alpha === \"number\" &&\n      (forceAbsolute || event.absolute === true)\n    ) {\n      heading = (360 - event.alpha) % 360;\n    } else {\n      return;\n    }\n  \n    var correctedHeading =\n      (heading - getScreenAngle() + 360) % 360;\n  \n    setHeading(correctedHeading);\n  }\n  \n  // Device orientation listeners:\n  \n  function handleAbsolute(e) { handleOrientation(e, true); }\n  function handleRelative(e) { handleOrientation(e, false); }\n\n  function removeGestureListeners() {\n    document.removeEventListener('touchend', onFirstGesture, true);\n    document.removeEventListener('click', onFirstGesture, true);\n  }\n\n  function bindOrientation() {\n    if (orientationBound) return;\n    orientationBound = true;\n    removeGestureListeners();\n    \n    // Android:\n\n    window.addEventListener('deviceorientationabsolute', handleAbsolute, true);\n    \n    // iPhone:\n    \n    window.addEventListener('deviceorientation', handleRelative, true);\n  }\n  \n  // iPhones require permission which is triggered by a gesture (Android we are\n  // okay without):\n  \n  function enableOrientation() {\n    if (orientationBound) return;\n\n    if (\n      typeof DeviceOrientationEvent !== 'undefined' &&\n      typeof DeviceOrientationEvent.requestPermission === 'function'\n    ) {\n      DeviceOrientationEvent.requestPermission()\n        .then(function(result) {\n          if (result === 'granted') {\n            bindOrientation();\n          }\n        })\n        .catch(function() {});\n    } else {\n      bindOrientation();\n    }\n  }\n\n  function onFirstGesture() {\n    enableOrientation();\n  }\n\n  if (\n    typeof DeviceOrientationEvent !== 'undefined' &&\n    typeof DeviceOrientationEvent.requestPermission === 'function'\n  ) {\n    document.addEventListener('touchend', onFirstGesture, true);\n    document.addEventListener('click', onFirstGesture, true);\n  } else {\n    \n    // Android / desktop sensors: bind immediately, no gesture needed.\n    \n    bindOrientation();\n  }\n}).call(this.getMap(), el, x, data);\n}","data":null},{"code":"function(el, x, data) {\n  return (// Weather-layer toggle support for the field map.\n\nfunction(el, x) {\n\n  var map = this;\n\n  // Expose the map (and signal readiness) so field_map_app.js can draw on it:\n\n  window.fieldMap = map;\n  window.dispatchEvent(new Event(\"fieldmap:ready\"));\n\n  // Keep the map filled to its container:\n\n  function fitMap() { map.invalidateSize(false); }\n  setTimeout(fitMap, 200);\n  setTimeout(fitMap, 600);\n  window.addEventListener(\"resize\", fitMap);\n\n  // offline satellite tiles -----------------------------------------------\n\n  // make_field_map.R embeds pre-fetched ESRI tiles (window.fieldOfflineTiles,\n  // keyed \"z/x/y\" -> data URI). Serve those when present so the satellite\n  // background still renders at the patches with no signal (coyote):\n\n  function patchOfflineTiles() {\n    if (!map._layers) return;\n    Object.keys(map._layers).forEach(function (id) {\n      var layer = map._layers[id];\n      if (layer && layer._url && typeof layer.getTileUrl === \"function\" &&\n          /World_Imagery/i.test(layer._url) && !layer._offlinePatched) {\n        layer._offlinePatched = true;\n        var orig = layer.getTileUrl;\n        layer.getTileUrl = function (coords) {\n          var t = window.fieldOfflineTiles;\n          if (t) {\n            var key = coords.z + \"/\" + coords.x + \"/\" + coords.y;\n            if (t[key]) return t[key];\n          }\n          return orig.call(this, coords);\n        };\n\n        // Re-request visible tiles through the patched function (matters when\n        // the page is (re)loaded with no signal:.\n\n        if (typeof layer.redraw === \"function\") layer.redraw();\n      }\n    });\n  }\n  patchOfflineTiles();\n\n  // Scale marker icons with zoom:\n\n  function scaleIconsForZoom() {\n    var z = map.getZoom();\n    var s = Math.min(1, Math.max(0.1, 1 - (19 - z) * 0.1));\n    var size = 20.25 * s;\n    var big = window.fieldNestBig || {};\n    eachPatchFeature(function (layer) {\n      var img = layer._icon;\n      if (!img || img.tagName !== \"IMG\") return;\n      // Keyed by DB point_id, same as fadeFor() -- not by coordinates.\n      var mult = (layer._pointId && big[layer._pointId]) ? 1.15 : 1;\n      // Fixed width; height follows each png's aspect ratio (no square stretch).\n      var w = size * mult;\n      var ratio = (img.naturalWidth > 0) ? (img.naturalHeight / img.naturalWidth) : 1;\n      var h = w * ratio;\n      img.style.width = w + \"px\";\n      img.style.height = h + \"px\";\n      img.style.marginLeft = (-w / 2) + \"px\";\n      img.style.marginTop = (-h / 2) + \"px\";\n    });\n  }\n  map.on(\"zoomend\", scaleIconsForZoom);\n  setTimeout(scaleIconsForZoom, 700);\n\n  // JS marker rendering (step B4) -----------------------------------------\n\n  // Build Leaflet markers from window.fieldMapPoints (the data the R\n  // addMarkers() calls used to consume) and add each into the SAME\n  // layerManager FeatureGroup the layers-control and patch/today filter\n  // already drive -- that group is created by addLayersControl in\n  // make_field_map.R. Because the markers now live in those real groups\n  // (Nests / Coverboards / Trail Cameras / Point Counts, all in PATCH_GROUPS),\n  // applyFilter owns their opacity (fieldNestFade + today-fade) and\n  // scaleIconsForZoom owns their size (fieldNestBig + zoom + aspect ratio):\n  // one styler, no parallel \"(JS)\" groups.\n\n  // Photo baked from a nest's GeoJSON into window.fieldNavPoints (data URI).\n  function nestPhotoFor(name) {\n    var nav = window.fieldNavPoints || [];\n    for (var i = 0; i < nav.length; i++) {\n      if (nav[i].name === name && nav[i].photo &&\n          String(nav[i].photo).indexOf(\"data:\") === 0) return nav[i].photo;\n    }\n    return null;\n  }\n\n  function renderMapPoints() {\n    if (!window.fieldMapPoints || !window.fieldIcons || !window.L ||\n        !map.layerManager) return;\n    var idx = 0;\n    window.fieldMapPoints.forEach(function (p) {\n      if (p.lat == null || p.lng == null || isNaN(p.lat) || isNaN(p.lng)) return;\n      if (!p.group) return;\n      // A point whose icon_id has no png of its own -- landmarks, and anything\n      // else without a custom icon -- gets Leaflet's built-in marker-icon.png\n      // instead of being dropped. Previously these were skipped outright, so\n      // they never appeared on the map at all.\n      var ic = window.fieldIcons[p.icon_id];\n      var marker = ic\n        ? window.L.marker([p.lat, p.lng], {\n            icon: window.L.icon({\n              iconUrl: ic.iconUrl,\n              iconSize: [ic.iconWidth, ic.iconHeight],\n              iconAnchor: [ic.iconAnchorX, ic.iconAnchorY]\n            })\n          })\n        : window.L.marker([p.lat, p.lng]);   // stock Leaflet pin\n      var popupHtml = p.popup;\n      if (p.group === \"Nests\") {\n        var photo = nestPhotoFor(p.name);\n        if (photo) {\n          popupHtml += '<img src=\"' + photo +\n            '\" style=\"display:block;max-width:200px;margin-top:6px;border-radius:4px\">';\n        }\n      }\n      marker.bindPopup(popupHtml);\n      // Stable DB key on EVERY marker: gps_point.point_id, straight from\n      // GET /gps_points. fadeFor()/scaleIconsForZoom() join the v_map_point\n      // styling to markers on this, instead of on a formatted \"lat,lng\" string\n      // -- coordinate joins broke on float rounding and would break again on any\n      // re-recorded point, and they fail by silently matching nothing.\n      marker._pointId = p.point_id;\n      if (p.group === \"Nests\") {\n        marker.setZIndexOffset(1000);\n        marker._nestId = p.name;\n        marker._patch = p.patch;\n      }\n      map.layerManager.addLayer(marker, \"marker\", p.group + \"-\" + (idx++), p.group);\n    });\n  }\n  renderMapPoints();\n\n  // patches + paths (step B5) ---------------------------------------------\n\n  // Draw patch boundaries (window.fieldPatches) and Garmin paths\n  // (window.fieldPaths) in JS, into the same \"Patches\" / \"Paths\" layerManager\n  // groups the layers control and patch/today filter already drive -- so the R\n  // addPolygons/addPolylines are no longer needed.\n\n  function prettyPatch(n) {\n    n = String(n).replace(/_/g, \" \");\n    return n.charAt(0).toUpperCase() + n.slice(1);\n  }\n\n  function renderShapes() {\n    if (!window.L || !map.layerManager) return;\n    if (window.fieldPatches) {\n      Object.keys(window.fieldPatches).forEach(function (name) {\n        var rings = window.fieldPatches[name];\n        if (!rings || !rings.length) return;\n        var poly = window.L.polygon(rings, {\n          fillColor: \"#ffffff\",\n          fillOpacity: 0.2,\n          color: \"#0000ff\",\n          weight: 1.5,\n          opacity: 0.5\n        });\n        poly.bindPopup(prettyPatch(name));\n        poly.bindTooltip(prettyPatch(name));\n        map.layerManager.addLayer(poly, \"shape\", \"patch-\" + name, \"Patches\");\n      });\n    }\n    if (window.fieldPaths) {\n      window.fieldPaths.forEach(function (path, i) {\n        if (!path || !path.length) return;\n        var line = window.L.polyline(path, {\n          weight: 3,\n          opacity: 0.7,\n          dashArray: \"2, 5\",\n          color: \"#ffff00\"\n        });\n        map.layerManager.addLayer(line, \"shape\", \"path-\" + i, \"Paths\");\n      });\n    }\n  }\n  renderShapes();\n\n  // bottom-bar readouts ---------------------------------------------------\n\n  // Mirror GPS accuracy and compass bearing into the bottom bar:\n\n  map.on(\"locationfound\", function(e) {\n    var el = document.getElementById(\"barAccuracy\");\n    if (el) el.textContent = \"Accuracy: \" + Math.round(e.accuracy) + \" m\";\n    window.fieldLatLng = e.latlng;       // read by the Add Waypoint readout\n    window.fieldAccuracy = e.accuracy;   // live single-fix accuracy (m)\n  });\n\n  setInterval(function() {\n    var el = document.getElementById(\"barBearing\");\n    var g = document.querySelector(\".heading-group\");\n    if (!el || !g) return;\n    var t = g.getAttribute(\"transform\");\n    var m = t && t.match(/rotate\\(\\s*(-?[\\d.]+)/);\n    if (m) {\n      var deg = (Math.round(parseFloat(m[1])) % 360 + 360) % 360;\n      el.textContent = \"Bearing: \" + deg + \"°\";\n      window.fieldBearing = deg;   // read by the Add Waypoint form\n    }\n  }, 250);\n\n  // map layer options -----------------------------------------------------\n\n  // Layer visibililty:\n  // - setWeather  -- Precipitation + NEXRAD              (default off)\n  // - setPatches  -- patch boundaries                    (default on)\n  // - setSampling -- coverboards/cams/point counts/nests (default on)\n  // - setBasemap  -- offer the Street Map base layer     (default off)\n\n  function group(name) {\n    return map.layerManager ? map.layerManager.getLayerGroup(name, false) : null;\n  }\n\n  // Is this layer already listed in the layers control? Guards against\n  // adding duplicate rows.\n\n  function inControl(layer) {\n    var c = map.currentLayersControl;\n    return !!(c && c._layers &&\n      c._layers.some(function(o) { return o.layer === layer; }));\n  }\n\n  function showLayer(g) { if (g && !map.hasLayer(g)) map.addLayer(g); }\n  function hideLayer(g) { if (g && map.hasLayer(g)) map.removeLayer(g); }\n\n  function listOverlay(name, g) {\n    var c = map.currentLayersControl;\n    if (c && g && typeof c.addOverlay === \"function\" && !inControl(g)) {\n      c.addOverlay(g, name);\n    }\n  }\n  function listBase(name, g) {\n    var c = map.currentLayersControl;\n    if (c && g && typeof c.addBaseLayer === \"function\" && !inControl(g)) {\n      c.addBaseLayer(g, name);\n    }\n  }\n  function delist(g) {\n    var c = map.currentLayersControl;\n    if (c && g && typeof c.removeLayer === \"function\") c.removeLayer(g);\n  }\n\n  // Auto-refresh the weather tiles while they are on (storms can move fast). A\n  // changing `_ts` param busts the browser/CDN cache so we actually pull the\n  // latest NOAA frame rather than redrawing the cached one.\n\n  var WEATHER_REFRESH_MS = 60000;   // once a minute\n  var weatherTimer = null;\n\n  function refreshWeather() {\n    [\"Precipitation\", \"NEXRAD\"].forEach(function(name) {\n      var g = group(name);\n      if (!g || typeof g.eachLayer !== \"function\") return;\n      g.eachLayer(function(layer) {\n        if (layer && typeof layer.setParams === \"function\") {\n          layer.setParams({ _ts: Date.now() });\n        } else if (layer && typeof layer.redraw === \"function\") {\n          layer.redraw();\n        }\n      });\n    });\n  }\n\n  // Precipitation and NEXRAD: \n  // - on = shown + listed\n  // - off = hidden + delisted.\n\n  function setWeather(on) {\n    [\"Precipitation\", \"NEXRAD\"].forEach(function(name) {\n      var g = group(name);\n      if (!g) return;\n      if (on) { showLayer(g); listOverlay(name, g); }\n      else { delist(g); hideLayer(g); }\n    });\n    if (weatherTimer) { clearInterval(weatherTimer); weatherTimer = null; }\n    if (on) weatherTimer = setInterval(refreshWeather, WEATHER_REFRESH_MS);\n  }\n\n  // Patch boundaries: \n  // - on (default) = shown + dropped from the table of contents\n  // - off = added to the TOC as a normal (hidden) overlay you can toggle.\n\n  function setPatches(on) {\n    var g = group(\"Patches\");\n    if (!g) return;\n    if (on) { showLayer(g); delist(g); }\n    else { listOverlay(\"Patches\", g); hideLayer(g); }\n  }\n\n  // Sampling points stay in the table of contents either way; this just\n  // shows or hides them (their TOC checkboxes follow).\n\n  function setSampling(on) {\n    [\"Coverboards\", \"Trail Cameras\", \"Point Counts\", \"Nests\"].forEach(function(name) {\n      var g = group(name);\n      if (!g) return;\n      if (on) showLayer(g); else hideLayer(g);\n    });\n  }\n\n  // OpenStreetMap base: \n  // - on = Satellite + Street Map both offered as base layers in the TOC\n  // - off (default) = no base switcher in the TOC, only Satellite shown.\n\n  function setBasemap(on) {\n    var sat = group(\"Satellite\");\n    var street = group(\"Street Map\");\n    if (on) {\n      listBase(\"Satellite\", sat);\n      listBase(\"Street Map\", street);\n\n      // Keep Satellite as the active base.\n\n      showLayer(sat);\n    } else {\n      delist(street);\n      delist(sat);\n      hideLayer(street);\n      showLayer(sat);\n    }\n  }\n\n  // patch filter ----------------------------------------------------------\n\n  // Show only features within 50 m of the chosen patch. Patch outlines come\n  // from window.fieldPatches (embedded by make_field_map.R) as rings of\n  // [lat, lng]. Distances use a local equirectangular projection.\n\n  // Patch boundaries are intentionally NOT here: their visibility is governed\n  // solely by the \"Include patch boundaries\" toggle (setPatches), so the\n  // today-subset never hides them. applyFilter still subsets/fades the points\n  // and zooms to today's patches via patchBounds().\n\n  var PATCH_GROUPS =\n    [\"Nests\", \"Coverboards\", \"Trail Cameras\", \"Point Counts\", \"Paths\"];\n\n  function segDist(px, py, ax, ay, bx, by) {\n    var dx = bx - ax, dy = by - ay;\n    var len2 = dx * dx + dy * dy;\n    var t = len2 ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0;\n    t = Math.max(0, Math.min(1, t));\n    var cx = ax + t * dx, cy = ay + t * dy;\n    return Math.sqrt((px - cx) * (px - cx) + (py - cy) * (py - cy));\n  }\n\n  // Distance (m) from a lat/lng point to a patch (array of rings); 0 if inside.\n\n  function pointToPatch(lat, lng, rings) {\n    var mLat = 110540, mLng = 111320 * Math.cos(lat * Math.PI / 180);\n    var minD = Infinity, inside = false;\n    for (var r = 0; r < rings.length; r++) {\n      var ring = rings[r], pts = [];\n      for (var k = 0; k < ring.length; k++) {\n        pts.push([(ring[k][1] - lng) * mLng, (ring[k][0] - lat) * mLat]);\n      }\n      for (var i = 0, j = pts.length - 1; i < pts.length; j = i++) {\n        var xi = pts[i][0], yi = pts[i][1], xj = pts[j][0], yj = pts[j][1];\n        if (((yi > 0) !== (yj > 0)) &&\n            (0 < (xj - xi) * (0 - yi) / (yj - yi) + xi)) inside = !inside;\n        var d = segDist(0, 0, xi, yi, xj, yj);\n        if (d < minD) minD = d;\n      }\n    }\n    return inside ? 0 : minD;\n  }\n\n  function featureWithin(layer, rings, maxD) {\n    if (typeof layer.getLatLng === \"function\") {\n      var ll = layer.getLatLng();\n      return pointToPatch(ll.lat, ll.lng, rings) <= maxD;\n    }\n    if (typeof layer.getLatLngs === \"function\") {\n      var hit = false;\n      (function walk(a) {\n        if (!a || hit) return;\n        if (a.lat != null) {\n          if (pointToPatch(a.lat, a.lng, rings) <= maxD) hit = true;\n          return;\n        }\n        if (a.length) for (var i = 0; i < a.length; i++) walk(a[i]);\n      })(layer.getLatLngs());\n      return hit;\n    }\n    return true;\n  }\n\n  function eachPatchFeature(cb) {\n    PATCH_GROUPS.forEach(function (gname) {\n      var g = group(gname);\n      if (g && typeof g.eachLayer === \"function\") {\n        g.eachLayer(function (layer) { cb(layer, gname); });\n      }\n    });\n  }\n\n  function ringsBounds(ringSets) {\n    var minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity, has = false;\n    ringSets.forEach(function (ring) {\n      ring.forEach(function (p) {\n        has = true;\n        if (p[0] < minLat) minLat = p[0];\n        if (p[0] > maxLat) maxLat = p[0];\n        if (p[1] < minLng) minLng = p[1];\n        if (p[1] > maxLng) maxLng = p[1];\n      });\n    });\n    return has ? [[minLat, minLng], [maxLat, maxLng]] : null;\n  }\n\n  // Bounds for a set of patch names (null/empty -> all patches).\n\n  function patchBounds(names) {\n    if (!window.fieldPatches) return null;\n    var src = (names && names.length)\n      ? names\n      : Object.keys(window.fieldPatches);\n    var all = [];\n    src.forEach(function (n) {\n      if (window.fieldPatches[n]) {\n        window.fieldPatches[n].forEach(function (r) { all.push(r); });\n      }\n    });\n    return all.length ? ringsBounds(all) : null;\n  }\n\n  // Match a patch polygon layer back to its name by comparing its first vertex\n  // to the embedded patch rings (so we can show ONLY today's patch outlines).\n\n  function patchLayerName(layer) {\n    if (!window.fieldPatches || typeof layer.getLatLngs !== \"function\") return null;\n    var first = null;\n    (function dig(a) {\n      if (first || !a) return;\n      if (a.lat != null) { first = a; return; }\n      if (a.length) for (var i = 0; i < a.length; i++) dig(a[i]);\n    })(layer.getLatLngs());\n    if (!first) return null;\n    var keys = Object.keys(window.fieldPatches);\n    for (var k = 0; k < keys.length; k++) {\n      var rings = window.fieldPatches[keys[k]];\n      var v = rings[0] && rings[0][0];   // first vertex [lat, lng]\n      if (v && Math.abs(v[0] - first.lat) < 1e-6 &&\n              Math.abs(v[1] - first.lng) < 1e-6) {\n        return keys[k];\n      }\n    }\n    return null;\n  }\n\n  // Opacity is only meaningful for point markers (setOpacity). Patches/lines\n  // keep their own style.\n\n  function setLayerOpacity(layer, op) {\n    if (typeof layer.setOpacity === \"function\") layer.setOpacity(op);\n  }\n\n  // Look up a marker's scheduled-today opacity (window.fieldToday.fade keyed by\n  // \"lat,lng\" to 6 dp); markers not in the map are fully opaque.\n\n  // Opacity for a marker, looked up by its DB point_id (see renderMapPoints).\n  // The maps come from v_map_point via applyMapPointStyles().\n  function fadeFor(layer, fade) {\n    if (!fade || !layer._pointId) return 1;\n    var v = fade[layer._pointId];\n    return (v != null) ? v : 1;\n  }\n\n  // Combined filter state: the \"Subset to today's data\" switch and the patch\n  // dropdown both feed applyFilter().\n\n  var filterToday = true;        // switch default on\n  var filterPatch = \"__all__\";   // dropdown default\n\n  // Which patches are active given the current state. null = no spatial\n  // subset (show everything, e.g. switch off + \"All patches\"). If the schedule\n  // data is missing or empty (no field day), the switch is treated as inactive\n  // so the map never goes blank.\n\n  function activePatchNames() {\n    var tp = (filterToday && window.fieldToday && window.fieldToday.patches) || null;\n    if (tp && tp.length) {\n      if (filterPatch && filterPatch !== \"__all__\") {\n        return tp.indexOf(filterPatch) >= 0 ? [filterPatch] : tp;\n      }\n      return tp;\n    }\n    if (filterPatch && filterPatch !== \"__all__\") return [filterPatch];\n    return null;\n  }\n\n  // Test patches (home testing): filtered by patch_id, not geometry. Their nests\n  // carry a test-site prefix (NSP / NLB) and are hidden\n  // from the \"All patches\" view.\n\n  var TEST_PATCHES = { test_snedgen_park: true, test_long_branch: true };\n  function isTestPatch(name) { return !!TEST_PATCHES[name]; }\n  function isTestNestLayer(layer) {\n    return /^(NSP|NLB)\\d+$/.test(String(layer._nestId || \"\"));\n  }\n\n  // Fixed home view for each test patch (they have no polygon to fit to).\n\n  var TEST_PATCH_VIEW = {\n    test_snedgen_park: { lat: 38.799230, lng: -77.632596, zoom: 18 },\n    test_long_branch:  { lat: 38.995412, lng: -76.999844, zoom: 18 }\n  };\n  function activeTestView(names) {\n    for (var i = 0; i < names.length; i++) {\n      if (TEST_PATCH_VIEW[names[i]]) return TEST_PATCH_VIEW[names[i]];\n    }\n    return null;\n  }\n\n  function applyFilter() {\n    var names = activePatchNames();\n    var fade = (filterToday && window.fieldToday && window.fieldToday.fade) || null;\n\n    if (names === null) {\n\n      // Show every patch, except test-site nests (prefixed). Opacity still\n      // applies: the non-current fade AND -- when \"Subset to today's data\" is on\n      // -- the not-scheduled-today fade. This branch used to ignore `fade`\n      // entirely, which meant coverboards and trailcams (which never appear in\n      // fieldNestFade) sat at full opacity in the All-patches view no matter\n      // what the schedule said. Same rule as the per-patch branch below.\n\n      eachPatchFeature(function (layer, gname) {\n        if (gname === \"Nests\" && isTestNestLayer(layer)) {\n          if (map.hasLayer(layer)) map.removeLayer(layer);\n          return;\n        }\n        if (!map.hasLayer(layer)) map.addLayer(layer);\n        setLayerOpacity(layer, Math.min(fadeFor(layer, window.fieldNestFade),\n                                        fadeFor(layer, fade)));\n      });\n    } else {\n      var ringsList = [];\n      var nameSet = {};\n      names.forEach(function (n) {\n        nameSet[n] = true;\n        if (window.fieldPatches && window.fieldPatches[n]) {\n          ringsList.push(window.fieldPatches[n]);\n        }\n      });\n      eachPatchFeature(function (layer, gname) {\n        var show;\n        if (gname === \"Patches\") {\n\n          // Outlines: show only the active patches themselves.\n\n          var pn = patchLayerName(layer);\n          show = pn ? !!nameSet[pn] : false;\n        } else {\n\n          // Other features: within 50 m of any active patch.\n\n          show = ringsList.some(function (rings) {\n            return featureWithin(layer, rings, 50);\n          });\n\n          // Test patches have no polygon: match their nests by patch_id.\n\n          if (!show && gname === \"Nests\" &&\n              layer._patch && nameSet[layer._patch] && isTestPatch(layer._patch)) {\n            show = true;\n          }\n        }\n        if (show) {\n          if (!map.hasLayer(layer)) map.addLayer(layer);\n          setLayerOpacity(layer, Math.min(fadeFor(layer, window.fieldNestFade), fadeFor(layer, fade)));\n        } else if (map.hasLayer(layer)) {\n          map.removeLayer(layer);\n        }\n      });\n    }\n\n    var tv = activeTestView(names || []);\n    if (tv) {\n      map.setView([tv.lat, tv.lng], tv.zoom);\n    } else {\n      var b = patchBounds(names);\n      if (b) map.fitBounds(b, { padding: [25, 25], maxZoom: 19 });\n    }\n\n    // Re-apply icon sizes after the move.\n\n    setTimeout(scaleIconsForZoom, 200);\n  }\n\n  function setPatch(name) { filterPatch = name; applyFilter(); }\n  function setToday(on) { filterToday = !!on; applyFilter(); }\n\n  // Apply the defaults (these match the host page's checkbox defaults).\n\n  setWeather(false);\n  setPatches(true);\n  setSampling(true);\n  setBasemap(false);\n\n  // \"Subset to today's data\" is on by default.\n\n  applyFilter();\n\n  map.whenReady(function () {\n    setTimeout(function () {\n      var initialBounds = patchBounds(activePatchNames());\n      if (initialBounds) {\n        map.fitBounds(initialBounds, { padding: [25, 25], maxZoom: 19 });\n      }\n    }, 400);\n  });\n\n  // Respond to the host page's option changes.\n\n  window.addEventListener(\"message\", function(e) {\n    var d = e.data;\n    if (!d || !d.type) return;\n    if (d.type === \"setWeather\") setWeather(!!d.on);\n    else if (d.type === \"setPatches\") setPatches(!!d.on);\n    else if (d.type === \"setSampling\") setSampling(!!d.on);\n    else if (d.type === \"setBasemap\") setBasemap(!!d.on);\n    else if (d.type === \"setPatch\") setPatch(d.name);\n    else if (d.type === \"setToday\") setToday(!!d.on);\n  });\n}\n).call(this.getMap(), el, x, data);\n}","data":null}]}}</script>
+<script type="application/json" data-for="htmlwidget-1a2fac51eb704c931530">{"x":{"options":{"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"attributionControl":false},"calls":[{"method":"addProviderTiles","args":["Esri.WorldImagery",null,"Satellite",{"minZoom":0,"maxZoom":21,"maxNativeZoom":19,"tileSize":256,"subdomains":"abc","errorTileUrl":"","tms":false,"noWrap":false,"zoomOffset":0,"zoomReverse":false,"opacity":1,"zIndex":1,"detectRetina":false}]},{"method":"addProviderTiles","args":["OpenStreetMap",null,"Street Map",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addWMSTiles","args":["https://opengeo.ncep.noaa.gov/geoserver/conus/conus_cref_qcd/ows",null,"Precipitation",{"styles":"","format":"image/png","transparent":true,"version":"1.3.0","opacity":0.5,"attribution":"Precipitation &copy; NOAA/NWS OpenGeo","layers":"conus_cref_qcd"}]},{"method":"addWMSTiles","args":["https://opengeo.ncep.noaa.gov/geoserver/klwx/ows",null,"NEXRAD",{"styles":"","format":"image/png","transparent":true,"version":"1.1.1","opacity":0.65,"attribution":"NEXRAD &copy; NOAA/NWS","layers":"klwx_sr_bref"}]},{"method":"addLayersControl","args":[["Satellite","Street Map"],["Precipitation","NEXRAD","Patches","Coverboards","Trail Cameras","Point Counts","Nests","Tracks"],{"collapsed":true,"autoZIndex":true,"position":"topright"}]},{"method":"addScaleBar","args":[{"maxWidth":300,"metric":true,"imperial":false,"updateWhenIdle":true,"position":"bottomleft"}]},{"method":"hideGroup","args":[["Precipitation","NEXRAD","Coverboards","Trail Cameras","Point Counts","Nests"]]}]},"evals":[],"jsHooks":{"render":[{"code":"function(el, x, data) {\n  return (// JavaScript function for adding location and compass bearing to a map\n\nfunction(el, x) {\n\n  var map = this;\n  \n  // Check if mobile and get out of here if it isn't!\n  \n  var isMobile = \n    window.matchMedia(\"(max-width: 768px)\").matches ||\n    window.matchMedia(\"(pointer: coarse)\").matches;\n  \n  if (!isMobile) {\n    return;\n  } \n  \n  // No double-crosshairs (caused by multiple onRender fires):\n  \n  if (map._fieldToolsInit) {\n    return;\n  }\n  map._fieldToolsInit = true;\n  \n  // Define the mode as field/mobile so that CSS sizing decisions are defined by\n  // the above's recognition of the mobile device:\n  \n  document.documentElement.classList.add(\"field-mobile\");\n  document.body.classList.add(\"field-mobile\");\n  \n  // ... Otherwise, start setting the other variables:\n  \n  var accuracyCircle = null;\n  var headingMarker = null;\n  var firstFix = true;\n  var latestLatLng = null;\n  var orientationBound = false;\n  \n  // detecting screen orientation angle ------------------------------------\n  \n  function getScreenAngle() {\n    \n    // Standard orientation should work on iPhones and Androids and is defined\n    // by a screen.orientation.angle of 0 (regular), 90 (rotated sideways\n    // counterclockwise), 180 (flipped), and 270 (rotated sideways clockwise) :\n    \n    if (\n      screen.orientation &&\n      typeof screen.orientation.angle === \"number\"\n    ) {\n      return screen.orientation.angle;\n    }\n    \n    // Older iPhones had a window.orientation number (0, 90, -90, and 180, as\n    // above):\n    \n    if (typeof window.orientation === \"number\") {\n      return window.orientation;\n    }\n    \n    // Sometimes the browser says it's in landscape, but doesn't provide a \n    // number (annoying!). In that case, we'll set the orietation based on\n    // the width and height of the window:\n    \n    if (window.innerWidth > window.innerHeight) {\n      return 90;\n    }\n  \n    // Otherwise, we'll assume that the phone is in portrait mode and facing\n    // forward, so we don't need to add a correction:\n  \n    return 0;\n  }\n  \n  // Centering:\n  \n  function centerOnLatestLocation() {\n    if (!latestLatLng) return;\n  \n    map.invalidateSize(false);\n  \n    map.setView(\n      latestLatLng,\n      map.getZoom(),\n      {\n        animate: false\n      }\n    );\n  }\n  \n  // Make sure the position of the arrow is still centered on rotation.\n  // Rotating phone orientations are a pain!\n  \n  function refreshMapSizeAndCenter() {\n    [100, 300, 600].forEach(function(delay) {\n      setTimeout(function() {\n        map.invalidateSize(false);\n      }, delay);\n    });\n\n    // No auto-recenter on GPS: the map defaults to the selected patch and only\n    // centers on the user's location when the crosshair button is tapped\n    // (which calls centerOnLatestLocation directly).\n  }\n\n  window.addEventListener(\"resize\", refreshMapSizeAndCenter);\n  window.addEventListener(\"orientationchange\", refreshMapSizeAndCenter);\n  \n  // accuracy text control -------------------------------------------------\n\n  var accuracyControl = L.control({ position: \"bottomleft\" });\n  var accuracyDiv = null;\n\n  accuracyControl.onAdd = function(map) {\n    accuracyDiv = L.DomUtil.create(\n      \"div\",\n      \"leaflet-control location-accuracy-control\"\n    );\n\n    accuracyDiv.innerHTML = \"Accuracy: -- m\";\n    return accuracyDiv;\n  };\n\n  accuracyControl.addTo(map);\n  \n  // center on location button ---------------------------------------------\n  \n  var centerControl = L.control({ position: \"bottomright\" });\n\n  centerControl.onAdd = function(map) {\n    var button = L.DomUtil.create(\n      \"button\",\n      \"leaflet-control center-location-control\"\n    );\n  \n    button.type = \"button\";\n    \n    // SVG crosshairs:\n    \n    button.innerHTML =\n      '<svg class=\"center-location-icon\" viewBox=\"0 0 100 100\"' +\n      ' xmlns=\"http://www.w3.org/2000/svg\" aria-hidden=\"true\">' +\n        '<circle cx=\"50\" cy=\"50\" r=\"30\" fill=\"none\"' +\n          ' stroke=\"#fff\" stroke-width=\"6\"/>' +\n        '<line x1=\"50\" y1=\"4\" x2=\"50\" y2=\"96\"' +\n          ' stroke=\"#fff\" stroke-width=\"6\"/>' +\n        '<line x1=\"4\" y1=\"50\" x2=\"96\" y2=\"50\"' +\n          ' stroke=\"#fff\" stroke-width=\"6\"/>' +\n      '<\/svg>';\n    button.title = \"Center on my location\";\n  \n    L.DomEvent.disableClickPropagation(button);\n    L.DomEvent.disableScrollPropagation(button);\n  \n    L.DomEvent.on(button, \"click\", function(e) {\n      L.DomEvent.stop(e);\n      \n      // Also grants orientation access:\n      \n      enableOrientation();\n  \n      if (latestLatLng) {\n        centerOnLatestLocation();\n      } else if (accuracyDiv) {\n        accuracyDiv.innerHTML = \"Locating ...\";\n      }\n    });\n    \n    return button;\n  };\n\n  centerControl.addTo(map);\n  \n  // location tracking ------------------------------------------------------\n\n  // The track recorder in field_map_app.js listens on this map's\n  // 'locationfound' events, so it depends entirely on the watch started here.\n  // If this watch dies, the arrow freezes AND the track silently stops\n  // growing. Everything below is written so the watch survives GPS errors and\n  // the page being backgrounded (pocketed phone) and can always be restarted.\n\n  var locateOptions = {\n    watch: true,\n    enableHighAccuracy: true,\n    maximumAge: 1000,\n    timeout: 15000\n  };\n\n  var lastWatchRestart = 0;\n\n  function startWatch() {\n    map.locate(locateOptions);\n  }\n\n  // Safe to call repeatedly. stopLocate clears the underlying geolocation\n  // watch but leaves our 'locationfound' / 'locationerror' handlers (and the\n  // track recorder's) attached, so restarting keeps feeding the SAME track.\n  // Debounced so a burst of timeouts or visibility flips can't thrash it.\n\n  function restartWatch() {\n    var now = Date.now();\n    if (now - lastWatchRestart < 3000) return;\n    lastWatchRestart = now;\n    map.stopLocate();\n    startWatch();\n  }\n\n  startWatch();\n\n  map.on('locationfound', function(e) {\n    latestLatLng = e.latlng;\n    \n    if (firstFix) {\n      refreshMapSizeAndCenter();\n      firstFix = false;\n    }\n    \n    // Update accuracy text\n\n    if (accuracyDiv) {\n      accuracyDiv.innerHTML =\n        \"Accuracy: \" + Math.round(e.accuracy) + \" m\";\n    }\n    \n    /* Add an accuracy circle */\n\n    if (accuracyCircle) {\n      accuracyCircle.setLatLng(e.latlng).setRadius(e.accuracy);\n    } else {\n      accuracyCircle = L.circle(e.latlng, {\n        radius: e.accuracy,\n        color: '#136aec',\n        fillColor: '#136aec',\n        fillOpacity: 0.15,\n        weight: 1,\n        interactive: false\n      }).addTo(map);\n    }\n\n    // The arrow serves as the position marker. It's created on the first GPS\n    // fix and repositioned on every subsequent fix. Rotation is handled\n    // separately by handleOrientation below.\n\n    if (headingMarker) {\n      headingMarker.setLatLng(e.latlng);\n    } else {\n      headingMarker = L.marker(e.latlng, {\n        icon: L.divIcon({\n          html: '<svg class=\"heading-arrow\" viewBox=\"0 0 40 40\"' +\n            ' width=\"50\" height=\"50\" xmlns=\"http://www.w3.org/2000/svg\">' +\n            '<g class=\"heading-group\">' +\n              '<polygon points=\"20,4 34,36 20,27 6,36\"' +\n                ' fill=\"#136aec\" stroke=\"white\"' +\n                ' stroke-width=\"1.5\" stroke-linejoin=\"round\"/>' +\n            '<\/g>' +\n          '<\/svg>',\n          className: '',\n          iconSize: [50, 50],\n          iconAnchor: [25, 25]\n        }),\n        interactive: false,\n        zIndexOffset: 1000\n      }).addTo(map);\n    }\n  });\n\n  map.on('locationerror', function(e) {\n    console.warn('Location error: ' + e.message);\n\n    // A transient GPS error (timeout / position-unavailable) must NOT end an\n    // in-progress track. Only an explicit Stop (user action, in\n    // field_map_app.js) does that. A suspended watch sometimes keeps firing\n    // errors without recovering, so we restart it; the same track keeps\n    // recording because the 'locationfound' handlers stay attached.\n    // code 1 = permission denied, where restarting cannot help.\n\n    if (e.code === 1) return;\n    restartWatch();\n  });\n\n  // keep-alive: wake lock + resume -----------------------------------------\n\n  // The tech pockets the phone mid-walk and needs the track to keep going. A\n  // screen wake lock keeps the page alive (screen on) while a track records.\n  // The lock is dropped automatically whenever the page is hidden, so it has\n  // to be re-requested on return. A wake lock keeps the SCREEN on but cannot\n  // run JS with the screen truly off (the browser suspends us), so on resume\n  // we also restart the geolocation watch so fixes keep flowing into the SAME\n  // track (no new track is started here).\n\n  var wakeLock = null;\n\n  // Track state lives in field_map_app.js; we stay decoupled by reading the\n  // record button's label (\"Stop track\" only while recording).\n\n  function trackIsRecording() {\n    var btn = document.getElementById(\"trackToggleBtn\");\n    return !!btn && /Stop/.test(btn.textContent || \"\");\n  }\n\n  function requestWakeLock() {\n    if (!(\"wakeLock\" in navigator) || wakeLock || document.hidden) return;\n    navigator.wakeLock.request(\"screen\")\n      .then(function(lock) {\n        wakeLock = lock;\n        lock.addEventListener(\"release\", function() { wakeLock = null; });\n      })\n      .catch(function() { wakeLock = null; });\n  }\n\n  function releaseWakeLock() {\n    if (!wakeLock) return;\n    try { wakeLock.release(); } catch (err) {}\n    wakeLock = null;\n  }\n\n  function syncWakeLock() {\n    if (trackIsRecording()) requestWakeLock();\n    else releaseWakeLock();\n  }\n\n  document.addEventListener(\"visibilitychange\", function() {\n    if (document.hidden) return;\n\n    // Back in the foreground: re-acquire the dropped wake lock and, if a track\n    // was recording, restart the watch so it resumes on the SAME track.\n\n    requestWakeLock();\n    if (trackIsRecording()) restartWatch();\n  });\n\n  // The record button lives in field_map_app.js. field_map_app.js flips its\n  // label inside its own click handler, so we read the settled state on the\n  // next tick (order-independent) and match the wake lock to it.\n\n  var trackToggleBtn = document.getElementById(\"trackToggleBtn\");\n  if (trackToggleBtn) {\n    trackToggleBtn.addEventListener(\"click\", function() {\n      setTimeout(syncWakeLock, 0);\n    });\n  }\n\n  // lock-screen toggle -----------------------------------------------------\n\n  // A one-tap map lock for crawling through cover. The padlock starts OPEN; a\n  // tap closes it and freezes the map exactly where it is. While locked the map\n  // stays fully visible, but a transparent shield over the whole screen swallows\n  // every tap/pan/zoom so the view can't be nudged -- only the padlock itself\n  // stays live, and tapping it again unlocks. Belt-and-suspenders, Leaflet's own\n  // interaction handlers are disabled too (covers hardware keyboards / trackpads).\n\n  var mapLocked = false;\n  var lockBlocker = null;\n  var lockButtonEl = null;\n  var lockBtnHome = null;   // where the padlock lives in the Leaflet control\n\n  // Open padlock: shackle up, right leg lifted off the body (unlocked look).\n  var LOCK_ICON_OPEN =\n    '<svg class=\"lock-screen-icon\" viewBox=\"0 0 100 100\"' +\n    ' xmlns=\"http://www.w3.org/2000/svg\" aria-hidden=\"true\">' +\n      '<rect x=\"24\" y=\"44\" width=\"52\" height=\"40\" rx=\"6\"' +\n        ' fill=\"none\" stroke=\"#fff\" stroke-width=\"6\"/>' +\n      '<path d=\"M34 44 V32 a16 16 0 0 1 32 0\"' +\n        ' fill=\"none\" stroke=\"#fff\" stroke-width=\"6\"/>' +\n    '<\/svg>';\n\n  // Closed padlock: both shackle legs meet the body (locked look).\n  var LOCK_ICON_CLOSED =\n    '<svg class=\"lock-screen-icon\" viewBox=\"0 0 100 100\"' +\n    ' xmlns=\"http://www.w3.org/2000/svg\" aria-hidden=\"true\">' +\n      '<rect x=\"24\" y=\"44\" width=\"52\" height=\"40\" rx=\"6\"' +\n        ' fill=\"none\" stroke=\"#fff\" stroke-width=\"6\"/>' +\n      '<path d=\"M34 44 V32 a16 16 0 0 1 32 0 V44\"' +\n        ' fill=\"none\" stroke=\"#fff\" stroke-width=\"6\"/>' +\n    '<\/svg>';\n\n  // The transparent shield. It captures every interaction so nothing beneath it\n  // (map, markers, controls, the app menu bar) responds -- the padlock button is\n  // lifted above it so it alone stays tappable.\n  function buildLockBlocker() {\n    if (lockBlocker) return lockBlocker;\n    var b = document.createElement(\"div\");\n    b.className = \"field-lock-blocker\";\n    b.style.cssText =\n      \"position:fixed;top:0;left:0;right:0;bottom:0;z-index:100000;\" +\n      \"background:transparent;touch-action:none;\" +\n      \"-webkit-user-select:none;user-select:none;\";\n    [\"click\", \"dblclick\", \"touchstart\", \"touchmove\", \"touchend\",\n      \"pointerdown\", \"pointermove\", \"pointerup\", \"mousedown\", \"mousemove\",\n      \"wheel\", \"contextmenu\"].forEach(function(t) {\n      b.addEventListener(t, function(e) {\n        if (e.cancelable) e.preventDefault();\n        e.stopPropagation();\n      }, { passive: false });\n    });\n    document.body.appendChild(b);\n    lockBlocker = b;\n    return b;\n  }\n\n  function setMapInteractions(enabled) {\n    [\"dragging\", \"touchZoom\", \"doubleClickZoom\", \"scrollWheelZoom\",\n      \"boxZoom\", \"keyboard\", \"tap\"].forEach(function(h) {\n      if (map[h]) {\n        try { enabled ? map[h].enable() : map[h].disable(); } catch (e) {}\n      }\n    });\n  }\n\n  function applyLockButton() {\n    if (!lockButtonEl) return;\n    lockButtonEl.innerHTML = mapLocked ? LOCK_ICON_CLOSED : LOCK_ICON_OPEN;\n    lockButtonEl.title = mapLocked ? \"Unlock screen\" : \"Lock screen\";\n    // Lift the padlock above the shield + tint it while active.\n    lockButtonEl.style.zIndex = mapLocked ? \"100001\" : \"\";\n    lockButtonEl.style.background = mapLocked ? \"#136aecdd\" : \"\";\n  }\n\n  function lockMap() {\n    mapLocked = true;\n    buildLockBlocker().style.display = \"block\";\n    setMapInteractions(false);\n    // The padlock sits in Leaflet's control container, whose own stacking\n    // context (z-index 1000) would trap it beneath the shield. Lift it to the\n    // body so it alone stays above the shield and tappable. Same CSS class ->\n    // same on-screen spot.\n    if (lockButtonEl && lockButtonEl.parentNode !== document.body) {\n      lockBtnHome = { parent: lockButtonEl.parentNode, next: lockButtonEl.nextSibling };\n      document.body.appendChild(lockButtonEl);\n    }\n    applyLockButton();\n  }\n\n  function unlockMap() {\n    mapLocked = false;\n    if (lockBlocker) lockBlocker.style.display = \"none\";\n    setMapInteractions(true);\n    applyLockButton();\n    // Return the padlock to its Leaflet control slot.\n    if (lockButtonEl && lockBtnHome) {\n      if (lockBtnHome.next && lockBtnHome.next.parentNode === lockBtnHome.parent) {\n        lockBtnHome.parent.insertBefore(lockButtonEl, lockBtnHome.next);\n      } else {\n        lockBtnHome.parent.appendChild(lockButtonEl);\n      }\n      lockBtnHome = null;\n    }\n  }\n\n  function toggleMapLock() { if (mapLocked) unlockMap(); else lockMap(); }\n\n  var lockControl = L.control({ position: \"bottomright\" });\n\n  lockControl.onAdd = function(map) {\n    var button = L.DomUtil.create(\n      \"button\",\n      \"leaflet-control lock-screen-control\"\n    );\n\n    button.type = \"button\";\n    button.title = \"Lock screen\";\n    button.innerHTML = LOCK_ICON_OPEN;\n\n    L.DomEvent.disableClickPropagation(button);\n    L.DomEvent.disableScrollPropagation(button);\n\n    L.DomEvent.on(button, \"click\", function(e) {\n      L.DomEvent.stop(e);\n      toggleMapLock();\n    });\n\n    lockButtonEl = button;\n    return button;\n  };\n\n  lockControl.addTo(map);\n\n  // compass heading --------------------------------------------------------\n\n  // Position is managed by locationfound, so setHeading only needs to update\n  // the rotation of the existing marker.\n\n  function setHeading(degrees) {\n    if (!headingMarker) return;\n    var markerEl = headingMarker.getElement();\n    if (markerEl) {\n      var g = markerEl.querySelector('.heading-group');\n      if (g) {\n      g.setAttribute('transform', 'rotate(' + degrees + ', 20, 20)');\n      }\n    }\n  }\n  \n  // Convert a device-orientatin event into a true-north heading ... note:\n  // - iOS: event.webkitCompassHeading is clockwise heading from true true-north\n  // - Android: event.alpha is degrees counter-clockwise from north\n\n  function handleOrientation(event, forceAbsolute) {\n    var heading;\n  \n    if (typeof event.webkitCompassHeading === \"number\") {\n      heading = event.webkitCompassHeading;\n    } else if (\n      typeof event.alpha === \"number\" &&\n      (forceAbsolute || event.absolute === true)\n    ) {\n      heading = (360 - event.alpha) % 360;\n    } else {\n      return;\n    }\n  \n    var correctedHeading =\n      (heading - getScreenAngle() + 360) % 360;\n  \n    setHeading(correctedHeading);\n  }\n  \n  // Device orientation listeners:\n  \n  function handleAbsolute(e) { handleOrientation(e, true); }\n  function handleRelative(e) { handleOrientation(e, false); }\n\n  function removeGestureListeners() {\n    document.removeEventListener('touchend', onFirstGesture, true);\n    document.removeEventListener('click', onFirstGesture, true);\n  }\n\n  function bindOrientation() {\n    if (orientationBound) return;\n    orientationBound = true;\n    removeGestureListeners();\n    \n    // Android:\n\n    window.addEventListener('deviceorientationabsolute', handleAbsolute, true);\n    \n    // iPhone:\n    \n    window.addEventListener('deviceorientation', handleRelative, true);\n  }\n  \n  // iPhones require permission which is triggered by a gesture (Android we are\n  // okay without):\n  \n  function enableOrientation() {\n    if (orientationBound) return;\n\n    if (\n      typeof DeviceOrientationEvent !== 'undefined' &&\n      typeof DeviceOrientationEvent.requestPermission === 'function'\n    ) {\n      DeviceOrientationEvent.requestPermission()\n        .then(function(result) {\n          if (result === 'granted') {\n            bindOrientation();\n          }\n        })\n        .catch(function() {});\n    } else {\n      bindOrientation();\n    }\n  }\n\n  function onFirstGesture() {\n    enableOrientation();\n  }\n\n  if (\n    typeof DeviceOrientationEvent !== 'undefined' &&\n    typeof DeviceOrientationEvent.requestPermission === 'function'\n  ) {\n    document.addEventListener('touchend', onFirstGesture, true);\n    document.addEventListener('click', onFirstGesture, true);\n  } else {\n    \n    // Android / desktop sensors: bind immediately, no gesture needed.\n    \n    bindOrientation();\n  }\n}).call(this.getMap(), el, x, data);\n}","data":null},{"code":"function(el, x, data) {\n  return (// Weather-layer toggle support for the field map.\n\nfunction(el, x) {\n\n  var map = this;\n\n  // Expose the map (and signal readiness) so field_map_app.js can draw on it:\n\n  window.fieldMap = map;\n  window.dispatchEvent(new Event(\"fieldmap:ready\"));\n\n  // Keep the map filled to its container:\n\n  function fitMap() { map.invalidateSize(false); }\n  setTimeout(fitMap, 200);\n  setTimeout(fitMap, 600);\n  window.addEventListener(\"resize\", fitMap);\n\n  // offline satellite tiles -----------------------------------------------\n\n  // make_field_map.R embeds pre-fetched ESRI tiles (window.fieldOfflineTiles,\n  // keyed \"z/x/y\" -> data URI). Serve those when present so the satellite\n  // background still renders at the patches with no signal (coyote):\n\n  function patchOfflineTiles() {\n    if (!map._layers) return;\n    Object.keys(map._layers).forEach(function (id) {\n      var layer = map._layers[id];\n      if (layer && layer._url && typeof layer.getTileUrl === \"function\" &&\n          /World_Imagery/i.test(layer._url) && !layer._offlinePatched) {\n        layer._offlinePatched = true;\n        var orig = layer.getTileUrl;\n        layer.getTileUrl = function (coords) {\n          var t = window.fieldOfflineTiles;\n          if (t) {\n            var key = coords.z + \"/\" + coords.x + \"/\" + coords.y;\n            if (t[key]) return t[key];\n          }\n          return orig.call(this, coords);\n        };\n\n        // Re-request visible tiles through the patched function (matters when\n        // the page is (re)loaded with no signal:.\n\n        if (typeof layer.redraw === \"function\") layer.redraw();\n      }\n    });\n  }\n  patchOfflineTiles();\n\n  // Scale marker icons with zoom:\n\n  function scaleIconsForZoom() {\n    var z = map.getZoom();\n    var s = Math.min(1, Math.max(0.1, 1 - (19 - z) * 0.1));\n    var size = 20.25 * s;\n    eachPatchFeature(function (layer) {\n      var img = layer._icon;\n      if (!img || img.tagName !== \"IMG\") return;\n      // The size multiplier is the DB's, carried on the marker's row.\n      var mult = (layer._row && Number(layer._row.size) > 1)\n        ? Number(layer._row.size) : 1;\n      // Fixed width; height follows each png's aspect ratio (no square stretch).\n      var w = size * mult;\n      var ratio = (img.naturalWidth > 0) ? (img.naturalHeight / img.naturalWidth) : 1;\n      var h = w * ratio;\n      img.style.width = w + \"px\";\n      img.style.height = h + \"px\";\n      img.style.marginLeft = (-w / 2) + \"px\";\n      img.style.marginTop = (-h / 2) + \"px\";\n    });\n  }\n  map.on(\"zoomend\", scaleIconsForZoom);\n  setTimeout(scaleIconsForZoom, 700);\n\n  // ---- Markers, drawn straight from the database -------------------------\n\n  // window.fieldMapMarkers is GET /map_points (the v_map_point view): one row\n  // per marker, carrying position, icon_id, opacity, size, and the popup's\n  // facts. This renderer just draws what the DB says.\n\n  // Classes this renderer owns. Landmarks are absent by design: the waypoint\n  // layer already draws them as coloured circle pins, and rendering them here\n  // too put two markers on one spot. One class, one owner.\n\n  var MARKER_GROUP_FOR = {\n    nest: \"Nests\",\n    coverboard: \"Coverboards\",\n    trailcam: \"Trail Cameras\",\n    point_count: \"Point Counts\"\n  };\n\n  function esc(s) {\n    return String(s === null || s === undefined ? \"\" : s)\n      .replace(/&/g, \"&amp;\").replace(/<\/g, \"&lt;\").replace(/>/g, \"&gt;\")\n      .replace(/\"/g, \"&quot;\");\n  }\n\n  function dash(v) {\n    return (v === null || v === undefined || v === \"\") ? \"&mdash;\" : esc(v);\n  }\n\n  // The DB's two fades, applied separately: non-current always, not-scheduled-\n  // today only while the \"today\" toggle is on. v_map_point also ships a\n  // combined `opacity`, but that alone can't tell the two apart.\n\n  function opacityFor(layer) {\n    var r = layer && layer._row;\n    if (!r) return 1;\n    var cur = (Number(r.is_current) === 0) ? 0.5 : 1;\n    var today = (filterToday && Number(r.scheduled_today) === 0) ? 0.5 : 1;\n    return Math.min(cur, today);\n  }\n\n  // Popup markup, composed from the row's facts. Nests get the full detail +\n  // actions; infrastructure points just name themselves.\n  function markerPopupHtml(r) {\n    var id = esc(r.name);\n    if (String(r.class) !== \"nest\") {\n      return '<div style=\"font-family:Times;\"><h3 style=\"margin:0;\"><strong>' +\n        id + \"<\/strong><\/h3><div>\" + esc(r.status || \"\") + \"<\/div><\/div>\";\n    }\n    var idJs = String(r.ref_id || r.name).replace(/'/g, \"\\\\'\");\n    return '<div style=\"font-family:Times;min-width:190px;\">' +\n      '<div class=\"api-nest-photo-slot\" data-nest=\"' + esc(r.ref_id) +\n      '\" style=\"margin:0 0 6px;\"><\/div>' +\n      \"<h3 style=\\\"margin:0 0 4px;\\\"><strong>\" + esc(r.ref_id) +\n      \"<\/strong>. Species: \" + dash(r.species) + \"<\/h3>\" +\n      \"<ul style=\\\"margin:0 0 6px;padding-left:16px;\\\">\" +\n      \"<li><strong>Patch<\/strong>: \" + dash(r.patch) + \"<\/li>\" +\n      \"<li><strong>Plant species<\/strong>: \" + dash(r.substrates) + \"<\/li>\" +\n      \"<li><strong>Height<\/strong>: \" + dash(r.height_m) + \"<\/li>\" +\n      \"<li><strong>Location description<\/strong>: \" + dash(r.location_description) + \"<\/li>\" +\n      \"<li><strong>Discovered on<\/strong>: \" + dash(r.discovery_date) + \"<\/li>\" +\n      \"<li><strong>Last checked on<\/strong>: \" + dash(r.last_check) + \"<\/li>\" +\n      \"<li><strong>Current status<\/strong>: \" + dash(r.status) + \"<\/li>\" +\n      \"<li><strong>N eggs (last check)<\/strong>: \" + dash(r.last_eggs) + \"<\/li>\" +\n      \"<li><strong>N young (last check)<\/strong>: \" + dash(r.last_young) + \"<\/li>\" +\n      \"<\/ul>\" +\n      '<div style=\"margin-top:4px;\">' +\n      '<button type=\"button\" class=\"field-popup-btn\" onclick=\"window.fieldNavigateNest(\\'' + idJs + '\\')\">Navigate<\/button> ' +\n      '<button type=\"button\" class=\"field-popup-btn\" onclick=\"window.fieldOpenNestInfo(\\'' + idJs + '\\')\">Nest page<\/button> ' +\n      '<button type=\"button\" class=\"field-popup-btn\" onclick=\"window.fieldOpenNestModify(\\'' + idJs + '\\')\">Modify<\/button>' +\n      \"<\/div><\/div>\";\n  }\n\n  // Idempotent: clears the marker groups first, so a re-render after a live\n  // change replaces the markers instead of stacking duplicates on top.\n  function renderMapPoints() {\n    var rows = window.fieldMapMarkers;\n    if (!Array.isArray(rows) || !window.fieldIcons || !window.L ||\n        !map.layerManager) return;\n\n    var seen = {};\n    Object.keys(MARKER_GROUP_FOR).forEach(function (c) {\n      var g = MARKER_GROUP_FOR[c];\n      if (seen[g]) return;\n      seen[g] = true;\n      try { map.layerManager.clearGroup(g); } catch (e) {}\n    });\n\n    var idx = 0;\n    rows.forEach(function (r) {\n      if (!r || r.lat === null || r.lat === undefined ||\n          r.lng === null || r.lng === undefined) return;\n      var gname = MARKER_GROUP_FOR[String(r[\"class\"] || \"\").toLowerCase()];\n      if (!gname) return;\n\n      // No custom png (landmarks) -> Leaflet's built-in marker-icon.png.\n      var ic = r.icon && window.fieldIcons[r.icon];\n      var marker = ic\n        ? window.L.marker([r.lat, r.lng], {\n            icon: window.L.icon({\n              iconUrl: ic.iconUrl,\n              iconSize: [ic.iconWidth, ic.iconHeight],\n              iconAnchor: [ic.iconAnchorX, ic.iconAnchorY]\n            })\n          })\n        : window.L.marker([r.lat, r.lng]);\n\n      // The DB's verdict rides WITH the marker -- no lookup table to fall out of\n      // sync, and nothing to join on later.\n      marker._row = r;\n      marker._pointId = r.idx;\n      marker._patch = r.patch;\n      if (String(r[\"class\"]) === \"nest\") {\n        marker._nestId = r.ref_id;\n        marker.setZIndexOffset(1000);\n      }\n      marker.bindPopup(markerPopupHtml(r));\n      marker.setOpacity(opacityFor(marker));\n\n      // A nest's photo is the one thing the view can't carry (auth-gated bytes),\n      // so fill the slot lazily on open -- nestapi_map.js owns that fetch/cache.\n      if (String(r[\"class\"]) === \"nest\" && r.ref_id) {\n        marker.on(\"popupopen\", function (ev) {\n          var el = ev.popup && ev.popup.getElement && ev.popup.getElement();\n          var slot = el && el.querySelector(\".api-nest-photo-slot\");\n          if (slot && window.NestApiData &&\n              typeof window.NestApiData.lazyLoadNestPhoto === \"function\") {\n            window.NestApiData.lazyLoadNestPhoto(r.ref_id, slot);\n          }\n        });\n      }\n\n      map.layerManager.addLayer(marker, \"marker\", gname + \"-\" + (idx++), gname);\n    });\n\n    // applyFilter() ran long before these markers arrived, so re-run it or the\n    // initial view shows everything instead of today's patches. noFit: a live\n    // refresh must not yank the map away from where the user put it.\n    applyFilter({ noFit: true });\n  }\n\n  // Re-render whenever fresh rows land (boot, or a live change-feed refresh).\n  window.fieldRenderMapPoints = renderMapPoints;\n  renderMapPoints();\n\n  // patches + paths (step B5) ---------------------------------------------\n\n  // Draw patch boundaries and Garmin paths into the same \"Patches\" / \"Paths\"\n  // layerManager groups the layers control and filter already drive, so the R\n  // addPolygons/addPolylines are no longer needed.\n\n  function prettyPatch(n) {\n    n = String(n).replace(/_/g, \" \");\n    return n.charAt(0).toUpperCase() + n.slice(1);\n  }\n\n  function renderShapes() {\n    if (!window.L || !map.layerManager) return;\n    if (window.fieldPatches) {\n      Object.keys(window.fieldPatches).forEach(function (name) {\n        var rings = window.fieldPatches[name];\n        if (!rings || !rings.length) return;\n        var poly = window.L.polygon(rings, {\n          fillColor: \"#ffffff\",\n          fillOpacity: 0.2,\n          color: \"#0000ff\",\n          weight: 1.5,\n          opacity: 0.5\n        });\n        poly.bindPopup(prettyPatch(name));\n        poly.bindTooltip(prettyPatch(name));\n        map.layerManager.addLayer(poly, \"shape\", \"patch-\" + name, \"Patches\");\n      });\n    }\n    if (window.fieldPaths) {\n      window.fieldPaths.forEach(function (path, i) {\n        if (!path || !path.length) return;\n        var line = window.L.polyline(path, {\n          weight: 3,\n          opacity: 0.7,\n          dashArray: \"2, 5\",\n          color: \"#ffff00\"\n        });\n        map.layerManager.addLayer(line, \"shape\", \"path-\" + i, \"Paths\");\n      });\n    }\n  }\n  renderShapes();\n\n  // bottom-bar readouts ---------------------------------------------------\n\n  // Mirror GPS accuracy and compass bearing into the bottom bar:\n\n  map.on(\"locationfound\", function(e) {\n    var el = document.getElementById(\"barAccuracy\");\n    if (el) el.textContent = \"Accuracy: \" + Math.round(e.accuracy) + \" m\";\n    window.fieldLatLng = e.latlng;       // read by the Add Waypoint readout\n    window.fieldAccuracy = e.accuracy;   // live single-fix accuracy (m)\n  });\n\n  setInterval(function() {\n    var el = document.getElementById(\"barBearing\");\n    var g = document.querySelector(\".heading-group\");\n    if (!el || !g) return;\n    var t = g.getAttribute(\"transform\");\n    var m = t && t.match(/rotate\\(\\s*(-?[\\d.]+)/);\n    if (m) {\n      var deg = (Math.round(parseFloat(m[1])) % 360 + 360) % 360;\n      el.textContent = \"Bearing: \" + deg + \"°\";\n      window.fieldBearing = deg;   // read by the Add Waypoint form\n    }\n  }, 250);\n\n  // map layer options -----------------------------------------------------\n\n  // Layer visibility:\n  // - setWeather  -- Precipitation + NEXRAD              (default off)\n  // - setPatches  -- patch boundaries                    (default on)\n  // - setSampling -- coverboards/cams/point counts/nests (default on)\n  // - setBasemap  -- offer the Street Map base layer     (default off)\n\n  function group(name) {\n    return map.layerManager ? map.layerManager.getLayerGroup(name, false) : null;\n  }\n\n  // Is this layer already listed in the layers control? Guards against\n  // adding duplicate rows.\n\n  function inControl(layer) {\n    var c = map.currentLayersControl;\n    return !!(c && c._layers &&\n      c._layers.some(function(o) { return o.layer === layer; }));\n  }\n\n  function showLayer(g) { if (g && !map.hasLayer(g)) map.addLayer(g); }\n  function hideLayer(g) { if (g && map.hasLayer(g)) map.removeLayer(g); }\n\n  function listOverlay(name, g) {\n    var c = map.currentLayersControl;\n    if (c && g && typeof c.addOverlay === \"function\" && !inControl(g)) {\n      c.addOverlay(g, name);\n    }\n  }\n  function listBase(name, g) {\n    var c = map.currentLayersControl;\n    if (c && g && typeof c.addBaseLayer === \"function\" && !inControl(g)) {\n      c.addBaseLayer(g, name);\n    }\n  }\n  function delist(g) {\n    var c = map.currentLayersControl;\n    if (c && g && typeof c.removeLayer === \"function\") c.removeLayer(g);\n  }\n\n  // Auto-refresh the weather tiles while they are on (storms can move fast). A\n  // changing `_ts` param busts the browser/CDN cache so we actually pull the\n  // latest NOAA frame rather than redrawing the cached one.\n\n  var WEATHER_REFRESH_MS = 60000;   // once a minute\n  var weatherTimer = null;\n\n  function refreshWeather() {\n    [\"Precipitation\", \"NEXRAD\"].forEach(function(name) {\n      var g = group(name);\n      if (!g || typeof g.eachLayer !== \"function\") return;\n      g.eachLayer(function(layer) {\n        if (layer && typeof layer.setParams === \"function\") {\n          layer.setParams({ _ts: Date.now() });\n        } else if (layer && typeof layer.redraw === \"function\") {\n          layer.redraw();\n        }\n      });\n    });\n  }\n\n  // Precipitation and NEXRAD: \n  // - on = shown + listed\n  // - off = hidden + delisted.\n\n  function setWeather(on) {\n    [\"Precipitation\", \"NEXRAD\"].forEach(function(name) {\n      var g = group(name);\n      if (!g) return;\n      if (on) { showLayer(g); listOverlay(name, g); }\n      else { delist(g); hideLayer(g); }\n    });\n    if (weatherTimer) { clearInterval(weatherTimer); weatherTimer = null; }\n    if (on) weatherTimer = setInterval(refreshWeather, WEATHER_REFRESH_MS);\n  }\n\n  // Patch boundaries: \n  // - on (default) = shown + dropped from the table of contents\n  // - off = added to the TOC as a normal (hidden) overlay you can toggle.\n\n  function setPatches(on) {\n    var g = group(\"Patches\");\n    if (!g) return;\n    if (on) { showLayer(g); delist(g); }\n    else { listOverlay(\"Patches\", g); hideLayer(g); }\n  }\n\n  // Sampling points stay in the table of contents either way; this just\n  // shows or hides them (their TOC checkboxes follow).\n\n  function setSampling(on) {\n    [\"Coverboards\", \"Trail Cameras\", \"Point Counts\", \"Nests\"].forEach(function(name) {\n      var g = group(name);\n      if (!g) return;\n      if (on) showLayer(g); else hideLayer(g);\n    });\n  }\n\n  // OpenStreetMap base: \n  // - on = Satellite + Street Map both offered as base layers in the TOC\n  // - off (default) = no base switcher in the TOC, only Satellite shown.\n\n  function setBasemap(on) {\n    var sat = group(\"Satellite\");\n    var street = group(\"Street Map\");\n    if (on) {\n      listBase(\"Satellite\", sat);\n      listBase(\"Street Map\", street);\n\n      // Keep Satellite as the active base.\n\n      showLayer(sat);\n    } else {\n      delist(street);\n      delist(sat);\n      hideLayer(street);\n      showLayer(sat);\n    }\n  }\n\n  // patch filter ----------------------------------------------------------\n\n  // Show only features within 50 m of the chosen patch. Patch outlines come\n  // from window.fieldPatches (embedded by make_field_map.R) as rings of\n  // [lat, lng]. Distances use a local equirectangular projection.\n\n  // Patch boundaries are deliberately absent: only the \"Include patch\n  // boundaries\" toggle governs them, so the today-subset never hides them.\n  // applyFilter still subsets the points and zooms via patchBounds().\n\n  // Groups applyFilter() sweeps for the patch/today subset. \"Waypoints\" is here\n  // so tech-recorded points (landmarks included) hide with the patches they sit\n  // in, rather than always showing.\n  var PATCH_GROUPS =\n    [\"Nests\", \"Coverboards\", \"Trail Cameras\", \"Point Counts\", \"Paths\", \"Waypoints\"];\n\n  function segDist(px, py, ax, ay, bx, by) {\n    var dx = bx - ax, dy = by - ay;\n    var len2 = dx * dx + dy * dy;\n    var t = len2 ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0;\n    t = Math.max(0, Math.min(1, t));\n    var cx = ax + t * dx, cy = ay + t * dy;\n    return Math.sqrt((px - cx) * (px - cx) + (py - cy) * (py - cy));\n  }\n\n  // Distance (m) from a lat/lng point to a patch (array of rings); 0 if inside.\n\n  function pointToPatch(lat, lng, rings) {\n    var mLat = 110540, mLng = 111320 * Math.cos(lat * Math.PI / 180);\n    var minD = Infinity, inside = false;\n    for (var r = 0; r < rings.length; r++) {\n      var ring = rings[r], pts = [];\n      for (var k = 0; k < ring.length; k++) {\n        pts.push([(ring[k][1] - lng) * mLng, (ring[k][0] - lat) * mLat]);\n      }\n      for (var i = 0, j = pts.length - 1; i < pts.length; j = i++) {\n        var xi = pts[i][0], yi = pts[i][1], xj = pts[j][0], yj = pts[j][1];\n        if (((yi > 0) !== (yj > 0)) &&\n            (0 < (xj - xi) * (0 - yi) / (yj - yi) + xi)) inside = !inside;\n        var d = segDist(0, 0, xi, yi, xj, yj);\n        if (d < minD) minD = d;\n      }\n    }\n    return inside ? 0 : minD;\n  }\n\n  function featureWithin(layer, rings, maxD) {\n    if (typeof layer.getLatLng === \"function\") {\n      var ll = layer.getLatLng();\n      return pointToPatch(ll.lat, ll.lng, rings) <= maxD;\n    }\n    if (typeof layer.getLatLngs === \"function\") {\n      var hit = false;\n      (function walk(a) {\n        if (!a || hit) return;\n        if (a.lat != null) {\n          if (pointToPatch(a.lat, a.lng, rings) <= maxD) hit = true;\n          return;\n        }\n        if (a.length) for (var i = 0; i < a.length; i++) walk(a[i]);\n      })(layer.getLatLngs());\n      return hit;\n    }\n    return true;\n  }\n\n  function eachPatchFeature(cb) {\n    PATCH_GROUPS.forEach(function (gname) {\n      var g = group(gname);\n      if (g && typeof g.eachLayer === \"function\") {\n        g.eachLayer(function (layer) { cb(layer, gname); });\n      }\n    });\n  }\n\n  function ringsBounds(ringSets) {\n    var minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity, has = false;\n    ringSets.forEach(function (ring) {\n      ring.forEach(function (p) {\n        has = true;\n        if (p[0] < minLat) minLat = p[0];\n        if (p[0] > maxLat) maxLat = p[0];\n        if (p[1] < minLng) minLng = p[1];\n        if (p[1] > maxLng) maxLng = p[1];\n      });\n    });\n    return has ? [[minLat, minLng], [maxLat, maxLng]] : null;\n  }\n\n  // Bounds for a set of patch names (null/empty -> all patches).\n\n  function patchBounds(names) {\n    if (!window.fieldPatches) return null;\n    var src = (names && names.length)\n      ? names\n      : Object.keys(window.fieldPatches);\n    var all = [];\n    src.forEach(function (n) {\n      if (window.fieldPatches[n]) {\n        window.fieldPatches[n].forEach(function (r) { all.push(r); });\n      }\n    });\n    return all.length ? ringsBounds(all) : null;\n  }\n\n  // Match a patch polygon layer back to its name by comparing its first vertex\n  // to the embedded patch rings (so we can show ONLY today's patch outlines).\n\n  function patchLayerName(layer) {\n    if (!window.fieldPatches || typeof layer.getLatLngs !== \"function\") return null;\n    var first = null;\n    (function dig(a) {\n      if (first || !a) return;\n      if (a.lat != null) { first = a; return; }\n      if (a.length) for (var i = 0; i < a.length; i++) dig(a[i]);\n    })(layer.getLatLngs());\n    if (!first) return null;\n    var keys = Object.keys(window.fieldPatches);\n    for (var k = 0; k < keys.length; k++) {\n      var rings = window.fieldPatches[keys[k]];\n      var v = rings[0] && rings[0][0];   // first vertex [lat, lng]\n      if (v && Math.abs(v[0] - first.lat) < 1e-6 &&\n              Math.abs(v[1] - first.lng) < 1e-6) {\n        return keys[k];\n      }\n    }\n    return null;\n  }\n\n  // Opacity is only meaningful for point markers (setOpacity). Patches/lines\n  // keep their own style.\n\n  function setLayerOpacity(layer, op) {\n    if (typeof layer.setOpacity === \"function\") layer.setOpacity(op);\n  }\n\n  // (fadeFor and the fieldNestFade / fieldToday.fade lookup maps are gone --\n  // opacityFor() reads the DB row carried on each marker instead.)\n\n  // Combined filter state: the \"Subset to today's data\" switch and the patch\n  // dropdown both feed applyFilter().\n\n  var filterToday = true;        // switch default on\n  var filterPatch = \"__all__\";   // dropdown default\n\n  // Which patches are active right now. null = no spatial subset. A missing or\n  // empty schedule (no field day) counts as inactive, so the map never goes\n  // blank.\n\n  function activePatchNames() {\n    var tp = (filterToday && window.fieldToday && window.fieldToday.patches) || null;\n    if (tp && tp.length) {\n      if (filterPatch && filterPatch !== \"__all__\") {\n        return tp.indexOf(filterPatch) >= 0 ? [filterPatch] : tp;\n      }\n      return tp;\n    }\n    if (filterPatch && filterPatch !== \"__all__\") return [filterPatch];\n    return null;\n  }\n\n  // Test patches (home testing): filtered by patch_id, not geometry. Their nests\n  // carry a test-site prefix (NSP / NLB) and are hidden\n  // from the \"All patches\" view.\n\n  var TEST_PATCHES = { test_snedgen_park: true, test_long_branch: true };\n  function isTestPatch(name) { return !!TEST_PATCHES[name]; }\n  function isTestNestLayer(layer) {\n    return /^(NSP|NLB)\\d+$/.test(String(layer._nestId || \"\"));\n  }\n\n  // Fixed home view for each test patch (they have no polygon to fit to).\n\n  var TEST_PATCH_VIEW = {\n    test_snedgen_park: { lat: 38.799230, lng: -77.632596, zoom: 18 },\n    test_long_branch:  { lat: 38.995412, lng: -76.999844, zoom: 18 }\n  };\n  function activeTestView(names) {\n    for (var i = 0; i < names.length; i++) {\n      if (TEST_PATCH_VIEW[names[i]]) return TEST_PATCH_VIEW[names[i]];\n    }\n    return null;\n  }\n\n  function applyFilter(opts) {\n    var noFit = !!(opts && opts.noFit);\n    var names = activePatchNames();\n\n    if (names === null) {\n\n      // Show every patch except test-site nests (prefixed). Opacity still\n      // applies here, same rule as the per-patch branch below -- this branch\n      // used to skip it, leaving everything opaque in the All-patches view.\n\n      eachPatchFeature(function (layer, gname) {\n        if (gname === \"Nests\" && isTestNestLayer(layer)) {\n          if (map.hasLayer(layer)) map.removeLayer(layer);\n          return;\n        }\n        if (!map.hasLayer(layer)) map.addLayer(layer);\n        setLayerOpacity(layer, opacityFor(layer));\n      });\n    } else {\n      var ringsList = [];\n      var nameSet = {};\n      names.forEach(function (n) {\n        nameSet[n] = true;\n        if (window.fieldPatches && window.fieldPatches[n]) {\n          ringsList.push(window.fieldPatches[n]);\n        }\n      });\n      eachPatchFeature(function (layer, gname) {\n        var show;\n        if (gname === \"Patches\") {\n\n          // Outlines: show only the active patches themselves.\n\n          var pn = patchLayerName(layer);\n          show = pn ? !!nameSet[pn] : false;\n        } else {\n\n          // Other features: within 50 m of any active patch.\n\n          show = ringsList.some(function (rings) {\n            return featureWithin(layer, rings, 50);\n          });\n\n          // Test patches have no polygon: match their nests by patch_id.\n\n          if (!show && gname === \"Nests\" &&\n              layer._patch && nameSet[layer._patch] && isTestPatch(layer._patch)) {\n            show = true;\n          }\n        }\n        if (show) {\n          if (!map.hasLayer(layer)) map.addLayer(layer);\n          setLayerOpacity(layer, opacityFor(layer));\n        } else if (map.hasLayer(layer)) {\n          map.removeLayer(layer);\n        }\n      });\n    }\n\n    // Re-fit only when the USER changed the filter. A re-render (new nest, live\n    // refresh) must not move the map out from under them.\n    if (!noFit) {\n      var tv = activeTestView(names || []);\n      if (tv) {\n        map.setView([tv.lat, tv.lng], tv.zoom);\n      } else {\n        var b = patchBounds(names);\n        if (b) map.fitBounds(b, { padding: [25, 25], maxZoom: 19 });\n      }\n    }\n\n    // Re-apply icon sizes after the move.\n\n    setTimeout(scaleIconsForZoom, 200);\n  }\n\n  function setPatch(name) { filterPatch = name; applyFilter(); }\n  function setToday(on) { filterToday = !!on; applyFilter(); }\n\n  // Apply the defaults (these match the host page's checkbox defaults).\n\n  setWeather(false);\n  setPatches(true);\n  setSampling(true);\n  setBasemap(false);\n\n  // \"Subset to today's data\" is on by default.\n\n  applyFilter();\n\n  map.whenReady(function () {\n    setTimeout(function () {\n      var initialBounds = patchBounds(activePatchNames());\n      if (initialBounds) {\n        map.fitBounds(initialBounds, { padding: [25, 25], maxZoom: 19 });\n      }\n    }, 400);\n  });\n\n  // Respond to the host page's option changes.\n\n  window.addEventListener(\"message\", function(e) {\n    var d = e.data;\n    if (!d || !d.type) return;\n    if (d.type === \"setWeather\") setWeather(!!d.on);\n    else if (d.type === \"setPatches\") setPatches(!!d.on);\n    else if (d.type === \"setSampling\") setSampling(!!d.on);\n    else if (d.type === \"setBasemap\") setBasemap(!!d.on);\n    else if (d.type === \"setPatch\") setPatch(d.name);\n    else if (d.type === \"setToday\") setToday(!!d.on);\n  });\n}\n).call(this.getMap(), el, x, data);\n}","data":null}]}}</script>
 </div>
 </div>
 <!-- Phase 1 data/shell decoupling: load the externalized map-data payloads.
@@ -2850,26 +2850,6 @@ function init() {
   function ensureMenuOpen() {
     overlay.classList.add("is-open");
     if (menuBtn) menuBtn.setAttribute("aria-expanded", "true");
-  }
-
-  function openAccordion(btn) {
-    if (!btn) return;
-    btn.classList.add("active");
-    var panel = btn.nextElementSibling;
-    if (panel && panel.classList.contains("panel")) panel.style.display = "block";
-  }
-
-  function findNestAccordion(nestId) {
-    var groups = document.querySelectorAll("#nestsDoc .nest-view");
-    for (var g = 0; g < groups.length; g++) {
-      if (groups[g].offsetParent === null) continue;
-      var accs = groups[g].querySelectorAll(".accordion");
-      for (var i = 0; i < accs.length; i++) {
-        var st = accs[i].querySelector("strong");
-        if (st && st.textContent.replace(/\.\s*$/, "") === nestId) return accs[i];
-      }
-    }
-    return null;
   }
 
   // View now opens the dedicated Nest info page.
@@ -4185,19 +4165,25 @@ function init() {
   }
 
   // Optimistically move a re-recorded nest's marker: rewrite the matching
-  // window.fieldMapPoints entry (by point_id, else by name == nest id) with the
-  // new lat/lng and redraw the live nest overlay, so the icon jumps to the new
-  // spot immediately instead of waiting for the next /gps_points refresh.
+  // v_map_point row (by point_id -> idx, else by name) so the icon jumps to
+  // the new spot at once instead of waiting for the /map_points refetch below.
+
   function moveApiMapPoint(pointId, name, lat, lng) {
-    var pts = window.fieldMapPoints || [];
+    var pts = window.fieldMapMarkers || [];
+
     for (var i = 0; i < pts.length; i++) {
       var p = pts[i];
       if (!p) continue;
-      if ((pointId && p.point_id === pointId) || (name && p.name === name)) {
-        p.lat = lat; p.lng = lng;
+      if ((pointId && p.idx === pointId) || (name && p.name === name)) {
+        p.lat = lat;
+        p.lng = lng;
       }
     }
-    if (typeof window.fieldRenderApiNests === "function") window.fieldRenderApiNests();
+    // A new nest/point just landed -- re-pull /map_points so its marker shows
+    // now, rather than on the next change-feed poll.
+    if (window.NestApiWiring && typeof window.NestApiWiring.refreshMapPoints === "function") {
+      window.NestApiWiring.refreshMapPoints();
+    }
   }
 
   function saveModify() {
@@ -4399,14 +4385,6 @@ function init() {
   // un-configured build behaves exactly like the old Sheets/Drive path.
   function apiEnabled() {
     return !!(window.NestApi && NestApi.settings && NestApi.settings.hasCreds());
-  }
-
-  // A queue-able connectivity failure: offline, or a thrown fetch error with no
-  // HTTP .status (DNS/abort/network). A real 4xx/5xx (ApiError with .status) is
-  // NOT this -- it means the server rejected the payload, so surface the error.
-  function apiShouldQueue(err) {
-    if (!NestApi.api.isOnline()) return true;
-    return !!(err && typeof err.status !== "number");
   }
 
   // Debounced, non-blocking background flush of the write queue. Called after
@@ -5425,23 +5403,26 @@ function init() {
     patchButtonLabel();
   }
 
-  // The embedded data may load a beat after this script; wait for it.
+  // Patch geometry (window.fieldPatches) is static shell data, so it is present
+  // as soon as field_patches.js has parsed. window.fieldToday is NO LONGER baked
+  // -- it is built from the LIVE schedule (GET /schedule -> rebuildFieldToday),
+  // so it simply does not exist yet on first paint. Waiting on it here would
+  // gate the dropdown on a network round-trip; instead build it now from what we
+  // have, and rebuild when the schedule lands (nestapi_wiring fires the event).
 
-  var dataReady = function () {
-    if (!window.fieldPatches) return false;
-    if (todayToggle && todayToggle.checked && typeof window.fieldToday === "undefined") {
-      return false;
-    }
-    return true;
-  };
-  if (dataReady()) {
+  if (window.fieldPatches) {
     rebuildPatchDropdown();
   } else {
     var pt = 0;
     var piv = setInterval(function () {
-      if (dataReady() || ++pt > 50) { clearInterval(piv); rebuildPatchDropdown(); }
+      if (window.fieldPatches || ++pt > 50) { clearInterval(piv); rebuildPatchDropdown(); }
     }, 100);
   }
+  // The live schedule decides which patches are "today", so the dropdown has to
+  // be rebuilt once it arrives (and on each later change-feed refresh).
+  window.addEventListener("fieldtoday:changed", function () {
+    try { rebuildPatchDropdown(); } catch (e) {}
+  });
 
   if (patchSelect) {
     patchSelect.addEventListener("change", function () {
@@ -5686,18 +5667,6 @@ function init() {
     overlay.classList.add("is-visible");
   }
 
-  function downloadGeojson(filename, ws) {
-    var fc = { type: "FeatureCollection", features: ws.map(waypointFeature) };
-    var blob = new Blob([JSON.stringify(fc, null, 2)], { type: "application/geo+json" });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-  }
 
   // Photo capture: downscale and compress to a JPEG data URI so the image
   // can be put inside the GeoJSON file.
@@ -5956,7 +5925,23 @@ function init() {
     // Hidden via the manager
 
     if (w.visible === false) return;
-    var m = L.marker([w.latitude, w.longitude], { icon: wpIcon(wpColorHex(w)) }).addTo(map);
+    var m = L.marker([w.latitude, w.longitude], { icon: wpIcon(wpColorHex(w)) });
+    // Into the layerManager's "Waypoints" group rather than straight onto the
+    // map, so map_weather.js's applyFilter() sweeps these like every other point
+    // layer -- a waypoint outside today's patches now hides with them. Added
+    // directly to the map, they were invisible to the filter and always showed.
+    // The manager's per-point toggle still governs membership (add/remove here);
+    // the filter only governs whether a member is currently on the map, so the
+    // two compose instead of fighting.
+    if (map.layerManager && typeof map.layerManager.addLayer === "function") {
+      try {
+        map.layerManager.addLayer(m, "marker", "wp-" + w.point_id, "Waypoints");
+      } catch (e) {
+        m.addTo(map);
+      }
+    } else {
+      m.addTo(map);
+    }
     m.bindPopup(wpPopupHtml(w));
     m.on("popupopen", function (ev) {
       var el = ev.popup.getElement();
@@ -5978,7 +5963,17 @@ function init() {
 
   function removeWaypointMarker(id) {
     var m = wpMarkers[id];
-    if (m && window.fieldMap) window.fieldMap.removeLayer(m);
+    var map = window.fieldMap;
+    if (m && map) {
+      // Remove from the layerManager GROUP, not just the map. Removing it from
+      // the map alone would leave it a member of "Waypoints", and the next
+      // applyFilter() sweep would put it straight back -- silently undoing the
+      // manager's hide.
+      if (map.layerManager && typeof map.layerManager.removeLayer === "function") {
+        try { map.layerManager.removeLayer("marker", "wp-" + id); } catch (e) {}
+      }
+      if (map.hasLayer(m)) map.removeLayer(m);
+    }
     delete wpMarkers[id];
   }
 
@@ -6361,10 +6356,27 @@ function init() {
 
   function padNest(n) { return String(n).padStart(3, "0"); }
 
+  // THE marker lookup: name -> its v_map_point row (window.fieldMapMarkers,
+  // GET /map_points). One row per GPS point, so this is the app's single
+  // answer for "where is <name>". Returns null if it has no usable position.
+
+  function mapPointByName(name) {
+    var rows = window.fieldMapMarkers || [];
+
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+
+      if (r && r.name === name && r.lat != null && r.lng != null &&
+          !isNaN(r.lat) && !isNaN(r.lng)) {
+        return r;
+      }
+    }
+    return null;
+  }
+
   // True when `name` already belongs to a GPS point somewhere the app knows
-  // about: a baked map point with coordinates, a cached waypoint with a
-  // location, or a live nest whose coordinates came back from the relay. Used to
-  // block naming a brand-new nest the same as an existing GPS point.
+  // about: a map point, a cached waypoint, or a live nest. Used to block
+  // naming a brand-new nest the same as an existing GPS point.
   function nestNameHasGpsPoint(name) {
     name = String(name || "");
     if (!name) return false;
@@ -6373,11 +6385,8 @@ function init() {
       if (pts[i].name === name && pts[i].lat != null && pts[i].lng != null &&
           !isNaN(pts[i].lat) && !isNaN(pts[i].lng)) return true;
     }
-    var mpts = window.fieldMapPoints || [];
-    for (var m = 0; m < mpts.length; m++) {
-      if (mpts[m].name === name && mpts[m].lat != null && mpts[m].lng != null &&
-          !isNaN(mpts[m].lat) && !isNaN(mpts[m].lng)) return true;
-    }
+    if (mapPointByName(name)) return true;
+
     var arr = loadWaypoints();
     for (var j = 0; j < arr.length; j++) {
       if (arr[j].point_name === name && arr[j].latitude != null &&
@@ -6950,9 +6959,13 @@ function init() {
   }
 
   // Zoom the map tight (level 19) onto a point and drop back to the map view.
-  function zoomToPoint(lat, lng) {
+  // Jump the main map to a point and close the menu over it. `zoom` defaults to
+  // 19 (the old fixed behaviour); the nest-info map passes 18.
+  function zoomToPoint(lat, lng, zoom) {
     if (lat == null || lng == null) return;
-    if (window.fieldMap) window.fieldMap.setView([lat, lng], 19);
+    if (window.fieldMap) {
+      window.fieldMap.setView([lat, lng], (zoom == null) ? 19 : zoom);
+    }
     closeMenu();
   }
 
@@ -6961,26 +6974,15 @@ function init() {
   var niCurrentNest = null;
 
   function niCoords(nestId) {
-    var pts = window.fieldMapPoints || [];
-    for (var i = 0; i < pts.length; i++) {
-      if (pts[i].name === nestId && pts[i].lat != null && pts[i].lng != null &&
-          !isNaN(pts[i].lat) && !isNaN(pts[i].lng)) {
-        return { lat: pts[i].lat, lng: pts[i].lng };
-      }
-    }
+    var p = mapPointByName(nestId);
+    if (p) return { lat: p.lat, lng: p.lng };
+
     var arr = loadWaypoints();
+
     for (var j = 0; j < arr.length; j++) {
       if (arr[j].point_name === nestId && arr[j].latitude != null) {
         return { lat: arr[j].latitude, lng: arr[j].longitude };
       }
-    }
-    return null;
-  }
-
-  function niMapPoint(nestId) {
-    var pts = window.fieldMapPoints || [];
-    for (var i = 0; i < pts.length; i++) {
-      if (pts[i].name === nestId) return pts[i];
     }
     return null;
   }
@@ -6997,20 +6999,10 @@ function init() {
       if (nav[j].name === nestId && nav[j].photo &&
           String(nav[j].photo).indexOf("data:") === 0) return nav[j].photo;
     }
-    // Fallback: the API GPS point's nav_photo (base64 from GET /gps_points),
-    // so a nest discovered on another device still shows its photo. The API
-    // value is raw base64, so wrap it as a data URL (stripping any wrapping
-    // whitespace) for direct use in an <img>.
-    var mp = window.fieldMapPoints || [];
-    for (var k = 0; k < mp.length; k++) {
-      if (mp[k].name === nestId && mp[k].photo) {
-        var p = String(mp[k].photo).trim();
-        if (!p) continue;
-        return /^data:/.test(p)
-          ? p
-          : ("data:image/jpeg;base64," + p.replace(/\s+/g, ""));
-      }
-    }
+    // No third branch here: GET /gps_points deliberately no longer ships
+    // nav_photo bytes (only a has_nav_photo flag), so the old fallback that
+    // read them could never fire. NestApiData.resolveNestPhoto covers this.
+
     return null;
   }
 
@@ -7057,9 +7049,12 @@ function init() {
     layer.addTo(map);
     map.setView([c.lat, c.lng], 18);
 
-    // Same marker as the main map: the nest's icon from window.fieldIcons.
-    var p = niMapPoint(nestId);
-    var ic = (p && window.fieldIcons) ? window.fieldIcons[p.icon_id] : null;
+    // Same marker as the main map: the nest's real icon, straight off its
+    // v_map_point row. (This used to read a hardcoded "nest_inactive", so an
+    // active nest drew the inactive icon here.)
+
+    var p = mapPointByName(nestId);
+    var ic = (p && window.fieldIcons) ? window.fieldIcons[p.icon] : null;
     if (ic) {
       window.L.marker([c.lat, c.lng], {
         icon: window.L.icon({
@@ -7073,6 +7068,13 @@ function init() {
         radius: 7, color: "#136aec", weight: 2, fillColor: "#8ec5ff", fillOpacity: 0.9
       }).addTo(map);
     }
+
+    // Tapping this mini-map jumps to the MAIN map, centred on the nest at z18.
+    // (The mini-map is deliberately non-interactive -- dragging/zoom disabled --
+    // so a tap has no other meaning, and "show me this nest on the real map" is
+    // what you'd want it to do.)
+    map.on("click", function () { zoomToPoint(c.lat, c.lng, 18); });
+    host.style.cursor = "pointer";
 
     host._nimap = map;
     setTimeout(function () { try { map.invalidateSize(); } catch (e) {} }, 250);
@@ -7091,19 +7093,16 @@ function init() {
     ph.style.display = "";
   }
 
-  // Lazy-fetch a nest's GPS-point photo (list is now photo-free) and show it.
+  // Lazy-fetch a nest's photo for the info page, through the SAME resolver the
+  // map popups use (NestApiData.resolveNestPhoto): memory -> IndexedDB -> the
+  // gps point's nav_photo -> a disk photo from the `photo` table. This page used
+  // to look at nav_photo alone, so a nest whose photo lives in the photo table
+  // (e.g. NQ060) appeared in its popup but not on its page -- two resolvers, two
+  // answers. One resolver, one answer.
   function niLazyInfoPhoto(nestId, ph) {
-    if (!wpApiOnline()) return;
-    var pts = window.fieldMapPoints || [];
-    var pid = null, has = false;
-    for (var i = 0; i < pts.length; i++) {
-      if (pts[i] && pts[i].name === nestId) {
-        pid = pts[i].point_id; has = !!pts[i].hasPhoto; break;
-      }
-    }
-    if (!pid || !has) return;
-    NestApi.api.getGpsPointPhoto(pid).then(function (r) {
-      var uri = wpPhotoDataUri(r && r.nav_photo);
+    if (!window.NestApiData ||
+        typeof window.NestApiData.resolveNestPhoto !== "function") return;
+    window.NestApiData.resolveNestPhoto(nestId).then(function (uri) {
       if (uri) niSetInfoPhoto(ph, uri);
     }).catch(function () {});
   }
@@ -7593,30 +7592,29 @@ function init() {
     fieldRefreshNests();
   };
 
-  // Infra nav-points (coverboards + trail cameras) are refreshed from the live
-  // GET /gps_points set: window.fieldMapPoints carries point_class for every
-  // point, so the Waypoint manager reflects live data, not the baked snapshot.
-  // The baked window.fieldNavPoints entries are the fallback when the API set is
-  // absent (offline first boot). DB point_class codes match the baked ones.
+  // Infra nav-points (coverboards + trail cameras) come from the live
+  // v_map_point rows, so the Waypoint manager reflects live data. The baked
+  // fieldNavPoints are the fallback when the rows are absent (offline boot).
+
   var NAV_TYPE_FROM_CLASS = { coverboard: "Coverboard", trailcam: "Trail camera" };
 
   function apiNavInfraPoints() {
-    var mp = window.fieldMapPoints || [];
+    var mp = window.fieldMapMarkers || [];
     var out = [];
     mp.forEach(function (p) {
       if (!p) return;
-      var type = NAV_TYPE_FROM_CLASS[String(p.point_class || "").toLowerCase()];
+      var type = NAV_TYPE_FROM_CLASS[String(p["class"] || "").toLowerCase()];
       if (!type) return;
       if (p.lat == null || p.lng == null || isNaN(p.lat) || isNaN(p.lng)) return;
       out.push({
-        point_id: p.point_id || null,
+        point_id: p.idx || null,
         name: p.name,
         lat: p.lat,
         lng: p.lng,
         type: type,
-        point_class: String(p.point_class).toLowerCase(),
+        point_class: String(p["class"]).toLowerCase(),
         note: p.note || null,
-        photo: p.photo || null
+        photo: null
       });
     });
     return out;
@@ -8647,21 +8645,6 @@ function init() {
     updateTrackUI();
   }
 
-  function xmlEsc(s) {
-    return String(s).replace(/[<>&'"]/g, function (c) {
-      return { "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" }[c];
-    });
-  }
-  function trackGPX(name, pts) {
-    var seg = pts.map(function (p) {
-      return '<trkpt lat="' + p.lat + '" lon="' + p.lng + '">' +
-             (p.t ? "<time>" + p.t + "</time>" : "") + "</trkpt>";
-    }).join("");
-    return '<?xml version="1.0" encoding="UTF-8"?>\n' +
-      '<gpx version="1.1" creator="Nest Study Field Map" ' +
-      'xmlns="http://www.topografix.com/GPX/1/1">' +
-      "<trk><name>" + xmlEsc(name) + "</name><trkseg>" + seg + "</trkseg></trk></gpx>";
-  }
   function downloadText(filename, text, mime) {
     var blob = new Blob([text], { type: mime });
     var url = URL.createObjectURL(blob);
@@ -8685,67 +8668,35 @@ function init() {
 
   var savedLayers = {};   // track id -> Leaflet polyline (when visible)
 
-  // All drawn tracks live in one feature group so a single Leaflet control
-  // checkbox can show/hide the whole tracks layer at once (individual tracks are
-  // still toggled from the manager). The control only appears while >=1 track is
-  // on the map.
+  // All drawn tracks live in one feature group, registered with the widget's
+  // layerManager so the main layers control owns the Tracks checkbox alongside
+  // Nests / Coverboards / Trail Cameras / Point Counts.
+
   var tracksGroup = null;
-  var tracksLayerOn = true;
-  var tracksControl = null;
-  var tracksControlCheckbox = null;
 
   function ensureTracksGroup() {
     if (!tracksGroup && window.L && window.L.featureGroup) {
       tracksGroup = window.L.featureGroup();
-      if (tracksLayerOn && window.fieldMap) tracksGroup.addTo(window.fieldMap);
+
+      var map = window.fieldMap;
+
+      if (map && map.layerManager &&
+          typeof map.layerManager.addLayer === "function") {
+        try {
+          map.layerManager.addLayer(
+            tracksGroup,
+            "shape",
+            "tracks-group",
+            "Tracks"
+          );
+        } catch (e) {
+          tracksGroup.addTo(map);
+        }
+      } else if (map) {
+        tracksGroup.addTo(map);
+      }
     }
     return tracksGroup;
-  }
-
-  function countDrawnTracks() {
-    var n = 0, k;
-    for (k in savedLayers) if (savedLayers.hasOwnProperty(k)) n++;
-    return n;
-  }
-
-  function setTracksLayerVisible(on) {
-    tracksLayerOn = on;
-    var grp = ensureTracksGroup();
-    if (!grp || !window.fieldMap) return;
-    if (on && !window.fieldMap.hasLayer(grp)) grp.addTo(window.fieldMap);
-    else if (!on && window.fieldMap.hasLayer(grp)) window.fieldMap.removeLayer(grp);
-  }
-
-  function updateTracksControl() {
-    if (!tracksControl) return;
-    var c = tracksControl.getContainer && tracksControl.getContainer();
-    if (c) c.style.display = countDrawnTracks() > 0 ? "" : "none";
-    if (tracksControlCheckbox) tracksControlCheckbox.checked = tracksLayerOn;
-  }
-
-  // Build the master "Tracks" checkbox control once, on demand (needs the map).
-  function ensureTracksControl() {
-    if (tracksControl || !window.fieldMap || !window.L) return;
-    var ctrl = window.L.control({ position: "topright" });
-    ctrl.onAdd = function () {
-      var div = window.L.DomUtil.create(
-        "div", "leaflet-control leaflet-bar field-tracks-control");
-      var label = window.L.DomUtil.create("label", "field-tracks-toggle", div);
-      var cb = window.L.DomUtil.create("input", "", label);
-      cb.type = "checkbox";
-      cb.checked = tracksLayerOn;
-      var span = window.L.DomUtil.create("span", "", label);
-      span.textContent = "Tracks";
-      window.L.DomEvent.disableClickPropagation(div);
-      window.L.DomEvent.on(cb, "change", function () {
-        setTracksLayerVisible(cb.checked);
-      });
-      tracksControlCheckbox = cb;
-      return div;
-    };
-    ctrl.addTo(window.fieldMap);
-    tracksControl = ctrl;
-    updateTracksControl();
   }
 
   function loadTracks() {
@@ -8863,8 +8814,6 @@ function init() {
     var grp = ensureTracksGroup();
     if (grp) grp.addLayer(line);
     else line.addTo(window.fieldMap);
-    ensureTracksControl();
-    updateTracksControl();
   }
   // Update an on-map track's popup after edits
 
@@ -8877,7 +8826,6 @@ function init() {
       else if (window.fieldMap) window.fieldMap.removeLayer(savedLayers[id]);
     }
     delete savedLayers[id];
-    updateTracksControl();
   }
 
   // Persist one change to the track with the given id; returns the record.
@@ -9227,8 +9175,7 @@ function init() {
 
   whenMapReady(function () {
     loadTracks().forEach(function (t) { if (t.visible) drawSavedTrack(t); });
-    ensureTracksControl();
-    updateTracksControl();
+    ensureTracksGroup();
   });
   renderTrackList();
   updateReadout();
@@ -9326,50 +9273,19 @@ function init() {
     });
   })();
 
-// nestapi_map.js -- live API nest overlay.
+// nestapi_map.js -- nest PHOTO + navigation service (no rendering).
 //
-// Renders ALL nests (GET /nests, loaded by nestapi_wiring into
-// window.fieldApiNests) as markers on the leaflet map -- including app-created
-// nests absent from the baked map data. One marker per shared GPS point (the
-// current nest wins, so a quail NQ shows instead of the concluded nest it
-// replaced). Current nests are full opacity; concluded (non-current) nests are
-// faded to 50%. Icon mirrors make_field_map.R (brood status / failed stage).
+// Markers all come from GET /map_points, drawn by renderMapPoints() in
+// map_weather.js. What lives here is the part that isn't the DB's job:
+// fetching a nest's photo for a popup slot, and resolving coords for Navigate.
 //
-// Assembled INTO the main field-map IIFE (after field_map_app.js), so it can
-// call startNavigation / niCoords / escapeHtml directly. Exposes
-// window.fieldRenderApiNests, which nestapi_wiring.js calls after each load/sync.
-// Gated on hasCreds(): a no-token build renders nothing here (baked map only).
-// The baked "Nests" group is cleared so this layer is the sole nest source.
+// Assembled into the main field-map IIFE (after field_map_app.js), so it can
+// call startNavigation / niCoords / escapeHtml directly.
 
-var _apiNestLayer = null;
+// Normalize a nest's patch to the app's test-patch key: the DB says
+// "snedgen_park", the dropdown says "test_snedgen_park", so filtering on raw
+// patch_id never matched. Mirrors field_map_app.js.
 
-// ---- "Subset to today's data" filter ------------------------------------
-//
-// The baked R "Nests" group is cleared by this overlay (fieldRenderApiNests),
-// so map_weather.js's applyFilter() -- which only sweeps the layerManager
-// PATCH_GROUPS -- never touches API nests. Result: the "Subset to today's
-// data" switch + patch dropdown were IGNORED for the live overlay (bug #3).
-//
-// map_weather.js keeps its filter state (filterToday / filterPatch) closure-
-// private and exposes nothing, but it DOES react to the SAME window
-// postMessage events the host page broadcasts (field_map_app.js posts
-// {type:"setToday", on} and {type:"setPatch", name}). We mirror that state
-// here and re-run the overlay so the two stay in lock-step.
-//
-// "on" is the default (todayToggle is `checked` in field_map.qmd).
-var _apiFilterToday = true;
-var _apiFilterPatch = "__all__";
-
-// Test patches are filtered by patch_id (they have no polygon); their nests
-// carry NSP/NLB prefixes and are hidden from the "All patches" view -- mirrors
-// map_weather.js.
-var API_TEST_PATCHES = { test_snedgen_park: true, test_long_branch: true };
-function apiIsTestPatch(name) { return !!API_TEST_PATCHES[name]; }
-
-// Normalize a nest's patch to the app's test-patch KEY. Test-site nests have DB
-// patch_id "snedgen_park" / "long_branch" (or NSP##/NLB## ids), but the patch
-// dropdown + labels key them as "test_snedgen_park" / "test_long_branch" -- so
-// filtering by raw patch_id never matched. Mirrors field_map_app.js.
 function apiNestPatchKey(nest) {
   var id = String((nest && nest.nest_id) || "");
   if (/^NSP\d+$/.test(id)) return "test_snedgen_park";
@@ -9380,193 +9296,17 @@ function apiNestPatchKey(nest) {
   return (nest && nest.patch_id) || null;
 }
 
-function apiIsTestNest(nest) {
-  return apiIsTestPatch(apiNestPatchKey(nest));
-}
+// point_id -> {lat, lng} from the map's v_map_point rows (idx IS point_id).
 
-// Which patches are active given switch + dropdown. null = no spatial subset
-// (show everything). Mirrors map_weather.js activePatchNames(): if the schedule
-// has no patches for today, the switch is treated as inactive so the map never
-// goes blank.
-function apiActivePatchNames() {
-  var tp = (_apiFilterToday && window.fieldToday && window.fieldToday.patches) || null;
-  if (tp && tp.length) {
-    if (_apiFilterPatch && _apiFilterPatch !== "__all__") {
-      return tp.indexOf(_apiFilterPatch) >= 0 ? [_apiFilterPatch] : tp;
-    }
-    return tp;
-  }
-  if (_apiFilterPatch && _apiFilterPatch !== "__all__") return [_apiFilterPatch];
-  return null;
-}
-
-// Distance (m) from a lat/lng to a patch (array of [lat,lng] rings); 0 if
-// inside. Self-contained copy of map_weather.js pointToPatch (its version is
-// closure-private), using the same local equirectangular projection.
-function apiPointToPatch(lat, lng, rings) {
-  var mLat = 110540, mLng = 111320 * Math.cos(lat * Math.PI / 180);
-  var minD = Infinity, inside = false;
-  for (var r = 0; r < rings.length; r++) {
-    var ring = rings[r], pts = [];
-    for (var k = 0; k < ring.length; k++) {
-      pts.push([(ring[k][1] - lng) * mLng, (ring[k][0] - lat) * mLat]);
-    }
-    for (var i = 0, j = pts.length - 1; i < pts.length; j = i++) {
-      var xi = pts[i][0], yi = pts[i][1], xj = pts[j][0], yj = pts[j][1];
-      if (((yi > 0) !== (yj > 0)) &&
-          (0 < (xj - xi) * (0 - yi) / (yj - yi) + xi)) inside = !inside;
-      var dx = xj - xi, dy = yj - yi, len2 = dx * dx + dy * dy;
-      var t = len2 ? ((0 - xi) * dx + (0 - yi) * dy) / len2 : 0;
-      t = Math.max(0, Math.min(1, t));
-      var cx = xi + t * dx, cy = yi + t * dy;
-      var d = Math.sqrt(cx * cx + cy * cy);
-      if (d < minD) minD = d;
-    }
-  }
-  return inside ? 0 : minD;
-}
-
-// Should this nest, displayed at coord c, be shown under the active filter?
-// Mirrors map_weather.js applyFilter for the "Nests" group:
-//   names === null  -> show all real nests, hide test-site nests;
-//   names non-empty -> show a nest within 50 m of an active patch, OR a test
-//                      nest whose patch_id is an active test patch.
-function apiNestPassesFilter(nest, c) {
-  var names = apiActivePatchNames();
-  if (names === null) {
-    return !apiIsTestNest(nest);   // hide test nests from the all-patches view
-  }
-  var nameSet = {};
-  var rings = [];
-  names.forEach(function (n) {
-    nameSet[n] = true;
-    if (window.fieldPatches && window.fieldPatches[n]) rings.push(window.fieldPatches[n]);
-  });
-  if (c && c.lat != null && c.lng != null) {
-    for (var i = 0; i < rings.length; i++) {
-      if (apiPointToPatch(Number(c.lat), Number(c.lng), rings[i]) <= 50) return true;
-    }
-  }
-  // Test patches have no polygon: match by the normalized test-patch key (the
-  // nest's raw patch_id is "snedgen_park"/"long_branch", the dropdown value is
-  // "test_snedgen_park"/"test_long_branch").
-  var pkey = apiNestPatchKey(nest);
-  if (pkey && nameSet[pkey] && apiIsTestPatch(pkey)) {
-    return true;
-  }
-  return false;
-}
-
-// point_id -> {lat, lng, photo} from the API-loaded gps points.
 function apiPointCoordIndex() {
   var idx = {};
-  (window.fieldMapPoints || []).forEach(function (p) {
-    if (p && p.point_id && p.lat != null && p.lng != null) {
-      idx[p.point_id] = { lat: p.lat, lng: p.lng, photo: p.photo || null };
+
+  (window.fieldMapMarkers || []).forEach(function (p) {
+    if (p && p.idx && p.lat != null && p.lng != null) {
+      idx[p.idx] = { lat: p.lat, lng: p.lng };
     }
   });
   return idx;
-}
-
-// Artificial = the nest's SPECIES is Artificial (code ARNE), or an NQ id. NOT
-// artificial_candidate -- that's a "could become artificial" flag real nests
-// carry, which must not drive the artificial icon.
-function apiNestIsArtificial(nest) {
-  return /^NQ/.test(String(nest.nest_id)) || nest.species_code === "ARNE";
-}
-
-function apiNestIsCurrent(nest) {
-  return nest.is_current === 1 || nest.is_current === true;
-}
-
-// Brood status, mirroring make_field_map.R (host eggs/young only, per the baked
-// logic). max_* is the peak over all checks; last_* is the latest check.
-function apiNestBroodStatus(nest) {
-  var fate = nest.nest_fate;
-  var maxYoung = Number(nest.max_young) || 0;
-  var maxEggs = Number(nest.max_eggs) || 0;
-  var lastYoung = Number(nest.last_young) || 0;
-  var lastEggs = Number(nest.last_eggs) || 0;
-  if (fate === "Success") return "Fledged";
-  if (fate === "Failure" && maxYoung > 0) return "Failed: Nestling stage";
-  if (fate === "Failure" && maxEggs > 0) return "Failed: Egg stage";
-  if (apiNestIsArtificial(nest)) return "Artificial";
-  if (lastYoung > 0) return "Nestlings";
-  if (lastEggs > 0) return "Eggs";
-  return "Inactive";
-}
-
-// icon_id, mirroring make_field_map.R's case_when. Artificial nests are keyed on
-// apiNestIsArtificial (NQ id OR species_code "ARNE") -- NOT the NQ id alone -- so
-// an ARNE nest identified only by species still resolves to the artificial icons.
-// A failed artificial nest maps to nest_failed_artificial (both icons exist in
-// window.fieldNestIcons), and the final return guarantees a valid icon id.
-function apiNestIconId(nest) {
-  var isArtificial = apiNestIsArtificial(nest);
-  var bs = apiNestBroodStatus(nest);
-  if (isArtificial && nest.nest_fate === "Failure") return "nest_failed_artificial";
-  if (isArtificial) return "nest_artificial";
-  if (bs === "Fledged" || bs === "Nestlings") return "nest_active_nestlings";
-  if (bs === "Eggs") return "nest_active_eggs";
-  if (bs === "Failed: Nestling stage") return "nest_failed_nestlings";
-  if (bs === "Failed: Egg stage") return "nest_failed_eggs";
-  if (bs === "Artificial") return "nest_artificial";
-  return "nest_inactive";
-}
-
-// Display sizes: match the ORIGINAL R map (make_field_map.R / make_flexsize_icon,
-// .icon_width = 20.25, .modify_height = TRUE), so width is pinned to 20.25px and
-// height = 20.25 * (pngHeight / pngWidth) per icon's real aspect ratio.
-var NEST_ICON_WIDTH = 20.25;
-var NEST_ICON_SIZE = {
-  nest_active_eggs: [20.25, 14.28],       // 397x280
-  nest_active_nestlings: [20.25, 17.46],  // 638x550
-  nest_artificial: [20.25, 14.28],        // 397x280
-  nest_inactive: [20.25, 12.4],           // 397x243
-  nest_failed_eggs: [20.25, 14.28],       // 638x450
-  nest_failed_nestlings: [20.25, 17.46],  // 638x550
-  nest_failed_artificial: [20.25, 14.28]  // 397x280
-};
-
-// Zoom-driven icon scale, mirroring map_weather.js scaleIconsForZoom:
-//   s = clamp(1 - (19 - z) * 0.1, 0.1, 1). The baked "Nests" icons grow/shrink
-//   with zoom; this overlay clears that group, so we must reproduce the factor
-//   ourselves (see the zoomend handler registered in fieldRenderApiNests) so
-//   the live nests scale in lock-step with everything else on the map.
-function apiZoomScale() {
-  var map = window.fieldMap;
-  var z = (map && typeof map.getZoom === "function") ? map.getZoom() : 19;
-  return Math.min(1, Math.max(0.1, 1 - (19 - z) * 0.1));
-}
-
-// Current/active nests render 1.15x larger, mirroring make_field_map.R's
-// fieldNestBig (applied by map_weather.js's scaleIconsForZoom) so live nests
-// stand out from the faded, concluded ones.
-var NEST_CURRENT_SCALE = 1.15;
-
-// Build a nest marker's icon, combining the zoom factor (s, from apiZoomScale)
-// with the 1.15 current-nest bump so both apply cleanly to the same base size.
-// zoomScale defaults to the map's current zoom factor; the zoomend handler
-// passes the fresh factor so it doesn't recompute it per marker.
-function apiNestLeafletIcon(iconId, isCurrent, zoomScale) {
-  var icons = window.fieldNestIcons || {};
-  // Resolve to an EXISTING inlined icon: use the requested id if present, else
-  // fall back to nest_inactive so a valid status/id that somehow lacks an inlined
-  // PNG (or an unexpected id) still draws a marker rather than silently failing.
-  var resolvedId = icons[iconId] ? iconId : "nest_inactive";
-  var url = icons[resolvedId];
-  if (!url) return null;   // icons not inlined at all -> caller falls back to a dot
-  var base = NEST_ICON_SIZE[resolvedId] || [NEST_ICON_WIDTH, 14];
-  var s = (zoomScale == null ? apiZoomScale() : zoomScale) *
-          (isCurrent ? NEST_CURRENT_SCALE : 1);
-  var sz = [base[0] * s, base[1] * s];
-  return L.icon({
-    iconUrl: url,
-    iconSize: sz,
-    iconAnchor: [sz[0] / 2, sz[1] / 2],
-    popupAnchor: [0, -sz[1] / 2],
-    tooltipAnchor: [0, -sz[1] / 2]
-  });
 }
 
 // Prettify a patch_id ("long_branch" -> "Long Branch").
@@ -9596,25 +9336,17 @@ function asDataUri(photo) {
 
 // ---- Lazy popup photo for old / migrated nests --------------------------
 //
-// New nests store their discovery photo on the GPS point's nav_photo, which
-// GET /gps_points returns as base64 -> fieldMapPoints[].photo -> the popup
-// `photo` param below. Migrated nests often have NO nav_photo (the source
-// geojson carried no nav thumbnail) and the migration never wrote the `photo`
-// table, so nothing the map already holds can show their photo. When a nest is
-// photoless here, fetch GET /nests/<id> on popup open: use its gps_point's
-// nav_photo if present, else a disk photo from its photos[] via GET /photos/<id>.
-// /photos/<id> is auth-gated, so a plain <img src> would 401 -- we fetch the
-// bytes WITH the bearer token and hand the popup an object URL. Results (incl.
-// "no photo") are cached so a re-opened popup doesn't refetch.
-// In-memory photo cache: nest_id -> dataURI (a hit), false (known no photo), or
-// an in-flight Promise (de-dupes concurrent callers).
+// Migrated nests often have no nav_photo, so nothing the map holds can show
+// their photo; fetch GET /nests/<id> on popup open instead. /photos/<id> is
+// auth-gated, so we fetch the bytes with the token rather than <img src>.
+
+// In-memory cache: nest_id -> dataURI (hit), false (known no photo), or an
+// in-flight Promise (de-dupes concurrent callers).
 var _apiNestPhotoCache = {};
 
-// The change feed (nestapi_wiring.js) calls this when a photo/gps_point change
-// arrives from another device, so a "no photo" miss cached before the photo
-// synced is dropped and the next popup open re-fetches. Memory only -- the
-// persistent IndexedDB cache is keyed per nest and additive, so it is kept
-// (a genuinely new nest is simply absent from it and gets fetched fresh).
+// The change feed calls this when a photo/gps_point change arrives from another
+// device, dropping a "no photo" miss cached before the photo synced. Memory
+// only: the IndexedDB cache is per-nest and additive, so it is kept.
 window.NestApiData = window.NestApiData || {};
 window.NestApiData.clearNestPhotoCache = function () { _apiNestPhotoCache = {}; };
 
@@ -9625,10 +9357,9 @@ function apiCredsOnline() {
 
 // ---- Persistent photo cache (IndexedDB via NestApi.store `meta`) ----------
 //
-// A nest's photo is fetched ONCE and reused across sessions, so popups open
-// instantly from cache with no broken-image "?" flash and only NEW nests are
-// fetched on later opens. Held as one meta blob { nest_id: dataURI }, mirrored
-// in memory (_apiNestPhotoIdb) after a one-time load so reads are cheap.
+// A nest's photo is fetched once and reused across sessions, so only new nests
+// are fetched later. One meta blob { nest_id: dataURI }, mirrored in memory
+// after a one-time load so reads are cheap.
 var IDB_PHOTO_KEY = "apiNestPhotos";
 var _apiNestPhotoIdb = null;      // nest_id -> dataURI (null until loaded)
 var _apiNestPhotoIdbLoad = null;  // in-flight load promise
@@ -9711,11 +9442,9 @@ function apiSetSlotPhoto(slot, uri) {
   im.src = uri;
 }
 
-// Resolve a nest's best photo as a data URI (Promise -> dataURI | false). Order:
-// in-memory cache, then the persistent IndexedDB cache, then the network (the
-// gps point's nav_photo, else a disk photo from the `photo` table, discovery
-// preferred). Persists any hit so later sessions skip the fetch. false == the
-// nest truly has no photo anywhere.
+// Resolve a nest's best photo as a data URI (Promise -> dataURI | false).
+// Order: memory, IndexedDB, then network (nav_photo, else the `photo` table).
+// Persists any hit. false == the nest has no photo anywhere.
 function apiResolveNestPhoto(nestId) {
   if (!nestId) return Promise.resolve(false);
   nestId = String(nestId);
@@ -9764,11 +9493,9 @@ function apiLazyLoadNestPhoto(nestId, slot) {
   });
 }
 
-// Background prefetch: after boot, resolve every nest's photo into the cache so
-// popups open instantly with no "?" flash. IndexedDB-backed, so only nests not
-// already cached are fetched on later sessions. Throttled (a few in flight) so it
-// never competes with the field UI. No-op offline / without creds. Safe to call
-// repeatedly (skips anything already cached).
+// Background prefetch: resolve every nest's photo into the cache after boot so
+// popups open instantly. Throttled so it never competes with the field UI.
+// No-op offline / without creds; safe to call repeatedly.
 var _apiPrefetchRunning = false;
 function apiPrefetchNestPhotos() {
   if (_apiPrefetchRunning || !apiCredsOnline()) return;
@@ -9804,116 +9531,15 @@ function apiPrefetchNestPhotos() {
 }
 window.NestApiData.prefetchNestPhotos = apiPrefetchNestPhotos;
 
-// Rich popup mirroring make_nest_popup (the nest_app popup): discovery + latest-
-// check summary, optional nav photo, and the standard nest actions.
-function apiNestPopupHtml(nest, photo) {
-  var id = String(nest.nest_id);
-  var idJs = id.replace(/'/g, "\\'");
-  var esc = escapeHtml;
-  var dash = function (v) {
-    return (v == null || v === "") ? "—" : esc(String(v));
-  };
-  var species = nest.species_other || nest.species_common || nest.species_code;
+// Fill a popup's .api-nest-photo-slot. map_weather.js's renderMapPoints()
+// calls this on popupopen -- the only hook the renderer needs from here.
+window.NestApiData.lazyLoadNestPhoto = apiLazyLoadNestPhoto;
 
-  // Discovery photo, best available source:
-  //  1. a photo field carried on the nest row itself (if the API ever inlines one),
-  //  2. niFindPhoto(nest_id) -- the app-cached / baked discovery photo for this nest,
-  //  3. the gps point's nav_photo (passed in as `photo`), taken at discovery here.
-  // Seed any photo the map already holds into the cache so the slot fills
-  // INSTANTLY from cache on open -- but never embed a still-loading <img> into the
-  // popup markup (that raw <img> is exactly the broken-image "?" box). The slot's
-  // image is swapped in only once decoded (apiSetSlotPhoto's img.onload).
-  var rawPhoto =
-    nest.discovery_photo || nest.photo || nest.nav_photo ||
-    (typeof niFindPhoto === "function" ? niFindPhoto(id) : null) ||
-    photo;
-  var img = asDataUri(rawPhoto);
-  if (img && typeof _apiNestPhotoCache[id] !== "string") {
-    _apiNestPhotoCache[id] = img;
-    apiPersistPhoto(id, img);
-  }
+// THE resolver: nest_id -> dataURI | false. Memory, then IndexedDB, then the
+// network. Exposed so the nest-info page shares this path -- its own weaker
+// one read only nav_photo, so photo-table nests (NQ060) showed only in popups.
+window.NestApiData.resolveNestPhoto = apiResolveNestPhoto;
 
-  // Order: photo first, then the nest details, then the action buttons. Always an
-  // (initially empty) slot the popupopen handler fills from cache, else a lazy
-  // fetch -- so a loading image never shows as a broken box.
-  var html = '<div style="font-family:Times;min-width:190px;">';
-  html += '<div class="api-nest-photo-slot" data-nest="' + esc(id) +
-    '" style="margin:0 0 6px;"></div>';
-  html +=
-    "<h3 style=\"margin:0 0 4px;\"><strong>" + esc(id) +
-    "</strong>. Species: " + (species ? esc(String(species)) : "—") + "</h3>" +
-    "<ul style=\"margin:0 0 6px;padding-left:16px;\">" +
-    "<li><strong>Patch</strong>: " + esc(prettyPatch(nest.patch_id)) + "</li>" +
-    "<li><strong>Plant species</strong>: " + dash(nest.substrates) + "</li>" +
-    "<li><strong>Height</strong>: " + dash(nest.height_m) + "</li>" +
-    "<li><strong>Location description</strong>: " + dash(nest.location_description) + "</li>" +
-    "<li><strong>Discovered on</strong>: " + dash(nest.discovery_date) + "</li>" +
-    "<li><strong>Last checked on</strong>: " + dash(nest.last_check) + "</li>" +
-    "<li><strong>Current status</strong>: " + esc(apiNestBroodStatus(nest)) + "</li>" +
-    "<li><strong>N eggs (last check)</strong>: " + dash(nest.last_eggs) + "</li>" +
-    "<li><strong>N young (last check)</strong>: " + dash(nest.last_young) + "</li>" +
-    "</ul>" +
-    '<div style="margin-top:4px;">' +
-    // Per Tara: nest popups carry Navigate, a link to this nest on the Nests page
-    // (fieldOpenNestInfo), and Modify. Only "Add interval" was removed.
-    '<button type="button" class="field-popup-btn" onclick="window.fieldNavigateNest(\'' + idJs + '\')">Navigate</button> ' +
-    '<button type="button" class="field-popup-btn" onclick="window.fieldOpenNestInfo(\'' + idJs + '\')">Nest page</button> ' +
-    '<button type="button" class="field-popup-btn" onclick="window.fieldOpenNestModify(\'' + idJs + '\')">Modify</button>' +
-    '</div></div>';
-  return html;
-}
-
-// All nests in `list` share one point. Mirror make_field_map.R, which at a
-// shared point DROPS the host "N###" whenever its artificial "NQ###" twin
-// exists (filter(!name %in% str_replace(NQ..., "^NQ", "N"))) -- so the
-// ARTIFICIAL nest always wins its shared point, even once it has FAILED
-// (concluded, is_current = 0). Without this, a failed ARNE that shares its
-// host's GPS point loses to the still-current host and never shows the
-// failed-artificial icon (bug #1). Ordering:
-//   1. artificial nests (NQ / ARNE) win the point outright;
-//   2. within the winning pool, a current nest beats a concluded one (so a
-//      live nest still beats an old one when neither is artificial, and a
-//      still-active ARNE beats a concluded ARNE);
-//   3. ties break to the newest discovery_date.
-function pickDisplayForPoint(list) {
-  var artificial = list.filter(apiNestIsArtificial);
-  var pool = artificial.length ? artificial : list;
-  var current = pool.filter(apiNestIsCurrent);
-  pool = current.length ? current : pool;
-  pool.sort(function (a, b) {
-    return String(b.discovery_date || "").localeCompare(String(a.discovery_date || ""));
-  });
-  return pool[0];
-}
-
-// Deterministic screen-pixel offset for the i-th of n markers stacked at one
-// point, so co-located (or near-co-located) nests each get a visible, separately
-// tappable marker instead of collapsing into one (bug: N004/N005/N103 hidden
-// under a near-neighbour). A lone marker at a point gets none; a stack fans out
-// evenly around a small ring.
-function apiStackPixelOffset(i, n) {
-  if (!n || n <= 1) return null;
-  var R = 15;                            // ring radius, screen px
-  var ang = (2 * Math.PI * i) / n;
-  return [Math.round(R * Math.cos(ang)), Math.round(R * Math.sin(ang))];
-}
-
-// Place a marker at its TRUE coordinate plus any stack offset. The offset is
-// applied in screen space (through the map projection) so the fan stays constant
-// across zooms; the zoomend handler re-runs this to keep it stable. Navigation
-// still resolves each nest's own real coordinate (fieldNavigateNest), so the
-// display nudge never moves where "Navigate" actually sends you.
-function apiPlaceStackedMarker(map, m) {
-  if (!m || !m._apiBaseLatLng || typeof m.setLatLng !== "function") return;
-  var base = m._apiBaseLatLng;
-  var off = m._apiStackOffset;
-  if (!off || (!off[0] && !off[1])) { m.setLatLng(base); return; }
-  var pt = map.latLngToLayerPoint(L.latLng(base[0], base[1]));
-  m.setLatLng(map.layerPointToLatLng(L.point(pt.x + off[0], pt.y + off[1])));
-}
-
-// Navigate to a nest by id (popup action). Prefers the API point coords, falls
-// back to whatever niCoords knows.
 window.fieldNavigateNest = function (nestId) {
   var idx = apiPointCoordIndex();
   var nest = (window.fieldApiNests || []).filter(function (n) {
@@ -9926,181 +9552,6 @@ window.fieldNavigateNest = function (nestId) {
     startNavigation({ latitude: c.lat, longitude: c.lng, point_name: nestId });
   }
 };
-
-// (Re)draw the overlay from the current globals. Safe to call repeatedly.
-window.fieldRenderApiNests = function () {
-  if (!window.NestApi || !NestApi.settings || !NestApi.settings.hasCreds()) return;
-  var map = window.fieldMap;
-  if (!map || typeof L === "undefined") return;
-
-  // Rescale the overlay's icons on zoom, mirroring map_weather.js's zoomend
-  // handler on the baked "Nests" group. Registered ONCE per map (guard flag),
-  // since fieldRenderApiNests re-runs on every load/filter change. Each marker
-  // is rebuilt from its remembered base icon id + current flag with the fresh
-  // zoom factor, so the zoom and 1.15 current-nest factors stay combined.
-  if (!map._apiNestZoomBound) {
-    map._apiNestZoomBound = true;
-    map.on("zoomend", function () {
-      if (!_apiNestLayer) return;
-      var s = apiZoomScale();
-      _apiNestLayer.eachLayer(function (m) {
-        apiPlaceStackedMarker(map, m);   // keep the stack fan constant in screen px
-        if (!m || m._apiIconId == null || typeof m.setIcon !== "function") return;
-        var ic = apiNestLeafletIcon(m._apiIconId, m._apiIsCurrent, s);
-        if (ic) m.setIcon(ic);
-      });
-    });
-  }
-
-  // Retire the baked nest markers (an R-leaflet group, hidden by default) so
-  // this live layer is the SOLE nest source -- prevents duplicates if the user
-  // toggles the baked "Nests" group on. Safe no-op if the API isn't present.
-  try {
-    if (map.layerManager && typeof map.layerManager.clearGroup === "function") {
-      map.layerManager.clearGroup("Nests");
-    }
-  } catch (e) {}
-
-  var nests = window.fieldApiNests || [];
-  var coordIdx = apiPointCoordIndex();
-
-  // Resolve a nest's map coordinate. Prefer the API gps-point index (keyed by
-  // gps_point_id); if that misses -- e.g. a change-feed refetch rebuilt
-  // fieldMapPoints without this nest's point, or the point lacks a name and was
-  // filtered out -- fall back to niCoords(nest_id) (fieldMapPoints-by-name plus
-  // the local waypoint store). This stops a nest from silently VANISHING on a
-  // later render just because its point dropped out of the freshly-built index.
-  function coordForNest(n) {
-    if (n && n.gps_point_id && coordIdx[n.gps_point_id]) return coordIdx[n.gps_point_id];
-    if (n && n.nest_id && typeof niCoords === "function") {
-      var c = niCoords(String(n.nest_id));
-      if (c && c.lat != null && c.lng != null) return { lat: c.lat, lng: c.lng, photo: null };
-    }
-    return null;
-  }
-
-  // make_field_map.R drops a host N### wherever its artificial NQ### twin exists
-  // (they are the SAME physical structure), so build that host-drop set first --
-  // an ID-based merge, not a location one, so genuinely distinct near-neighbour
-  // nests are never dropped.
-  var dropHost = {};
-  nests.forEach(function (n) {
-    if (n && /^NQ/i.test(String(n.nest_id))) {
-      dropHost["N" + String(n.nest_id).replace(/^NQ/i, "")] = true;
-    }
-  });
-
-  // Collapse nests that share ONE physical GPS point (same gps_point_id) into a
-  // single display winner FIRST. A host nest and its artificial NQ twin -- or any
-  // duplicate/near-duplicate nest rows -- are the SAME structure at the SAME
-  // point, so they must never fan into two offset markers (bug: a new/artificial
-  // nest showing two markers, one status icon + one neutral). pickDisplayForPoint
-  // picks the artificial/current winner, mirroring make_field_map.R's "current
-  // nest wins per shared point". This is more robust than the id-based dropHost
-  // above, which fails when the server allocates an NQ id whose number differs
-  // from its host's. Nests with no gps_point_id stand alone (keyed by nest_id),
-  // so genuinely distinct near-neighbour points still get their own markers.
-  var byGps = {};
-  nests.forEach(function (n) {
-    if (!n) return;
-    if (dropHost[String(n.nest_id)]) return;   // host merged into its NQ twin
-    var key = n.gps_point_id ? ("gp:" + n.gps_point_id) : ("nid:" + n.nest_id);
-    (byGps[key] = byGps[key] || []).push(n);
-  });
-
-  // Group the per-point winners by rounded lat,lng to detect stacks. Each winner
-  // keeps its OWN marker; a small deterministic pixel offset (apiStackPixelOffset)
-  // fans out genuinely distinct co-located points so each stays visible and
-  // separately tappable (N004/N005/N103), without collapsing them into one.
-  var byPoint = {};
-  Object.keys(byGps).forEach(function (gk) {
-    var n = pickDisplayForPoint(byGps[gk]);
-    if (!n) return;
-    var c = coordForNest(n);
-    if (!c) return;   // no resolvable coordinate anywhere -> genuinely unmappable
-    // "Subset to today's data" / patch dropdown: skip nests outside the active
-    // patch set (matches the baked map) BEFORE they influence a stack's offsets.
-    if (!apiNestPassesFilter(n, c)) return;
-    var key = "ll:" + Number(c.lat).toFixed(6) + "," + Number(c.lng).toFixed(6);
-    (byPoint[key] = byPoint[key] || []).push({ nest: n, coord: c });
-  });
-
-  if (_apiNestLayer) { map.removeLayer(_apiNestLayer); _apiNestLayer = null; }
-  _apiNestLayer = L.layerGroup();
-
-  Object.keys(byPoint).forEach(function (pid) {
-    var group = byPoint[pid];
-    // Stable order so each nest's offset is deterministic across re-renders.
-    group.sort(function (a, b) {
-      return String(a.nest.nest_id).localeCompare(String(b.nest.nest_id));
-    });
-    var count = group.length;
-    group.forEach(function (item, i) {
-      var nest = item.nest;
-      var c = item.coord;
-      var faded = !apiNestIsCurrent(nest);   // concluded nests render at 50%
-      var iconId = apiNestIconId(nest);
-      var licon = apiNestLeafletIcon(iconId, !faded);
-      var m;
-      if (licon) {
-        m = L.marker([c.lat, c.lng], { icon: licon, opacity: faded ? 0.5 : 1 });
-        // Remember what to rebuild on zoom (see the zoomend handler): the icon id
-        // and whether the 1.15 current-nest bump applies.
-        m._apiIconId = iconId;
-        m._apiIsCurrent = !faded;
-      } else {
-        // Fallback if the inlined icons aren't present: a colored dot.
-        m = L.circleMarker([c.lat, c.lng], {
-          radius: 7,
-          weight: 2,
-          color: "#ffffff",
-          fillColor: apiNestIsArtificial(nest) ? "#2b6cb0" : "#2f855a",
-          fillOpacity: faded ? 0.45 : 0.95
-        });
-      }
-      // Fan co-located nests apart so each is individually visible/clickable.
-      m._apiBaseLatLng = [c.lat, c.lng];
-      m._apiStackOffset = apiStackPixelOffset(i, count);
-      apiPlaceStackedMarker(map, m);
-      m.bindPopup(apiNestPopupHtml(nest, c.photo));
-      // Old/migrated nests carry no photo in fieldMapPoints; fill the popup's
-      // photo slot on open via a lazy GET /nests/<id> (see apiLazyLoadNestPhoto).
-      m.on("popupopen", function (ev) {
-        var el = ev.popup && ev.popup.getElement && ev.popup.getElement();
-        var slot = el && el.querySelector(".api-nest-photo-slot");
-        if (slot) apiLazyLoadNestPhoto(slot.getAttribute("data-nest"), slot);
-      });
-      // Id label, hidden by default (shows on hover -- like the baked map).
-      m.bindTooltip(String(nest.nest_id), {
-        permanent: false,
-        direction: "top",
-        offset: [0, -6],
-        className: "api-nest-label"
-      });
-      _apiNestLayer.addLayer(m);
-    });
-  });
-
-  _apiNestLayer.addTo(map);
-};
-
-// Keep the overlay's filter state in lock-step with map_weather.js by listening
-// to the SAME host-page broadcasts (field_map_app.js posts these on the
-// "Subset to today's data" switch + patch dropdown). map_weather.js's own
-// listener repositions/opacity-filters the baked groups; ours re-renders the
-// live API overlay with the new patch subset. Toggling the switch also resets
-// the dropdown to "__all__" in the host page (it posts setPatch too), so we
-// honour both messages. Re-render only when creds are present (no-op otherwise).
-window.addEventListener("message", function (e) {
-  var d = e && e.data;
-  if (!d || !d.type) return;
-  var changed = false;
-  if (d.type === "setToday") { _apiFilterToday = !!d.on; changed = true; }
-  else if (d.type === "setPatch") { _apiFilterPatch = d.name || "__all__"; changed = true; }
-  if (changed && typeof window.fieldRenderApiNests === "function") {
-    window.fieldRenderApiNests();
-  }
-});
 }
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", init);
@@ -10112,10 +9563,9 @@ if (document.readyState === "loading") {
 </div>
 <div class="cell">
 <div class="cell-output cell-output-stderr">
-<pre><code>Warning in
-readLines(here::here("brian_sandbox/nest_app_api/src/js/accordion.js")):
+<pre><code>Warning in readLines(here::here("outputs/nest_app_api/src/js/accordion.js")):
 incomplete final line found on
-'/Volumes/ssd980/gits/nest_study/brian_sandbox/nest_app_api/src/js/accordion.js'</code></pre>
+'/Volumes/ssd980/gits/nest_study/outputs/nest_app_api/src/js/accordion.js'</code></pre>
 </div>
 <div class="cell-output-display">
 <script>// I've extended and made our accordion more flexible to account for our two 
@@ -10673,7 +10123,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function nestPoint(nestId) {
-    var pts = window.fieldMapPoints || [];
+    var pts = window.fieldMapMarkers || [];
     for (var i = 0; i < pts.length; i++) {
       var p = pts[i];
       if (p.name === nestId && p.lat != null && p.lng != null &&
@@ -10686,7 +10136,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function buildNestMap(container, nestId) {
     if (!window.L) return null;
-    var pts = window.fieldMapPoints || [];
+    var pts = window.fieldMapMarkers || [];
     var target = nestPoint(nestId);
     if (!target) return null;
     var center = [target.lat, target.lng];
@@ -10719,7 +10169,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     pts.forEach(function (p) {
       var op = (p.name === nestId) ? 1 : 0.3;
-      var ic = window.fieldIcons && window.fieldIcons[p.icon_id];
+      var ic = window.fieldIcons && window.fieldIcons[p.icon];
       var marker;
       if (ic) {
         marker = window.L.marker([p.lat, p.lng], {
@@ -10803,13 +10253,13 @@ document.addEventListener("DOMContentLoaded", function () {
 <div class="cell-output-display">
 <script>// nestapi_wiring.js -- Settings screen + async boot data-load + live sync.
 //
-// The glue between the field app (baked Sheets/Drive globals) and the REST API
-// client (window.NestApi.*). Runs at end of body, after page_glue.js, so the
-// app's globals and DOM already exist. EVERY effect is gated on
-// NestApi.settings.hasCreds(): with no token stored, this file wires only the
-// Settings inputs and otherwise no-ops, leaving the baked data path untouched
-// (safe parallel run). Exposes a small window.NestApiWiring surface the app
-// IIFE calls into (e.g. cacheNest after a create).
+// The glue between the field app's globals and the REST API client
+// (window.NestApi.*). Runs at end of body, after page_glue.js, so the app's
+// globals and DOM already exist.
+//
+// Every effect is gated on NestApi.settings.hasCreds(): with no token stored
+// this file wires only the Settings inputs and otherwise no-ops. Exposes a
+// window.NestApiWiring surface the app IIFE calls into (e.g. cacheNest).
 (function () {
   "use strict";
 
@@ -10870,39 +10320,6 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  // ---- Shape mapping: API -> app globals --------------------------------
-
-  // GeoJSON FeatureCollection (GET /gps_points) -> the window.fieldMapPoints
-  // array shape the app expects: { name, lat, lng, icon_id, ... }. Only nest
-  // points get a nest icon; the app uses name/lat/lng for its lookups.
-  function gpsFcToMapPoints(fc) {
-    var feats = (fc && fc.features) || [];
-    return feats.map(function (f) {
-      var props = (f && f.properties) || {};
-      var coords = (f && f.geometry && f.geometry.coordinates) || [];
-      var cls = props["class"] || props.point_class || "";
-      return {
-        point_id: props.point_id || null,
-        name: props.name || props.point_name,
-        lat: coords[1],
-        lng: coords[0],
-        icon_id: (String(cls).toLowerCase() === "nest") ? "nest_inactive" : null,
-        point_class: cls,
-        note: props.note || null,
-        photo: props.nav_photo || props.photo || null,   // usually null now (lazy)
-        hasPhoto: !!(props.has_nav_photo || props.nav_photo || props.photo)
-      };
-    }).filter(function (p) {
-      // Keep EVERY point that has real coordinates. Points are in the DB because
-      // someone recorded them, so by default they must be available to render on
-      // every device -- dropping any here (previously: nameless non-nest points)
-      // silently hid DB points from other techs (bug: points missing on Tara's
-      // phone). Nest points resolve by point_id and a NULL point_name is common
-      // for migrated points; other classes render/lookup fine without a name too.
-      return p.lat != null && p.lng != null;
-    });
-  }
-
   // ---- IndexedDB cache helpers ------------------------------------------
 
   function cacheNest(nest) {
@@ -10919,14 +10336,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // ---- Live "today" filter (rebuild fieldToday from the schedule) --------
 
-  // The map's today-filter reads window.fieldToday.patches. make_field_map.R
-  // bakes that at RENDER time (a { patches:[...], fade:{"lat,lng":0.5} } entry
-  // selected from window.fieldSchedule for the phone's date), so if the schedule
-  // changes after render the map's "today" goes stale. Here we rebuild
-  // fieldToday.patches from the LIVE schedule rows (window.fieldScheduleRows,
-  // GET /schedule) for today's local date, then re-broadcast the current filter
-  // state so both filters (map_weather.js baked groups + nestapi_map.js API
-  // overlay) re-run against the fresh value.
+  // The map's today-filter reads window.fieldToday.patches, rebuilt from the
+  // live schedule rows. That is all it carries: per-marker opacity rides on
+  // each marker's v_map_point row, so no fade map here can go stale.
 
   function _todayIso() {
     var n = new Date();
@@ -10948,10 +10360,9 @@ document.addEventListener("DOMContentLoaded", function () {
   // one and any cache render (see renderSchedule precedence in nestapi_schedule).
   var _scheduleSeq = 0;
 
-  // Render the last-cached schedule from IndexedDB. Used when the live fetch
-  // fails so the schedule screen shows the most recent known week instead of a
-  // blank page. No-op if nothing was ever cached. Tagged {cache:true} so it can
-  // never overwrite a live render.
+  // Render the last-cached schedule from IndexedDB when the live fetch fails,
+  // so the screen shows the most recent known week instead of a blank page.
+  // Tagged {cache:true} so it can never overwrite a live render.
   function renderScheduleFromCache() {
     if (!store) return;
     store.getMeta("scheduleRows").then(function (cached) {
@@ -10969,76 +10380,50 @@ document.addEventListener("DOMContentLoaded", function () {
     return !!r && (r.field === true || String(r.field) === "TRUE");
   }
 
-  // ---- Marker styling, straight from the DB (GET /map_points) --------------
-  //
-  // The v_map_point view decides how every marker renders: its opacity already
-  // folds in BOTH fades (non-current AND not-scheduled-today), and its size
-  // carries the 15%-larger rule for current nests. We translate those rows into
-  // the two "lat,lng"-keyed maps map_weather.js already reads, so the rendering
-  // code is untouched but the NUMBERS are the database's, not re-derived here.
-  // This replaces the old client-side fade computation, which had to re-join the
-  // schedule against point names and silently produced nothing when any of that
-  // drifted (every coverboard/trailcam stuck at full opacity).
+  // ---- The map's markers, straight from the DB (GET /map_points) ----------
 
-  var _mapPointFade = Object.create(null);  // point_id -> opacity (<1 only)
-  var _mapPointBig = Object.create(null);   // point_id -> true (render larger)
-
-  function applyMapPointStyles(rows) {
+  // The map's markers ARE these rows (GET /map_points -> the v_map_point view).
+  // renderMapPoints() draws them; nothing here re-derives any of it. Errors are
+  // logged, not swallowed -- a silent catch here cost a long debugging session.
+  function applyMapPoints(rows) {
     if (!Array.isArray(rows) || !rows.length) return false;
-    var todayFade = Object.create(null);   // -> window.fieldToday.fade
-    var nestFade = Object.create(null);    // -> window.fieldNestFade
-    var big = Object.create(null);         // -> window.fieldNestBig
-    rows.forEach(function (r) {
-      if (!r) return;
-      // Join on the DB primary key (gps_point.point_id), which map_weather.js
-      // stamps onto every marker as _pointId. Never join on coordinates: the
-      // serializer rounds doubles to 4dp, and a coordinate join fails SILENTLY
-      // (matches nothing) rather than erroring.
-      var key = r.idx;
-      if (!key) return;
-      // Keep the two fades SEPARATE, exactly as applyFilter applies them: the
-      // non-current fade always, the today fade only while the today-subset is
-      // on. (The view also gives a combined `opacity`, but using that alone
-      // would make the toggle unable to tell them apart.)
-      if (Number(r.is_current) === 0) nestFade[key] = 0.5;
-      if (Number(r.scheduled_today) === 0) todayFade[key] = 0.5;
-      if (Number(r.size) > 1) big[key] = true;
-    });
-    _mapPointFade = todayFade;
-    _mapPointBig = big;
-    window.fieldNestFade = nestFade;
-    window.fieldNestBig = big;
-    if (window.fieldToday) window.fieldToday.fade = todayFade;
-    rebroadcastFilterState();
+    window.fieldMapMarkers = rows;
+    if (typeof window.fieldRenderMapPoints === "function") {
+      try { window.fieldRenderMapPoints(); } catch (e) {
+        if (window.console) console.error("renderMapPoints failed:", e);
+      }
+    }
     return true;
   }
 
-  // Fetch the marker styling and apply it. Cache-backed so an offline boot still
-  // styles the map from the last known state.
-  function loadMapPointStyles() {
+  // Fetch the markers and draw them. Cache-backed: a later launch redraws from
+  // IndexedDB offline (the first offline launch is bare -- accepted trade).
+  // Exposed so a local write can redraw at once, not on the next poll.
+  function loadMapPoints() {
     return api.getMapPoints().then(function (rows) {
-      if (!applyMapPointStyles(rows)) return false;
+      if (!applyMapPoints(rows)) return false;
       if (store) store.setMeta("mapPoints", rows).catch(function () {});
       return true;
-    }).catch(function () {
+    }).catch(function (err) {
+      if (window.console) {
+        console.warn("GET /map_points failed (" +
+          ((err && err.status) || "network") + "): " +
+          ((err && err.message) || err) + " -- falling back to cache.");
+      }
       if (!store) return false;
       return store.getMeta("mapPoints").then(function (cached) {
-        return applyMapPointStyles(cached);
+        return applyMapPoints(cached);
       }).catch(function () { return false; });
     });
   }
 
-  // Rebuild window.fieldToday from window.fieldScheduleRows for today's local
-  // date. "Today's patches" is every patch VISITED today, so we take the UNION
-  // of the day's point-count patches (patch_count) AND its nest-search patches
-  // (search_patch_1/2): a patch searched today but not point-counted (e.g.
-  // witch_hazel) is still "today", and its nests must not be hidden by the map
-  // filter. Values are used RAW (not prettified) so they match window.fieldPatches
-  // keys and the dropdown option values the filters compare against. Mirrors the
-  // R selector's fallback: if today is not a field day (e.g. Sunday) advance to
-  // the next scheduled field day so the map never blanks. Returns true if it
-  // updated fieldToday, false if it left the baked value untouched (empty/absent
-  // rows).
+  // Rebuild window.fieldToday from fieldScheduleRows for today's local date.
+  // "Today's patches" is the UNION of the day's point-count patches and its
+  // nest-search patches: a patch searched but not counted is still today.
+  //
+  // Values stay RAW (not prettified) so they match fieldPatches keys and the
+  // dropdown values. If today is not a field day, advance to the next one so
+  // the map never blanks. Returns true if it updated fieldToday.
   function rebuildFieldToday() {
     var rows = window.fieldScheduleRows;
     if (!Array.isArray(rows) || !rows.length) return false; // keep baked value
@@ -11081,21 +10466,20 @@ document.addEventListener("DOMContentLoaded", function () {
       addPatch(r.search_patch_2);
     });
 
-    // patches drive the today-subset (hide/show); the per-marker fade comes from
-    // the DB via applyMapPointStyles(), so carry the latest one through rather
-    // than recomputing (or, as this once did, nulling) it here.
-    window.fieldToday = {
-      date: pick,
-      patches: patches,
-      fade: _mapPointFade
-    };
+    // patches drive the today-subset (hide/show). Per-marker opacity is NOT
+    // here any more: it rides on each marker's v_map_point row (opacityFor).
+    window.fieldToday = { date: pick, patches: patches };
+    // The patch dropdown + Nests-page "today" flags are built from this, and it
+    // is no longer baked -- so tell them it now exists / just changed.
+    try {
+      window.dispatchEvent(new Event("fieldtoday:changed"));
+    } catch (e) {}
     return true;
   }
 
-  // Re-broadcast the current filter state (switch + dropdown) so both listeners
-  // (map_weather.js setToday/setPatch and nestapi_map.js) re-read the fresh
-  // window.fieldToday and re-filter. Defaults mirror the app: switch on,
-  // dropdown "__all__".
+  // Re-broadcast the current filter state (switch + dropdown) so the listeners
+  // re-read the fresh window.fieldToday and re-filter. Defaults mirror the app:
+  // switch on, dropdown "__all__".
   function rebroadcastFilterState() {
     var toggle = document.getElementById("todayToggle");
     var on = toggle ? !!toggle.checked : true;
@@ -11118,19 +10502,17 @@ document.addEventListener("DOMContentLoaded", function () {
   var loadedOnce = false;
   var _probedLookups;   // one-shot: auth-probe lookups handed to the next bootDataLoad
 
-  // Fetch lookups / nests / gps_points / predator cameras, map them into the
-  // shapes the app expects, cache them, populate the globals, and re-render.
-  // Non-blocking: shows a loading state, resolves regardless. On a network
-  // failure it falls back to the IndexedDB cache, then to the baked data.
-  // Load the schedule INDEPENDENTLY of the heavier nests/gps batch: the schedule
-  // render used to wait on Promise.all, so a slow GET /gps_points (base64 photos
-  // for every point) delayed the schedule screen by many seconds. Cache-first --
-  // show the last-known week instantly, then overwrite when the live fetch lands.
+  // Fetch lookups / nests / gps_points / predator cameras, cache them, populate
+  // the globals, re-render. Non-blocking; on a network failure it falls back to
+  // the IndexedDB cache.
+  //
+  // The schedule loads INDEPENDENTLY of the heavier nests/gps batch, which used
+  // to delay it by seconds via Promise.all. Cache-first: show the last-known
+  // week instantly, then overwrite when the live fetch lands.
   function loadSchedule() {
-    // Seed the giraffe lookup (fieldApiNests) from the nests cache FIRST, so the
-    // schedule's selfie-stick 🦒 marks show immediately with the cache-first
-    // render -- otherwise they wait on the (slow) fresh getNests in the boot
-    // batch. The fresh nests re-render (see bootDataLoad) refreshes them later.
+    // Seed the giraffe lookup (fieldApiNests) from the nests cache first, so the
+    // schedule's selfie-stick marks show with the cache-first render instead of
+    // waiting on the slow getNests in the boot batch. bootDataLoad refreshes.
     var seed = (store && !(Array.isArray(window.fieldApiNests) && window.fieldApiNests.length))
       ? store.getAll("nests").then(function (cached) {
           if (Array.isArray(cached) && cached.length &&
@@ -11218,11 +10600,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
       if (gps && gps.features) {
         gotAnything = true;
-        window.fieldMapPoints = gpsFcToMapPoints(gps);
-        // Cache raw features so an offline boot can rebuild fieldMapPoints.
+
+        // GET /gps_points exists ONLY to restore waypoints now: markers come
+        // from GET /map_points. The waypoint store needs raw props (colour,
+        // datetime, nav_photo_name) the v_map_point view does not carry.
+
         if (store) store.setMeta("gpsPointsFC", gps).catch(function () {});
-        // Restore non-Temp waypoints into the local store so they survive a
-        // cache clear (they're already in the DB; Temp is never uploaded).
+
         if (typeof window.fieldMergeApiWaypoints === "function") {
           try { window.fieldMergeApiWaypoints(gps); } catch (e) {}
         }
@@ -11239,7 +10623,7 @@ document.addEventListener("DOMContentLoaded", function () {
       // Marker styling (opacity / size) comes from the DB view. Fire-and-forget:
       // it re-broadcasts the filter state itself, so a slow response simply
       // restyles a moment later rather than holding up the boot.
-      loadMapPointStyles();
+      loadMapPoints();
 
       reRender();
       loadedOnce = true;
@@ -11261,7 +10645,14 @@ document.addEventListener("DOMContentLoaded", function () {
       store.getMeta("scheduleRows").catch(function () { return null; })
     ]).then(function (res) {
       var fc = res[0], nests = res[1], cams = res[2], sched = res[3];
-      if (fc && fc.features) window.fieldMapPoints = gpsFcToMapPoints(fc);
+
+      // Waypoints only: the cached mapPoints rows (restored below) are what
+      // the markers are drawn from.
+
+      if (fc && fc.features && typeof window.fieldMergeApiWaypoints === "function") {
+        try { window.fieldMergeApiWaypoints(fc); } catch (e) {}
+      }
+
       if (Array.isArray(nests) && nests.length) window.fieldApiNests = nests;
       if (Array.isArray(cams)) window.fieldPredatorCameras = cams;
       if (Array.isArray(sched) && sched.length) {
@@ -11275,7 +10666,7 @@ document.addEventListener("DOMContentLoaded", function () {
       // Offline: style the markers from the last cached /map_points rows.
       if (store) {
         store.getMeta("mapPoints").then(function (cached) {
-          applyMapPointStyles(cached);
+          applyMapPoints(cached);
         }).catch(function () {});
       }
       reRender();
@@ -11283,32 +10674,25 @@ document.addEventListener("DOMContentLoaded", function () {
     }).catch(function () { reflectCreds(); });
   }
 
-  // Push lookup vocabularies into the globals the app reads. The app's picker
-  // lists (NEST_SPECIES/NEST_SUBSTRATES) live inside the IIFE closure and can't
-  // be reassigned from here, so we expose the lookups for the app to consult
-  // and overwrite the flat window-level vocab globals that ARE reachable.
+  // Push lookup vocabularies into the globals the app reads. The picker lists
+  // live inside the IIFE closure and can't be reassigned from here, so expose
+  // the lookups and overwrite the window-level vocab globals that ARE reachable.
   function applyLookups(l) {
     window.fieldApiLookups = l;
     if (l.patches && !window.fieldApiPatches) window.fieldApiPatches = l.patches;
     if (l.observers) window.fieldApiObservers = l.observers;
   }
 
-  // Coarse re-render: repopulate the waypoint layer/manager (the parts that
-  // read window.fieldMapPoints at call time). A full rebuild of the R-rendered
-  // primary map layer is out of scope here; see WIRING_STATUS.md.
+  // Repopulate the waypoint layer/manager. The markers themselves are not
+  // touched here: loadMapPoints() -> renderMapPoints() owns those.
+
   function reRender() {
     try {
       if (typeof window.renderWaypoints === "function") window.renderWaypoints();
     } catch (e) {}
-    // Draw/refresh the live API nest overlay (current nests, incl. app-created
-    // ones not in the baked map), from the freshly loaded globals.
-    try {
-      if (typeof window.fieldRenderApiNests === "function") window.fieldRenderApiNests();
-    } catch (e) {}
-    // Warm the nest-photo cache SILENTLY, in the background, only once the map +
-    // UI have settled -- deferred to browser idle time (fallback: a short timer)
-    // so photo fetching never competes with the initial render. IndexedDB-backed
-    // and idempotent, so only new nests are ever fetched.
+    // Warm the nest-photo cache silently once the map and UI have settled,
+    // deferred to browser idle time so it never competes with the initial
+    // render. IndexedDB-backed and idempotent: only new nests are fetched.
     var warmPhotos = function () {
       try {
         if (window.NestApiData && typeof window.NestApiData.prefetchNestPhotos === "function") {
@@ -11346,11 +10730,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
   var syncStarted = false;
 
-  // Debounced, SELECTIVE refresh in reaction to the live change feed. The old
-  // behaviour re-ran the full 6-endpoint bootDataLoad + full re-render on every
-  // batch -- heavy and janky when other devices are actively editing. Instead
-  // we look at which entity types actually changed and refetch only those,
-  // coalescing a burst of batches into one refresh ~400ms later.
+  // Debounced, selective refresh driven by the live change feed. Refetches only
+  // the entity types that actually changed, coalescing a burst into one refresh
+  // ~400ms later, rather than re-running the whole 6-endpoint boot load.
   var _refreshTimer = null;
   var _pendingEntities = Object.create(null);
 
@@ -11366,22 +10748,16 @@ document.addEventListener("DOMContentLoaded", function () {
             window.NestApiData && typeof window.NestApiData.invalidateNest === "function") {
           try { window.NestApiData.invalidateNest(String(e.entity_id)); } catch (x) {}
         }
-        // An "interval_check" event's entity_id is the CHECK's surrogate id
-        // (e.g. 471), NOT the nest -- and a routine check emits no accompanying
-        // nest event -- so targeting entity_id invalidated a non-existent key
-        // and left the nest's cached interval list stale until a full reload.
-        // The event doesn't carry the parent nest id, so drop the whole detail
-        // cache on any interval change; it's cheap and refilled on demand.
+        // An interval_check event's entity_id is the CHECK's id, not the nest,
+        // so targeting it invalidated nothing and left the nest's interval list
+        // stale. Drop the whole detail cache instead: cheap, refills on demand.
         if (ent === "interval_check" &&
             window.NestApiData && typeof window.NestApiData.invalidateAllNests === "function") {
           try { window.NestApiData.invalidateAllNests(); } catch (x) {}
         }
-        // A photo or gps_point change on another device (e.g. Brian adds a nest
-        // point + discovery photo) means a nest that was PHOTOLESS here may now
-        // have one. The map popup lazy-fetches per nest and caches the result --
-        // including a "no photo" miss taken before the photo synced -- so drop
-        // that cache to force a re-fetch. (The cache lives in nestapi_map.js and
-        // registers this hook; no-op until it does.)
+        // A photo/gps_point change elsewhere means a nest that was photoless
+        // here may now have one, so drop the popup's per-nest cache (which may
+        // hold a "no photo" miss) to force a re-fetch. No-op until registered.
         if ((ent === "photo" || ent === "gps_point") &&
             window.NestApiData && typeof window.NestApiData.clearNestPhotoCache === "function") {
           try { window.NestApiData.clearNestPhotoCache(); } catch (x) {}
@@ -11422,7 +10798,6 @@ document.addEventListener("DOMContentLoaded", function () {
       var nests = res[0], gps = res[1], tracks = res[2], cams = res[3], sched = res[4];
       if (Array.isArray(nests)) { window.fieldApiNests = nests; cachePut("nests", nests); }
       if (gps && gps.features) {
-        window.fieldMapPoints = gpsFcToMapPoints(gps);
         if (store) store.setMeta("gpsPointsFC", gps).catch(function () {});
         if (typeof window.fieldMergeApiWaypoints === "function") {
           try { window.fieldMergeApiWaypoints(gps); } catch (e) {}
@@ -11444,9 +10819,10 @@ document.addEventListener("DOMContentLoaded", function () {
         // A live schedule edit landed -- rebuild the map's "today" + re-filter.
         refreshTodayFromSchedule();
       }
-      // A nest / point / schedule change can all move a marker's opacity or
-      // size, so re-pull the DB's styling verdict instead of inferring it here.
-      if (wantNests || wantGps || wantSched) loadMapPointStyles();
+      // Any nest / point / schedule change can move a marker, its icon, its
+      // opacity or its size, so re-pull the DB's rows and redraw rather than
+      // inferring it here. This is what syncs a new nest across devices.
+      if (wantNests || wantGps || wantSched) loadMapPoints();
       reRender();
     }).catch(function () {});
   }
@@ -11474,11 +10850,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // ---- Boot --------------------------------------------------------------
 
-  // Load with the stored token. Probes auth first: a 401 means a wrong/expired
-  // token, so we clear it and re-prompt via promptForToken (the primary token
-  // UI; a redundant Settings screen also exists and is slated for removal). Any
-  // other failure (offline, server down) keeps the token and falls back to the
-  // IndexedDB cache.
+  // Load with the stored token, probing auth first: a 401 means a wrong or
+  // expired token, so clear it and re-prompt. Any other failure (offline,
+  // server down) keeps the token and falls back to the IndexedDB cache.
   function loadWithToken() {
     api.getLookups().then(function (lookups) {
       _probedLookups = lookups;   // hand the probe result to bootDataLoad (no refetch)
@@ -11495,11 +10869,9 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  // First-run token prompt -- the primary token UI. The URL is baked
-  // (settings.DEFAULT_URL), so the tech only needs the token ("password"). Shown
-  // on first open with no token (and on a rejected token); on save it stores the
-  // token and loads. A redundant Settings screen (wireSettings) also exists and
-  // is slated for removal so this is the single token entry point.
+  // First-run token prompt -- the primary token UI. The URL is baked, so the
+  // tech only needs the token. Shown on first open and on a rejected token.
+  // The Settings screen (wireSettings) is a second, redundant entry point.
   function promptForToken(message) {
     var existing = document.getElementById("apiTokenPrompt");
     if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
@@ -11556,6 +10928,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   window.NestApiWiring = {
+    refreshMapPoints: loadMapPoints,
     cacheNest: cacheNest,
     bootDataLoad: bootDataLoad,
     flushQueue: flushQueue,
