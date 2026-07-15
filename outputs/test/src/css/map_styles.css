@@ -1,0 +1,360 @@
+/* fonts -----------------------------------------------------------------*/
+
+.leaflet-container,
+.leaflet-popup,
+.leaflet-popup-content,
+.leaflet-control,
+.leaflet-control-layers,
+.leaflet-control-layers label,
+.leaflet-control-scale-line,
+.location-accuracy-control,
+.leaflet-control-attribution,
+.leaflet-control-attribution a,
+.leaflet-control-zoom a {
+  font-family: var(--font, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, Helvetica, Arial, sans-serif) !important;
+}
+
+/* mobile sizing scale -----------------------------------------------------
+
+Tuning sizes: `sz` represents size and `fs` represents
+font size; vmin keeps each control a fixed portion of the screen; clamp()
+bounds the portion if the screen size is tiny or huge (e.g. iPad). */
+
+.field-mobile {
+
+  /* Adjustment knob for control sizing. 1 = full field size; lower shrinks
+     every control together. Landscape overrides this further below. */
+
+  --ui-scale: 0.5;
+
+  /* Height of the bottom menu bar. */
+
+  --menu-bar-h: 64px;
+
+  /* Layers button (target 150px). */
+
+  --sz-toggle:   calc(clamp(90px, 38vmin, 150px) * var(--ui-scale));
+
+  /* Radio and checkbox (target 80px). */
+
+  --sz-checkbox: calc(clamp(48px, 20vmin, 80px) * var(--ui-scale));
+
+  /* Zoom button (target 90px). */
+
+  --sz-zoom:     calc(clamp(56px, 23vmin, 90px) * var(--ui-scale));
+
+  /* Center button (target 120px). */
+
+  --sz-center:   calc(clamp(72px, 30vmin, 120px) * var(--ui-scale));
+
+  /* Layers panel (target 24px). */
+
+  --fs-layers:   calc(clamp(16px, 6vmin, 24px) * var(--ui-scale));
+
+  /* Layer labels (target 80px). */
+
+  --fs-label:    calc(clamp(40px, 20vmin, 80px) * var(--ui-scale));
+
+  /* Expanded title (target 42px). */
+
+  --fs-expanded: calc(clamp(24px, 10.5vmin, 42px) * var(--ui-scale));
+
+  /* Zoom glyphs (target 75px). */
+
+  --fs-zoom:     calc(clamp(44px, 19vmin, 75px) * var(--ui-scale));
+
+  /* Center glyph (target 115px). */
+
+  --fs-center:   calc(clamp(64px, 29vmin, 115px) * var(--ui-scale));
+
+  /* Scale and accuracy (target 36px). */
+
+  --fs-readout:  calc(clamp(22px, 9vmin, 36px) * var(--ui-scale));
+}
+
+/* layer control ---------------------------------------------------------*/
+
+.field-mobile .leaflet-control-layers {
+  font-size: var(--fs-layers);
+  line-height: 2;
+  padding: 0.4em 1em;
+}
+
+.field-mobile .leaflet-control-layers-toggle {
+  width: var(--sz-toggle);
+  height: var(--sz-toggle);
+  background-size: 83% 83%;
+}
+
+.field-mobile .leaflet-control-layers-expanded {
+  font-size: var(--fs-expanded);
+  line-height: 1.8;
+  padding: 0.4em 0.8em;
+
+  /* Keep a long overlay list scrollable instead of overflowing. */
+
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.field-mobile .leaflet-control-layers label {
+  font-size: var(--fs-label);
+  line-height: 1.8;
+  padding: 0.15em 0;
+  display: flex;
+  align-items: center;
+}
+
+.field-mobile .leaflet-control-layers input[type='radio'],
+.field-mobile .leaflet-control-layers input[type='checkbox'] {
+  width: var(--sz-checkbox);
+  height: var(--sz-checkbox);
+  margin-right: 0.4em;
+}
+
+.field-mobile .leaflet-control-layers-separator {
+  margin: 0.3em 0;
+}
+
+/* zoom buttons ----------------------------------------------------------*/
+
+.field-mobile .leaflet-control-zoom a {
+  width: var(--sz-zoom);
+  height: var(--sz-zoom);
+  line-height: var(--sz-zoom);
+  font-size: var(--fs-zoom);
+}
+
+/* attribution -------------------------------------------------------------
+
+It's tiny, but readability is required. */
+
+.field-mobile .leaflet-control-attribution {
+  font-size: clamp(8px, 1.5vmin, 12px);
+  line-height: 1.2;
+  padding: 2px 4px;
+}
+
+/* scale bar and accuracy readout ----------------------------------------*/
+
+.field-mobile .leaflet-control-scale-line {
+  color: #fff;
+  background: #0000ffa6;
+  border: none;
+  font-size: var(--fs-readout);
+  font-weight: 700;
+  line-height: 1.2;
+  padding: 0.15em 0.4em 0.2em;
+  box-shadow: none;
+}
+
+.field-mobile .location-accuracy-control {
+  font-size: var(--fs-readout);
+  font-weight: 700;
+  line-height: 1.1;
+  padding: 0.3em 0.5em;
+  background: #ffffffe6;
+  border: 2px solid #333;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+/* Nudge both up off the bottom edge. */
+
+.field-mobile .leaflet-control-scale {
+  transform: translate(10px, -30px);
+}
+
+.field-mobile .location-accuracy-control {
+  transform: translate(5px, -30px);
+}
+
+/* center-on-location button ---------------------------------------------*/
+
+.field-mobile .center-location-control {
+  width: var(--sz-center);
+  height: var(--sz-center);
+
+  position: fixed;
+  right: 10px;
+  bottom: calc(var(--field-bar-h) + 40px);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: var(--fs-center);
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+  text-align: center;
+
+  background: #00000055;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  box-shadow: none;
+  padding: 0;
+  margin-bottom: 0 !important;
+  transform: none;
+}
+
+.field-mobile .center-location-icon {
+  display: block;
+  line-height: 1;
+}
+
+/* lock-screen button ----------------------------------------------------*/
+
+/* Sits just above the center-on-location button in the bottom-right stack,
+   matching its size and dark translucent look. Tapping it raises the full
+   hold-to-unlock overlay (styled inline in map_tracking.js). */
+
+.field-mobile .lock-screen-control {
+  width: var(--sz-center);
+  height: var(--sz-center);
+
+  position: fixed;
+  right: 10px;
+  bottom: calc(var(--field-bar-h) + 40px + var(--sz-center) + 12px);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: #00000055;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  box-shadow: none;
+  padding: 0;
+  margin-bottom: 0 !important;
+  transform: none;
+}
+
+.field-mobile .lock-screen-icon {
+  display: block;
+  width: 62%;
+  height: 62%;
+}
+
+/* tracks layer toggle ---------------------------------------------------*/
+
+/* A single "Tracks" checkbox control (shown only while tracks are on the map)
+   to hide/show the whole tracks layer at once. Sized to sit comfortably next
+   to the layers control in the top-right stack. */
+
+.field-mobile .field-tracks-control {
+  background: #ffffffdd;
+  border-radius: 4px;
+  padding: 6px 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.field-mobile .field-tracks-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: clamp(14px, 4.5vmin, 22px);
+  font-weight: 600;
+  color: #222;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.field-mobile .field-tracks-toggle input[type="checkbox"] {
+  width: clamp(18px, 5.5vmin, 28px);
+  height: clamp(18px, 5.5vmin, 28px);
+  margin: 0;
+}
+
+/* landscape: keep the map filling the screen ----------------------------*/
+
+@media (orientation: landscape) {
+
+  /* Reduce the size of every control when in landscape. */
+
+  .field-mobile {
+    --ui-scale: 0.40;
+
+    /* Layer controls are even smaller. */
+
+    --fs-layers:   calc(clamp(16px, 6vmin, 24px)    * var(--ui-scale) * 0.6);
+    --fs-label:    calc(clamp(40px, 20vmin, 80px)   * var(--ui-scale) * 0.6);
+    --fs-expanded: calc(clamp(24px, 10.5vmin, 42px) * var(--ui-scale) * 0.6);
+    --sz-checkbox: calc(clamp(48px, 20vmin, 80px)   * var(--ui-scale) * 0.6);
+  }
+
+  /* Scale bar and accuracy sit ~5px above the bottom, left edges aligned.
+     Overrides the portrait transform/offset. */
+
+  .field-mobile .location-accuracy-control,
+  .field-mobile .leaflet-control-scale {
+    transform: none;
+    margin-left: 5px !important;
+    margin-bottom: 20px !important;
+  }
+
+  /* Crosshair bottom aligned to the scale bar bottom (bar height + the
+     scale bar's 20px margin in landscape). */
+
+  .field-mobile .center-location-control {
+    position: fixed;
+    right: 10px;
+    bottom: calc(var(--field-bar-h) + 20px);
+    margin-bottom: 0 !important;
+    transform: none;
+  }
+
+  /* Lock button stacks just above the crosshair in landscape too. */
+
+  .field-mobile .lock-screen-control {
+    position: fixed;
+    right: 10px;
+    bottom: calc(var(--field-bar-h) + 20px + var(--sz-center) + 10px);
+    margin-bottom: 0 !important;
+    transform: none;
+  }
+
+  /* Position arrow is also smaller in landscape. */
+
+  .field-mobile .heading-arrow {
+    transform: scale(0.5);
+    transform-origin: center;
+  }
+
+  html.field-mobile,
+  body.field-mobile {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    overflow: hidden !important;
+  }
+
+  .field-mobile .html-widget,
+  .field-mobile .leaflet,
+  .field-mobile .leaflet-container {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .field-mobile main,
+  .field-mobile .content,
+  .field-mobile .page-layout-full,
+  .field-mobile .quarto-container,
+  .field-mobile .quarto-layout-panel,
+  .field-mobile .cell-output-display {
+    width: 100vw !important;
+    max-width: none !important;
+    height: 100dvh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}
