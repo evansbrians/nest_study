@@ -1,0 +1,24 @@
+[Unit]
+Description=nest_study realtime plumber API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nestapi
+Group=nestapi
+WorkingDirectory=/opt/nest-api/server
+Environment=NEST_DB_PATH=/opt/nest-api/server/nest_study.sqlite
+Environment=NEST_PHOTO_DIR=/opt/nest-api/server/photos
+Environment=NEST_API_HOST=127.0.0.1
+Environment=NEST_API_PORT=8000
+ExecStart=/usr/bin/Rscript /opt/nest-api/server/entrypoint.R
+Restart=on-failure
+RestartSec=3
+# Harden a little
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,30 @@
+# Caddyfile -- automatic HTTPS reverse proxy for the nest_study API.
+#
+# Caddy obtains + renews a Let's Encrypt certificate for the domain below and
+# proxies HTTPS traffic to the local plumber process (127.0.0.1:8000).
+#
+# Before deploying:
+#   1. Replace nest.example.org with the real domain.
+#   2. Point that domain's A/AAAA record at this VM's public IP.
+#   3. Open ports 80 + 443 in the VM firewall (Caddy needs 80 for the ACME
+#      HTTP-01 challenge and 443 for HTTPS).
+#
+# The email is used by Let's Encrypt for expiry notices.
+
+{
+	email admin@example.org
+}
+
+nest.example.org {
+	encode gzip
+
+	# Long-poll (/changes, /events) can hold a request open ~25s; give the
+	# proxy generous read/write timeouts so it is not cut off mid-poll.
+	reverse_proxy 127.0.0.1:8000 {
+		flush_interval -1
+		transport http {
+			read_timeout 120s
+			write_timeout 120s
+		}
+	}
+}
