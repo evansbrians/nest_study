@@ -166,6 +166,69 @@
     return !!r && (r.field === true || String(r.field) === "TRUE");
   }
 
+  // Split a schedule cell ("1, 2, 3" / "N101 note, N102") into its leading id
+  // tokens -- same parsing nestapi_schedule.js markCheckNests() uses.
+  function _splitIds(v) {
+    if (v === null || v === undefined) return [];
+    return String(v).split(",").map(function (s) {
+      var m = /^(\S+)/.exec(String(s).trim());
+      return m ? m[1] : "";
+    }).filter(function (s) { return s !== ""; });
+  }
+
+  // Per-marker fade map for one day's schedule rows: every coverboard / trailcam
+  // / nest marker NOT scheduled that day -> 0.5, keyed "lat,lng" at 6dp exactly
+  // as map_weather.js fadeFor() builds it. Mirrors make_field_map.R day_entry():
+  // coverboards are named "<patch>_cb_<n>", trailcams "<patch>_trailcam_<n>",
+  // nests by nest_id. Needs window.fieldMapPoints (GET /gps_points) for the
+  // coordinates + names; returns null when those aren't loaded yet so the caller
+  // keeps the previous value until they are.
+  function buildTodayFade(dayRows) {
+    var pts = window.fieldMapPoints || [];
+    if (!pts.length) return null;
+
+    var scheduled = Object.create(null);
+    (dayRows || []).forEach(function (r) {
+      if (!r) return;
+      var p = (r.patch_count === null || r.patch_count === undefined)
+        ? "" : String(r.patch_count).trim();
+      if (p && p !== "-") {
+        _splitIds(r.boards).forEach(function (b) {
+          scheduled[p + "_cb_" + b] = true;
+        });
+        _splitIds(r.predator_cameras).forEach(function (c) {
+          scheduled[p + "_trailcam_" + c] = true;
+        });
+      }
+      _splitIds(r.check_nests).forEach(function (n) { scheduled[n] = true; });
+    });
+
+    // Artificial (NQ) nests and their host twin are never faded by the today
+    // filter -- mirrors day_entry()'s artificial_names exemption.
+    (window.fieldApiNests || []).forEach(function (n) {
+      var id = (n && n.nest_id !== null && n.nest_id !== undefined)
+        ? String(n.nest_id) : "";
+      if (id.indexOf("NQ") === 0) {
+        scheduled[id] = true;
+        scheduled["N" + id.slice(2)] = true;
+      }
+    });
+
+    var FADES = { coverboard: true, trailcam: true, nest: true };
+    var fade = Object.create(null);
+    var any = false;
+    pts.forEach(function (pt) {
+      if (!pt || pt.lat === null || pt.lat === undefined ||
+          pt.lng === null || pt.lng === undefined) return;
+      if (!FADES[String(pt.point_class || "").toLowerCase()]) return;
+      var name = (pt.name === null || pt.name === undefined) ? "" : String(pt.name);
+      if (scheduled[name]) return;
+      fade[Number(pt.lat).toFixed(6) + "," + Number(pt.lng).toFixed(6)] = 0.5;
+      any = true;
+    });
+    return any ? fade : null;
+  }
+
   // Rebuild window.fieldToday from window.fieldScheduleRows for today's local
   // date. "Today's patches" is every patch VISITED today, so we take the UNION
   // of the day's point-count patches (patch_count) AND its nest-search patches
@@ -219,11 +282,17 @@
       addPatch(r.search_patch_2);
     });
 
-    // We can't recompute the per-marker fade map (it needs coverboard/nest/cam
-    // coordinates + board_id/camera_id/nest_id that schedule_day rows don't
-    // carry), so fade is dropped: applyFilter() then just falls back to the
-    // patch subset (hide/show), which is the load-bearing behaviour. See report.
-    window.fieldToday = { date: pick, patches: patches, fade: null };
+    // Rebuild the per-marker fade map as well (see buildTodayFade). This USED to
+    // be dropped to null on the claim that schedule_day rows don't carry the
+    // board/camera/nest ids -- they do (boards / predator_cameras /
+    // check_nests), and the coordinates come from window.fieldMapPoints. Nulling
+    // it silently left every coverboard and trailcam at full opacity as soon as
+    // the live schedule loaded, so only the patch subset was still working.
+    window.fieldToday = {
+      date: pick,
+      patches: patches,
+      fade: buildTodayFade(byDate[pick])
+    };
     return true;
   }
 
@@ -371,6 +440,12 @@
 
 
       if (!gotAnything) return loadFromCache();
+
+      // The schedule loads on its own timeline (loadSchedule), so it very likely
+      // rebuilt fieldToday BEFORE these gps points arrived -- leaving its
+      // per-marker fade map empty. Now that fieldMapPoints exists, rebuild it so
+      // the coverboard / trailcam opacity actually reflects today's schedule.
+      refreshTodayFromSchedule();
 
       reRender();
       loadedOnce = true;
@@ -552,6 +627,9 @@
         if (typeof window.fieldMergeApiWaypoints === "function") {
           try { window.fieldMergeApiWaypoints(gps); } catch (e) {}
         }
+        // The fade map is keyed by marker coordinates, so a changed point set
+        // means it has to be rebuilt against the new coordinates.
+        refreshTodayFromSchedule();
       }
       if (Array.isArray(tracks) && typeof window.fieldMergeApiTracks === "function") {
         try { window.fieldMergeApiTracks(tracks); } catch (e) {}
