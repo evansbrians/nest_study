@@ -179,6 +179,17 @@ window.NestApi = window.NestApi || {};
       return request("/gps_points/" + encodeURIComponent(id) + "/photo");
     },
 
+    // GET /map_points (?class=) -> one row per map marker carrying everything
+    // needed to draw it: idx, name, class, lat, lng, ref_id, status, icon,
+    // opacity, size. Backed by the v_map_point DB view, so the DATABASE decides
+    // how a marker renders and the client never re-derives fade/size (that
+    // re-derivation is what silently broke coverboard/trailcam opacity).
+    getMapPoints: function (pointClass) {
+      var params = {};
+      if (pointClass) params["class"] = pointClass;
+      return request("/map_points" + qs(params));
+    },
+
     // GET /predator_cameras -> array of cameras + latest maintenance
     getPredatorCameras: function () {
       return request("/predator_cameras");

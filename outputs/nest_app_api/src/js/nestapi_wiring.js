@@ -166,67 +166,57 @@
     return !!r && (r.field === true || String(r.field) === "TRUE");
   }
 
-  // Split a schedule cell ("1, 2, 3" / "N101 note, N102") into its leading id
-  // tokens -- same parsing nestapi_schedule.js markCheckNests() uses.
-  function _splitIds(v) {
-    if (v === null || v === undefined) return [];
-    return String(v).split(",").map(function (s) {
-      var m = /^(\S+)/.exec(String(s).trim());
-      return m ? m[1] : "";
-    }).filter(function (s) { return s !== ""; });
+  // ---- Marker styling, straight from the DB (GET /map_points) --------------
+  //
+  // The v_map_point view decides how every marker renders: its opacity already
+  // folds in BOTH fades (non-current AND not-scheduled-today), and its size
+  // carries the 15%-larger rule for current nests. We translate those rows into
+  // the two "lat,lng"-keyed maps map_weather.js already reads, so the rendering
+  // code is untouched but the NUMBERS are the database's, not re-derived here.
+  // This replaces the old client-side fade computation, which had to re-join the
+  // schedule against point names and silently produced nothing when any of that
+  // drifted (every coverboard/trailcam stuck at full opacity).
+
+  var _mapPointFade = Object.create(null);  // "lat,lng" -> opacity (<1 only)
+  var _mapPointBig = Object.create(null);   // "lat,lng" -> true (render larger)
+
+  function applyMapPointStyles(rows) {
+    if (!Array.isArray(rows) || !rows.length) return false;
+    var fade = Object.create(null);
+    var big = Object.create(null);
+    rows.forEach(function (r) {
+      if (!r || r.lat === null || r.lat === undefined ||
+          r.lng === null || r.lng === undefined) return;
+      var key = Number(r.lat).toFixed(6) + "," + Number(r.lng).toFixed(6);
+      var op = Number(r.opacity);
+      if (!isNaN(op) && op < 1) fade[key] = op;
+      var sz = Number(r.size);
+      if (!isNaN(sz) && sz > 1) big[key] = true;
+    });
+    _mapPointFade = fade;
+    _mapPointBig = big;
+    // The view's opacity ALREADY includes the per-nest (non-current) fade, so
+    // neutralize the old baked map rather than double-applying it via Math.min.
+    window.fieldNestFade = Object.create(null);
+    window.fieldNestBig = big;
+    if (window.fieldToday) window.fieldToday.fade = fade;
+    rebroadcastFilterState();
+    return true;
   }
 
-  // Per-marker fade map for one day's schedule rows: every coverboard / trailcam
-  // / nest marker NOT scheduled that day -> 0.5, keyed "lat,lng" at 6dp exactly
-  // as map_weather.js fadeFor() builds it. Mirrors make_field_map.R day_entry():
-  // coverboards are named "<patch>_cb_<n>", trailcams "<patch>_trailcam_<n>",
-  // nests by nest_id. Needs window.fieldMapPoints (GET /gps_points) for the
-  // coordinates + names; returns null when those aren't loaded yet so the caller
-  // keeps the previous value until they are.
-  function buildTodayFade(dayRows) {
-    var pts = window.fieldMapPoints || [];
-    if (!pts.length) return null;
-
-    var scheduled = Object.create(null);
-    (dayRows || []).forEach(function (r) {
-      if (!r) return;
-      var p = (r.patch_count === null || r.patch_count === undefined)
-        ? "" : String(r.patch_count).trim();
-      if (p && p !== "-") {
-        _splitIds(r.boards).forEach(function (b) {
-          scheduled[p + "_cb_" + b] = true;
-        });
-        _splitIds(r.predator_cameras).forEach(function (c) {
-          scheduled[p + "_trailcam_" + c] = true;
-        });
-      }
-      _splitIds(r.check_nests).forEach(function (n) { scheduled[n] = true; });
+  // Fetch the marker styling and apply it. Cache-backed so an offline boot still
+  // styles the map from the last known state.
+  function loadMapPointStyles() {
+    return api.getMapPoints().then(function (rows) {
+      if (!applyMapPointStyles(rows)) return false;
+      if (store) store.setMeta("mapPoints", rows).catch(function () {});
+      return true;
+    }).catch(function () {
+      if (!store) return false;
+      return store.getMeta("mapPoints").then(function (cached) {
+        return applyMapPointStyles(cached);
+      }).catch(function () { return false; });
     });
-
-    // Artificial (NQ) nests and their host twin are never faded by the today
-    // filter -- mirrors day_entry()'s artificial_names exemption.
-    (window.fieldApiNests || []).forEach(function (n) {
-      var id = (n && n.nest_id !== null && n.nest_id !== undefined)
-        ? String(n.nest_id) : "";
-      if (id.indexOf("NQ") === 0) {
-        scheduled[id] = true;
-        scheduled["N" + id.slice(2)] = true;
-      }
-    });
-
-    var FADES = { coverboard: true, trailcam: true, nest: true };
-    var fade = Object.create(null);
-    var any = false;
-    pts.forEach(function (pt) {
-      if (!pt || pt.lat === null || pt.lat === undefined ||
-          pt.lng === null || pt.lng === undefined) return;
-      if (!FADES[String(pt.point_class || "").toLowerCase()]) return;
-      var name = (pt.name === null || pt.name === undefined) ? "" : String(pt.name);
-      if (scheduled[name]) return;
-      fade[Number(pt.lat).toFixed(6) + "," + Number(pt.lng).toFixed(6)] = 0.5;
-      any = true;
-    });
-    return any ? fade : null;
   }
 
   // Rebuild window.fieldToday from window.fieldScheduleRows for today's local
@@ -282,16 +272,13 @@
       addPatch(r.search_patch_2);
     });
 
-    // Rebuild the per-marker fade map as well (see buildTodayFade). This USED to
-    // be dropped to null on the claim that schedule_day rows don't carry the
-    // board/camera/nest ids -- they do (boards / predator_cameras /
-    // check_nests), and the coordinates come from window.fieldMapPoints. Nulling
-    // it silently left every coverboard and trailcam at full opacity as soon as
-    // the live schedule loaded, so only the patch subset was still working.
+    // patches drive the today-subset (hide/show); the per-marker fade comes from
+    // the DB via applyMapPointStyles(), so carry the latest one through rather
+    // than recomputing (or, as this once did, nulling) it here.
     window.fieldToday = {
       date: pick,
       patches: patches,
-      fade: buildTodayFade(byDate[pick])
+      fade: _mapPointFade
     };
     return true;
   }
@@ -441,11 +428,10 @@
 
       if (!gotAnything) return loadFromCache();
 
-      // The schedule loads on its own timeline (loadSchedule), so it very likely
-      // rebuilt fieldToday BEFORE these gps points arrived -- leaving its
-      // per-marker fade map empty. Now that fieldMapPoints exists, rebuild it so
-      // the coverboard / trailcam opacity actually reflects today's schedule.
-      refreshTodayFromSchedule();
+      // Marker styling (opacity / size) comes from the DB view. Fire-and-forget:
+      // it re-broadcasts the filter state itself, so a slow response simply
+      // restyles a moment later rather than holding up the boot.
+      loadMapPointStyles();
 
       reRender();
       loadedOnce = true;
@@ -477,6 +463,12 @@
         }
         // Rebuild the map's "today" from the cached schedule + re-filter.
         refreshTodayFromSchedule();
+      }
+      // Offline: style the markers from the last cached /map_points rows.
+      if (store) {
+        store.getMeta("mapPoints").then(function (cached) {
+          applyMapPointStyles(cached);
+        }).catch(function () {});
       }
       reRender();
       reflectCreds();
@@ -627,9 +619,6 @@
         if (typeof window.fieldMergeApiWaypoints === "function") {
           try { window.fieldMergeApiWaypoints(gps); } catch (e) {}
         }
-        // The fade map is keyed by marker coordinates, so a changed point set
-        // means it has to be rebuilt against the new coordinates.
-        refreshTodayFromSchedule();
       }
       if (Array.isArray(tracks) && typeof window.fieldMergeApiTracks === "function") {
         try { window.fieldMergeApiTracks(tracks); } catch (e) {}
@@ -647,6 +636,9 @@
         // A live schedule edit landed -- rebuild the map's "today" + re-filter.
         refreshTodayFromSchedule();
       }
+      // A nest / point / schedule change can all move a marker's opacity or
+      // size, so re-pull the DB's styling verdict instead of inferring it here.
+      if (wantNests || wantGps || wantSched) loadMapPointStyles();
       reRender();
     }).catch(function () {});
   }
