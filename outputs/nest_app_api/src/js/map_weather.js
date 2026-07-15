@@ -57,9 +57,9 @@ function(el, x) {
     var big = window.fieldNestBig || {};
     eachPatchFeature(function (layer) {
       var img = layer._icon;
-      if (!img || img.tagName !== "IMG" || typeof layer.getLatLng !== "function") return;
-      var ll = layer.getLatLng();
-      var mult = big[ll.lat.toFixed(6) + "," + ll.lng.toFixed(6)] ? 1.15 : 1;
+      if (!img || img.tagName !== "IMG") return;
+      // Keyed by DB point_id, same as fadeFor() -- not by coordinates.
+      var mult = (layer._pointId && big[layer._pointId]) ? 1.15 : 1;
       // Fixed width; height follows each png's aspect ratio (no square stretch).
       var w = size * mult;
       var ratio = (img.naturalWidth > 0) ? (img.naturalHeight / img.naturalWidth) : 1;
@@ -120,6 +120,12 @@ function(el, x) {
         }
       }
       marker.bindPopup(popupHtml);
+      // Stable DB key on EVERY marker: gps_point.point_id, straight from
+      // GET /gps_points. fadeFor()/scaleIconsForZoom() join the v_map_point
+      // styling to markers on this, instead of on a formatted "lat,lng" string
+      // -- coordinate joins broke on float rounding and would break again on any
+      // re-recorded point, and they fail by silently matching nothing.
+      marker._pointId = p.point_id;
       if (p.group === "Nests") {
         marker.setZIndexOffset(1000);
         marker._nestId = p.name;
@@ -457,11 +463,12 @@ function(el, x) {
   // Look up a marker's scheduled-today opacity (window.fieldToday.fade keyed by
   // "lat,lng" to 6 dp); markers not in the map are fully opaque.
 
+  // Opacity for a marker, looked up by its DB point_id (see renderMapPoints).
+  // The maps come from v_map_point via applyMapPointStyles().
   function fadeFor(layer, fade) {
-    if (!fade || typeof layer.getLatLng !== "function") return 1;
-    var ll = layer.getLatLng();
-    var key = ll.lat.toFixed(6) + "," + ll.lng.toFixed(6);
-    return (fade[key] != null) ? fade[key] : 1;
+    if (!fade || !layer._pointId) return 1;
+    var v = fade[layer._pointId];
+    return (v != null) ? v : 1;
   }
 
   // Combined filter state: the "Subset to today's data" switch and the patch

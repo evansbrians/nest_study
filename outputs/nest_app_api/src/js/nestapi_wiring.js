@@ -177,8 +177,8 @@
   // schedule against point names and silently produced nothing when any of that
   // drifted (every coverboard/trailcam stuck at full opacity).
 
-  var _mapPointFade = Object.create(null);  // "lat,lng" -> opacity (<1 only)
-  var _mapPointBig = Object.create(null);   // "lat,lng" -> true (render larger)
+  var _mapPointFade = Object.create(null);  // point_id -> opacity (<1 only)
+  var _mapPointBig = Object.create(null);   // point_id -> true (render larger)
 
   function applyMapPointStyles(rows) {
     if (!Array.isArray(rows) || !rows.length) return false;
@@ -187,10 +187,11 @@
     var big = Object.create(null);         // -> window.fieldNestBig
     rows.forEach(function (r) {
       if (!r) return;
-      // Use the key the VIEW formatted (TEXT, 6dp). Do NOT rebuild it from
-      // r.lat/r.lng: the JSON serializer rounds doubles to 4 decimals, so
-      // 38.891863 arrives as 38.8919 and every key misses its marker.
-      var key = r.key;
+      // Join on the DB primary key (gps_point.point_id), which map_weather.js
+      // stamps onto every marker as _pointId. Never join on coordinates: the
+      // serializer rounds doubles to 4dp, and a coordinate join fails SILENTLY
+      // (matches nothing) rather than erroring.
+      var key = r.idx;
       if (!key) return;
       // Keep the two fades SEPARATE, exactly as applyFilter applies them: the
       // non-current fade always, the today fade only while the today-subset is
