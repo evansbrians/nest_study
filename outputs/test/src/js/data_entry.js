@@ -1294,7 +1294,11 @@
         p.lat = lat; p.lng = lng;
       }
     }
-    if (typeof window.fieldRenderApiNests === "function") window.fieldRenderApiNests();
+    // A new nest/point just landed -- re-pull /map_points so its marker shows
+    // now, rather than on the next change-feed poll.
+    if (window.NestApiWiring && typeof window.NestApiWiring.refreshMapPoints === "function") {
+      window.NestApiWiring.refreshMapPoints();
+    }
   }
 
   function saveModify() {

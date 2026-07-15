@@ -1,19 +1,18 @@
-// nestapi_map.js -- live API nest overlay.
+// nestapi_map.js -- nest PHOTO + navigation service (no rendering).
 //
-// Renders ALL nests (GET /nests, loaded by nestapi_wiring into
-// window.fieldApiNests) as markers on the leaflet map -- including app-created
-// nests absent from the baked map data. One marker per shared GPS point (the
-// current nest wins, so a quail NQ shows instead of the concluded nest it
-// replaced). Current nests are full opacity; concluded (non-current) nests are
-// faded to 50%. Icon mirrors make_field_map.R (brood status / failed stage).
+// This file used to be a second nest renderer: it drew its own marker overlay
+// because the baked map couldn't show app-created nests. That is gone. Every
+// marker now comes from ONE place -- GET /map_points (the v_map_point view),
+// drawn by renderMapPoints() in map_weather.js. Two renderers meant two copies
+// of "how a nest looks", and every disagreement between them was a bug.
+//
+// What remains is the part that genuinely isn't the DB's job: fetching a nest's
+// photo (auth-gated bytes, cached in memory + IndexedDB) to fill a popup's
+// .api-nest-photo-slot, and resolving a nest's coordinates for Navigate.
 //
 // Assembled INTO the main field-map IIFE (after field_map_app.js), so it can
-// call startNavigation / niCoords / escapeHtml directly. Exposes
-// window.fieldRenderApiNests, which nestapi_wiring.js calls after each load/sync.
-// Gated on hasCreds(): a no-token build renders nothing here (baked map only).
-// The baked "Nests" group is cleared so this layer is the sole nest source.
+// call startNavigation / niCoords / escapeHtml directly.
 
-var _apiNestLayer = null;
 
 // ---- "Subset to today's data" filter ------------------------------------
 //
@@ -476,116 +475,10 @@ function apiPrefetchNestPhotos() {
 }
 window.NestApiData.prefetchNestPhotos = apiPrefetchNestPhotos;
 
-// Rich popup mirroring make_nest_popup (the nest_app popup): discovery + latest-
-// check summary, optional nav photo, and the standard nest actions.
-function apiNestPopupHtml(nest, photo) {
-  var id = String(nest.nest_id);
-  var idJs = id.replace(/'/g, "\\'");
-  var esc = escapeHtml;
-  var dash = function (v) {
-    return (v == null || v === "") ? "—" : esc(String(v));
-  };
-  var species = nest.species_other || nest.species_common || nest.species_code;
+// Fill a popup's .api-nest-photo-slot. map_weather.js's renderMapPoints()
+// calls this on popupopen -- the only hook the renderer needs from here.
+window.NestApiData.lazyLoadNestPhoto = apiLazyLoadNestPhoto;
 
-  // Discovery photo, best available source:
-  //  1. a photo field carried on the nest row itself (if the API ever inlines one),
-  //  2. niFindPhoto(nest_id) -- the app-cached / baked discovery photo for this nest,
-  //  3. the gps point's nav_photo (passed in as `photo`), taken at discovery here.
-  // Seed any photo the map already holds into the cache so the slot fills
-  // INSTANTLY from cache on open -- but never embed a still-loading <img> into the
-  // popup markup (that raw <img> is exactly the broken-image "?" box). The slot's
-  // image is swapped in only once decoded (apiSetSlotPhoto's img.onload).
-  var rawPhoto =
-    nest.discovery_photo || nest.photo || nest.nav_photo ||
-    (typeof niFindPhoto === "function" ? niFindPhoto(id) : null) ||
-    photo;
-  var img = asDataUri(rawPhoto);
-  if (img && typeof _apiNestPhotoCache[id] !== "string") {
-    _apiNestPhotoCache[id] = img;
-    apiPersistPhoto(id, img);
-  }
-
-  // Order: photo first, then the nest details, then the action buttons. Always an
-  // (initially empty) slot the popupopen handler fills from cache, else a lazy
-  // fetch -- so a loading image never shows as a broken box.
-  var html = '<div style="font-family:Times;min-width:190px;">';
-  html += '<div class="api-nest-photo-slot" data-nest="' + esc(id) +
-    '" style="margin:0 0 6px;"></div>';
-  html +=
-    "<h3 style=\"margin:0 0 4px;\"><strong>" + esc(id) +
-    "</strong>. Species: " + (species ? esc(String(species)) : "—") + "</h3>" +
-    "<ul style=\"margin:0 0 6px;padding-left:16px;\">" +
-    "<li><strong>Patch</strong>: " + esc(prettyPatch(nest.patch_id)) + "</li>" +
-    "<li><strong>Plant species</strong>: " + dash(nest.substrates) + "</li>" +
-    "<li><strong>Height</strong>: " + dash(nest.height_m) + "</li>" +
-    "<li><strong>Location description</strong>: " + dash(nest.location_description) + "</li>" +
-    "<li><strong>Discovered on</strong>: " + dash(nest.discovery_date) + "</li>" +
-    "<li><strong>Last checked on</strong>: " + dash(nest.last_check) + "</li>" +
-    "<li><strong>Current status</strong>: " + esc(apiNestBroodStatus(nest)) + "</li>" +
-    "<li><strong>N eggs (last check)</strong>: " + dash(nest.last_eggs) + "</li>" +
-    "<li><strong>N young (last check)</strong>: " + dash(nest.last_young) + "</li>" +
-    "</ul>" +
-    '<div style="margin-top:4px;">' +
-    // Per Tara: nest popups carry Navigate, a link to this nest on the Nests page
-    // (fieldOpenNestInfo), and Modify. Only "Add interval" was removed.
-    '<button type="button" class="field-popup-btn" onclick="window.fieldNavigateNest(\'' + idJs + '\')">Navigate</button> ' +
-    '<button type="button" class="field-popup-btn" onclick="window.fieldOpenNestInfo(\'' + idJs + '\')">Nest page</button> ' +
-    '<button type="button" class="field-popup-btn" onclick="window.fieldOpenNestModify(\'' + idJs + '\')">Modify</button>' +
-    '</div></div>';
-  return html;
-}
-
-// All nests in `list` share one point. Mirror make_field_map.R, which at a
-// shared point DROPS the host "N###" whenever its artificial "NQ###" twin
-// exists (filter(!name %in% str_replace(NQ..., "^NQ", "N"))) -- so the
-// ARTIFICIAL nest always wins its shared point, even once it has FAILED
-// (concluded, is_current = 0). Without this, a failed ARNE that shares its
-// host's GPS point loses to the still-current host and never shows the
-// failed-artificial icon (bug #1). Ordering:
-//   1. artificial nests (NQ / ARNE) win the point outright;
-//   2. within the winning pool, a current nest beats a concluded one (so a
-//      live nest still beats an old one when neither is artificial, and a
-//      still-active ARNE beats a concluded ARNE);
-//   3. ties break to the newest discovery_date.
-function pickDisplayForPoint(list) {
-  var artificial = list.filter(apiNestIsArtificial);
-  var pool = artificial.length ? artificial : list;
-  var current = pool.filter(apiNestIsCurrent);
-  pool = current.length ? current : pool;
-  pool.sort(function (a, b) {
-    return String(b.discovery_date || "").localeCompare(String(a.discovery_date || ""));
-  });
-  return pool[0];
-}
-
-// Deterministic screen-pixel offset for the i-th of n markers stacked at one
-// point, so co-located (or near-co-located) nests each get a visible, separately
-// tappable marker instead of collapsing into one (bug: N004/N005/N103 hidden
-// under a near-neighbour). A lone marker at a point gets none; a stack fans out
-// evenly around a small ring.
-function apiStackPixelOffset(i, n) {
-  if (!n || n <= 1) return null;
-  var R = 15;                            // ring radius, screen px
-  var ang = (2 * Math.PI * i) / n;
-  return [Math.round(R * Math.cos(ang)), Math.round(R * Math.sin(ang))];
-}
-
-// Place a marker at its TRUE coordinate plus any stack offset. The offset is
-// applied in screen space (through the map projection) so the fan stays constant
-// across zooms; the zoomend handler re-runs this to keep it stable. Navigation
-// still resolves each nest's own real coordinate (fieldNavigateNest), so the
-// display nudge never moves where "Navigate" actually sends you.
-function apiPlaceStackedMarker(map, m) {
-  if (!m || !m._apiBaseLatLng || typeof m.setLatLng !== "function") return;
-  var base = m._apiBaseLatLng;
-  var off = m._apiStackOffset;
-  if (!off || (!off[0] && !off[1])) { m.setLatLng(base); return; }
-  var pt = map.latLngToLayerPoint(L.latLng(base[0], base[1]));
-  m.setLatLng(map.layerPointToLatLng(L.point(pt.x + off[0], pt.y + off[1])));
-}
-
-// Navigate to a nest by id (popup action). Prefers the API point coords, falls
-// back to whatever niCoords knows.
 window.fieldNavigateNest = function (nestId) {
   var idx = apiPointCoordIndex();
   var nest = (window.fieldApiNests || []).filter(function (n) {
@@ -598,178 +491,3 @@ window.fieldNavigateNest = function (nestId) {
     startNavigation({ latitude: c.lat, longitude: c.lng, point_name: nestId });
   }
 };
-
-// (Re)draw the overlay from the current globals. Safe to call repeatedly.
-window.fieldRenderApiNests = function () {
-  if (!window.NestApi || !NestApi.settings || !NestApi.settings.hasCreds()) return;
-  var map = window.fieldMap;
-  if (!map || typeof L === "undefined") return;
-
-  // Rescale the overlay's icons on zoom, mirroring map_weather.js's zoomend
-  // handler on the baked "Nests" group. Registered ONCE per map (guard flag),
-  // since fieldRenderApiNests re-runs on every load/filter change. Each marker
-  // is rebuilt from its remembered base icon id + current flag with the fresh
-  // zoom factor, so the zoom and 1.15 current-nest factors stay combined.
-  if (!map._apiNestZoomBound) {
-    map._apiNestZoomBound = true;
-    map.on("zoomend", function () {
-      if (!_apiNestLayer) return;
-      var s = apiZoomScale();
-      _apiNestLayer.eachLayer(function (m) {
-        apiPlaceStackedMarker(map, m);   // keep the stack fan constant in screen px
-        if (!m || m._apiIconId == null || typeof m.setIcon !== "function") return;
-        var ic = apiNestLeafletIcon(m._apiIconId, m._apiIsCurrent, s);
-        if (ic) m.setIcon(ic);
-      });
-    });
-  }
-
-  // Retire the baked nest markers (an R-leaflet group, hidden by default) so
-  // this live layer is the SOLE nest source -- prevents duplicates if the user
-  // toggles the baked "Nests" group on. Safe no-op if the API isn't present.
-  try {
-    if (map.layerManager && typeof map.layerManager.clearGroup === "function") {
-      map.layerManager.clearGroup("Nests");
-    }
-  } catch (e) {}
-
-  var nests = window.fieldApiNests || [];
-  var coordIdx = apiPointCoordIndex();
-
-  // Resolve a nest's map coordinate. Prefer the API gps-point index (keyed by
-  // gps_point_id); if that misses -- e.g. a change-feed refetch rebuilt
-  // fieldMapPoints without this nest's point, or the point lacks a name and was
-  // filtered out -- fall back to niCoords(nest_id) (fieldMapPoints-by-name plus
-  // the local waypoint store). This stops a nest from silently VANISHING on a
-  // later render just because its point dropped out of the freshly-built index.
-  function coordForNest(n) {
-    if (n && n.gps_point_id && coordIdx[n.gps_point_id]) return coordIdx[n.gps_point_id];
-    if (n && n.nest_id && typeof niCoords === "function") {
-      var c = niCoords(String(n.nest_id));
-      if (c && c.lat != null && c.lng != null) return { lat: c.lat, lng: c.lng, photo: null };
-    }
-    return null;
-  }
-
-  // make_field_map.R drops a host N### wherever its artificial NQ### twin exists
-  // (they are the SAME physical structure), so build that host-drop set first --
-  // an ID-based merge, not a location one, so genuinely distinct near-neighbour
-  // nests are never dropped.
-  var dropHost = {};
-  nests.forEach(function (n) {
-    if (n && /^NQ/i.test(String(n.nest_id))) {
-      dropHost["N" + String(n.nest_id).replace(/^NQ/i, "")] = true;
-    }
-  });
-
-  // Collapse nests that share ONE physical GPS point (same gps_point_id) into a
-  // single display winner FIRST. A host nest and its artificial NQ twin -- or any
-  // duplicate/near-duplicate nest rows -- are the SAME structure at the SAME
-  // point, so they must never fan into two offset markers (bug: a new/artificial
-  // nest showing two markers, one status icon + one neutral). pickDisplayForPoint
-  // picks the artificial/current winner, mirroring make_field_map.R's "current
-  // nest wins per shared point". This is more robust than the id-based dropHost
-  // above, which fails when the server allocates an NQ id whose number differs
-  // from its host's. Nests with no gps_point_id stand alone (keyed by nest_id),
-  // so genuinely distinct near-neighbour points still get their own markers.
-  var byGps = {};
-  nests.forEach(function (n) {
-    if (!n) return;
-    if (dropHost[String(n.nest_id)]) return;   // host merged into its NQ twin
-    var key = n.gps_point_id ? ("gp:" + n.gps_point_id) : ("nid:" + n.nest_id);
-    (byGps[key] = byGps[key] || []).push(n);
-  });
-
-  // Group the per-point winners by rounded lat,lng to detect stacks. Each winner
-  // keeps its OWN marker; a small deterministic pixel offset (apiStackPixelOffset)
-  // fans out genuinely distinct co-located points so each stays visible and
-  // separately tappable (N004/N005/N103), without collapsing them into one.
-  var byPoint = {};
-  Object.keys(byGps).forEach(function (gk) {
-    var n = pickDisplayForPoint(byGps[gk]);
-    if (!n) return;
-    var c = coordForNest(n);
-    if (!c) return;   // no resolvable coordinate anywhere -> genuinely unmappable
-    // "Subset to today's data" / patch dropdown: skip nests outside the active
-    // patch set (matches the baked map) BEFORE they influence a stack's offsets.
-    if (!apiNestPassesFilter(n, c)) return;
-    var key = "ll:" + Number(c.lat).toFixed(6) + "," + Number(c.lng).toFixed(6);
-    (byPoint[key] = byPoint[key] || []).push({ nest: n, coord: c });
-  });
-
-  if (_apiNestLayer) { map.removeLayer(_apiNestLayer); _apiNestLayer = null; }
-  _apiNestLayer = L.layerGroup();
-
-  Object.keys(byPoint).forEach(function (pid) {
-    var group = byPoint[pid];
-    // Stable order so each nest's offset is deterministic across re-renders.
-    group.sort(function (a, b) {
-      return String(a.nest.nest_id).localeCompare(String(b.nest.nest_id));
-    });
-    var count = group.length;
-    group.forEach(function (item, i) {
-      var nest = item.nest;
-      var c = item.coord;
-      var faded = !apiNestIsCurrent(nest);   // concluded nests render at 50%
-      var iconId = apiNestIconId(nest);
-      var licon = apiNestLeafletIcon(iconId, !faded);
-      var m;
-      if (licon) {
-        m = L.marker([c.lat, c.lng], { icon: licon, opacity: faded ? 0.5 : 1 });
-        // Remember what to rebuild on zoom (see the zoomend handler): the icon id
-        // and whether the 1.15 current-nest bump applies.
-        m._apiIconId = iconId;
-        m._apiIsCurrent = !faded;
-      } else {
-        // Fallback if the inlined icons aren't present: a colored dot.
-        m = L.circleMarker([c.lat, c.lng], {
-          radius: 7,
-          weight: 2,
-          color: "#ffffff",
-          fillColor: apiNestIsArtificial(nest) ? "#2b6cb0" : "#2f855a",
-          fillOpacity: faded ? 0.45 : 0.95
-        });
-      }
-      // Fan co-located nests apart so each is individually visible/clickable.
-      m._apiBaseLatLng = [c.lat, c.lng];
-      m._apiStackOffset = apiStackPixelOffset(i, count);
-      apiPlaceStackedMarker(map, m);
-      m.bindPopup(apiNestPopupHtml(nest, c.photo));
-      // Old/migrated nests carry no photo in fieldMapPoints; fill the popup's
-      // photo slot on open via a lazy GET /nests/<id> (see apiLazyLoadNestPhoto).
-      m.on("popupopen", function (ev) {
-        var el = ev.popup && ev.popup.getElement && ev.popup.getElement();
-        var slot = el && el.querySelector(".api-nest-photo-slot");
-        if (slot) apiLazyLoadNestPhoto(slot.getAttribute("data-nest"), slot);
-      });
-      // Id label, hidden by default (shows on hover -- like the baked map).
-      m.bindTooltip(String(nest.nest_id), {
-        permanent: false,
-        direction: "top",
-        offset: [0, -6],
-        className: "api-nest-label"
-      });
-      _apiNestLayer.addLayer(m);
-    });
-  });
-
-  _apiNestLayer.addTo(map);
-};
-
-// Keep the overlay's filter state in lock-step with map_weather.js by listening
-// to the SAME host-page broadcasts (field_map_app.js posts these on the
-// "Subset to today's data" switch + patch dropdown). map_weather.js's own
-// listener repositions/opacity-filters the baked groups; ours re-renders the
-// live API overlay with the new patch subset. Toggling the switch also resets
-// the dropdown to "__all__" in the host page (it posts setPatch too), so we
-// honour both messages. Re-render only when creds are present (no-op otherwise).
-window.addEventListener("message", function (e) {
-  var d = e && e.data;
-  if (!d || !d.type) return;
-  var changed = false;
-  if (d.type === "setToday") { _apiFilterToday = !!d.on; changed = true; }
-  else if (d.type === "setPatch") { _apiFilterPatch = d.name || "__all__"; changed = true; }
-  if (changed && typeof window.fieldRenderApiNests === "function") {
-    window.fieldRenderApiNests();
-  }
-});

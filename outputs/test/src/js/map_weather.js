@@ -54,12 +54,12 @@ function(el, x) {
     var z = map.getZoom();
     var s = Math.min(1, Math.max(0.1, 1 - (19 - z) * 0.1));
     var size = 20.25 * s;
-    var big = window.fieldNestBig || {};
     eachPatchFeature(function (layer) {
       var img = layer._icon;
       if (!img || img.tagName !== "IMG") return;
-      // Keyed by DB point_id, same as fadeFor() -- not by coordinates.
-      var mult = (layer._pointId && big[layer._pointId]) ? 1.15 : 1;
+      // The size multiplier is the DB's, carried on the marker's row.
+      var mult = (layer._row && Number(layer._row.size) > 1)
+        ? Number(layer._row.size) : 1;
       // Fixed width; height follows each png's aspect ratio (no square stretch).
       var w = size * mult;
       var ratio = (img.naturalWidth > 0) ? (img.naturalHeight / img.naturalWidth) : 1;
@@ -75,70 +75,146 @@ function(el, x) {
 
   // JS marker rendering (step B4) -----------------------------------------
 
-  // Build Leaflet markers from window.fieldMapPoints (the data the R
-  // addMarkers() calls used to consume) and add each into the SAME
-  // layerManager FeatureGroup the layers-control and patch/today filter
-  // already drive -- that group is created by addLayersControl in
-  // make_field_map.R. Because the markers now live in those real groups
-  // (Nests / Coverboards / Trail Cameras / Point Counts, all in PATCH_GROUPS),
-  // applyFilter owns their opacity (fieldNestFade + today-fade) and
-  // scaleIconsForZoom owns their size (fieldNestBig + zoom + aspect ratio):
-  // one styler, no parallel "(JS)" groups.
+  // ---- Markers, drawn straight from the database -------------------------
+  //
+  // window.fieldMapMarkers is GET /map_points (the v_map_point view): ONE row
+  // per marker, already carrying everything needed to draw it -- position, the
+  // icon_id, opacity, size, and the popup's facts. This function just draws
+  // what the DB says.
+  //
+  // Deliberately gone: the baked window.fieldMapPoints payload, the "lat,lng"
+  // fade maps (fieldNestFade / fieldNestBig / fieldToday.fade), fadeFor(), and
+  // the second nest renderer in nestapi_map.js. Each existed to reconstruct
+  // client-side what the view now states outright, and every disagreement
+  // between those copies was a bug.
 
-  // Photo baked from a nest's GeoJSON into window.fieldNavPoints (data URI).
-  function nestPhotoFor(name) {
-    var nav = window.fieldNavPoints || [];
-    for (var i = 0; i < nav.length; i++) {
-      if (nav[i].name === name && nav[i].photo &&
-          String(nav[i].photo).indexOf("data:") === 0) return nav[i].photo;
-    }
-    return null;
+  var MARKER_GROUP_FOR = {
+    nest: "Nests",
+    coverboard: "Coverboards",
+    trailcam: "Trail Cameras",
+    point_count: "Point Counts",
+    landmark: "Landmarks"
+  };
+
+  function esc(s) {
+    return String(s === null || s === undefined ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+  function dash(v) {
+    return (v === null || v === undefined || v === "") ? "&mdash;" : esc(v);
   }
 
+  // The DB's opacity, applied the way the app treats its two fades: the
+  // non-current fade always, the not-scheduled-today fade only while "Subset to
+  // today's data" is on. (v_map_point also ships a combined `opacity`, but
+  // using it alone would leave the toggle unable to tell the two apart.)
+  function opacityFor(layer) {
+    var r = layer && layer._row;
+    if (!r) return 1;
+    var cur = (Number(r.is_current) === 0) ? 0.5 : 1;
+    var today = (filterToday && Number(r.scheduled_today) === 0) ? 0.5 : 1;
+    return Math.min(cur, today);
+  }
+
+  // Popup markup, composed from the row's facts. Nests get the full detail +
+  // actions; infrastructure points just name themselves.
+  function markerPopupHtml(r) {
+    var id = esc(r.name);
+    if (String(r.class) !== "nest") {
+      return '<div style="font-family:Times;"><h3 style="margin:0;"><strong>' +
+        id + "</strong></h3><div>" + esc(r.status || "") + "</div></div>";
+    }
+    var idJs = String(r.ref_id || r.name).replace(/'/g, "\\'");
+    return '<div style="font-family:Times;min-width:190px;">' +
+      '<div class="api-nest-photo-slot" data-nest="' + esc(r.ref_id) +
+      '" style="margin:0 0 6px;"></div>' +
+      "<h3 style=\"margin:0 0 4px;\"><strong>" + esc(r.ref_id) +
+      "</strong>. Species: " + dash(r.species) + "</h3>" +
+      "<ul style=\"margin:0 0 6px;padding-left:16px;\">" +
+      "<li><strong>Patch</strong>: " + dash(r.patch) + "</li>" +
+      "<li><strong>Plant species</strong>: " + dash(r.substrates) + "</li>" +
+      "<li><strong>Height</strong>: " + dash(r.height_m) + "</li>" +
+      "<li><strong>Location description</strong>: " + dash(r.location_description) + "</li>" +
+      "<li><strong>Discovered on</strong>: " + dash(r.discovery_date) + "</li>" +
+      "<li><strong>Last checked on</strong>: " + dash(r.last_check) + "</li>" +
+      "<li><strong>Current status</strong>: " + dash(r.status) + "</li>" +
+      "<li><strong>N eggs (last check)</strong>: " + dash(r.last_eggs) + "</li>" +
+      "<li><strong>N young (last check)</strong>: " + dash(r.last_young) + "</li>" +
+      "</ul>" +
+      '<div style="margin-top:4px;">' +
+      '<button type="button" class="field-popup-btn" onclick="window.fieldNavigateNest(\'' + idJs + '\')">Navigate</button> ' +
+      '<button type="button" class="field-popup-btn" onclick="window.fieldOpenNestInfo(\'' + idJs + '\')">Nest page</button> ' +
+      '<button type="button" class="field-popup-btn" onclick="window.fieldOpenNestModify(\'' + idJs + '\')">Modify</button>' +
+      "</div></div>";
+  }
+
+  // Idempotent: clears the marker groups first, so a re-render after a live
+  // change replaces the markers instead of stacking duplicates on top.
   function renderMapPoints() {
-    if (!window.fieldMapPoints || !window.fieldIcons || !window.L ||
+    var rows = window.fieldMapMarkers;
+    if (!Array.isArray(rows) || !window.fieldIcons || !window.L ||
         !map.layerManager) return;
+
+    var seen = {};
+    Object.keys(MARKER_GROUP_FOR).forEach(function (c) {
+      var g = MARKER_GROUP_FOR[c];
+      if (seen[g]) return;
+      seen[g] = true;
+      try { map.layerManager.clearGroup(g); } catch (e) {}
+    });
+
     var idx = 0;
-    window.fieldMapPoints.forEach(function (p) {
-      if (p.lat == null || p.lng == null || isNaN(p.lat) || isNaN(p.lng)) return;
-      if (!p.group) return;
-      // A point whose icon_id has no png of its own -- landmarks, and anything
-      // else without a custom icon -- gets Leaflet's built-in marker-icon.png
-      // instead of being dropped. Previously these were skipped outright, so
-      // they never appeared on the map at all.
-      var ic = window.fieldIcons[p.icon_id];
+    rows.forEach(function (r) {
+      if (!r || r.lat === null || r.lat === undefined ||
+          r.lng === null || r.lng === undefined) return;
+      var gname = MARKER_GROUP_FOR[String(r["class"] || "").toLowerCase()];
+      if (!gname) return;
+
+      // No custom png (landmarks) -> Leaflet's built-in marker-icon.png.
+      var ic = r.icon && window.fieldIcons[r.icon];
       var marker = ic
-        ? window.L.marker([p.lat, p.lng], {
+        ? window.L.marker([r.lat, r.lng], {
             icon: window.L.icon({
               iconUrl: ic.iconUrl,
               iconSize: [ic.iconWidth, ic.iconHeight],
               iconAnchor: [ic.iconAnchorX, ic.iconAnchorY]
             })
           })
-        : window.L.marker([p.lat, p.lng]);   // stock Leaflet pin
-      var popupHtml = p.popup;
-      if (p.group === "Nests") {
-        var photo = nestPhotoFor(p.name);
-        if (photo) {
-          popupHtml += '<img src="' + photo +
-            '" style="display:block;max-width:200px;margin-top:6px;border-radius:4px">';
-        }
-      }
-      marker.bindPopup(popupHtml);
-      // Stable DB key on EVERY marker: gps_point.point_id, straight from
-      // GET /gps_points. fadeFor()/scaleIconsForZoom() join the v_map_point
-      // styling to markers on this, instead of on a formatted "lat,lng" string
-      // -- coordinate joins broke on float rounding and would break again on any
-      // re-recorded point, and they fail by silently matching nothing.
-      marker._pointId = p.point_id;
-      if (p.group === "Nests") {
+        : window.L.marker([r.lat, r.lng]);
+
+      // The DB's verdict rides WITH the marker -- no lookup table to fall out of
+      // sync, and nothing to join on later.
+      marker._row = r;
+      marker._pointId = r.idx;
+      marker._patch = r.patch;
+      if (String(r["class"]) === "nest") {
+        marker._nestId = r.ref_id;
         marker.setZIndexOffset(1000);
-        marker._nestId = p.name;
-        marker._patch = p.patch;
       }
-      map.layerManager.addLayer(marker, "marker", p.group + "-" + (idx++), p.group);
+      marker.bindPopup(markerPopupHtml(r));
+      marker.setOpacity(opacityFor(marker));
+
+      // A nest's photo is the one thing the view can't carry (auth-gated bytes),
+      // so fill the slot lazily on open -- nestapi_map.js owns that fetch/cache.
+      if (String(r["class"]) === "nest" && r.ref_id) {
+        marker.on("popupopen", function (ev) {
+          var el = ev.popup && ev.popup.getElement && ev.popup.getElement();
+          var slot = el && el.querySelector(".api-nest-photo-slot");
+          if (slot && window.NestApiData &&
+              typeof window.NestApiData.lazyLoadNestPhoto === "function") {
+            window.NestApiData.lazyLoadNestPhoto(r.ref_id, slot);
+          }
+        });
+      }
+
+      map.layerManager.addLayer(marker, "marker", gname + "-" + (idx++), gname);
     });
+    scaleIconsForZoom();
   }
+
+  // Re-render whenever fresh rows land (boot, or a live change-feed refresh).
+  window.fieldRenderMapPoints = renderMapPoints;
   renderMapPoints();
 
   // patches + paths (step B5) ---------------------------------------------
@@ -465,16 +541,8 @@ function(el, x) {
     if (typeof layer.setOpacity === "function") layer.setOpacity(op);
   }
 
-  // Look up a marker's scheduled-today opacity (window.fieldToday.fade keyed by
-  // "lat,lng" to 6 dp); markers not in the map are fully opaque.
-
-  // Opacity for a marker, looked up by its DB point_id (see renderMapPoints).
-  // The maps come from v_map_point via applyMapPointStyles().
-  function fadeFor(layer, fade) {
-    if (!fade || !layer._pointId) return 1;
-    var v = fade[layer._pointId];
-    return (v != null) ? v : 1;
-  }
+  // (fadeFor and the fieldNestFade / fieldToday.fade lookup maps are gone --
+  // opacityFor() reads the DB row carried on each marker instead.)
 
   // Combined filter state: the "Subset to today's data" switch and the patch
   // dropdown both feed applyFilter().
@@ -524,7 +592,6 @@ function(el, x) {
 
   function applyFilter() {
     var names = activePatchNames();
-    var fade = (filterToday && window.fieldToday && window.fieldToday.fade) || null;
 
     if (names === null) {
 
@@ -541,8 +608,7 @@ function(el, x) {
           return;
         }
         if (!map.hasLayer(layer)) map.addLayer(layer);
-        setLayerOpacity(layer, Math.min(fadeFor(layer, window.fieldNestFade),
-                                        fadeFor(layer, fade)));
+        setLayerOpacity(layer, opacityFor(layer));
       });
     } else {
       var ringsList = [];
@@ -578,7 +644,7 @@ function(el, x) {
         }
         if (show) {
           if (!map.hasLayer(layer)) map.addLayer(layer);
-          setLayerOpacity(layer, Math.min(fadeFor(layer, window.fieldNestFade), fadeFor(layer, fade)));
+          setLayerOpacity(layer, opacityFor(layer));
         } else if (map.hasLayer(layer)) {
           map.removeLayer(layer);
         }

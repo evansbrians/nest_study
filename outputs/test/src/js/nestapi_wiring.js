@@ -116,14 +116,10 @@
 
   // ---- Live "today" filter (rebuild fieldToday from the schedule) --------
 
-  // The map's today-filter reads window.fieldToday.patches. make_field_map.R
-  // bakes that at RENDER time (a { patches:[...], fade:{"lat,lng":0.5} } entry
-  // selected from window.fieldSchedule for the phone's date), so if the schedule
-  // changes after render the map's "today" goes stale. Here we rebuild
-  // fieldToday.patches from the LIVE schedule rows (window.fieldScheduleRows,
-  // GET /schedule) for today's local date, then re-broadcast the current filter
-  // state so both filters (map_weather.js baked groups + nestapi_map.js API
-  // overlay) re-run against the fresh value.
+  // The map's today-filter reads window.fieldToday.patches -- which patches are
+  // visited today, rebuilt from the LIVE schedule rows (GET /schedule). That is
+  // ALL it carries now: per-marker opacity moved to the v_map_point row that
+  // rides on each marker, so there is no fade map here to go stale.
 
   function _todayIso() {
     var n = new Date();
@@ -166,61 +162,42 @@
     return !!r && (r.field === true || String(r.field) === "TRUE");
   }
 
-  // ---- Marker styling, straight from the DB (GET /map_points) --------------
-  //
-  // The v_map_point view decides how every marker renders: its opacity already
-  // folds in BOTH fades (non-current AND not-scheduled-today), and its size
-  // carries the 15%-larger rule for current nests. We translate those rows into
-  // the two "lat,lng"-keyed maps map_weather.js already reads, so the rendering
-  // code is untouched but the NUMBERS are the database's, not re-derived here.
-  // This replaces the old client-side fade computation, which had to re-join the
-  // schedule against point names and silently produced nothing when any of that
-  // drifted (every coverboard/trailcam stuck at full opacity).
+  // ---- The map's markers, straight from the DB (GET /map_points) ----------
 
-  var _mapPointFade = Object.create(null);  // point_id -> opacity (<1 only)
-  var _mapPointBig = Object.create(null);   // point_id -> true (render larger)
-
-  function applyMapPointStyles(rows) {
+  // The map's markers ARE these rows (GET /map_points -> the v_map_point view):
+  // position, icon, opacity, size, and the popup's facts, one row per marker.
+  // map_weather.js's renderMapPoints() draws them; nothing here re-derives any
+  // of it. Errors are surfaced rather than swallowed -- a silent catch here cost
+  // us a long debugging session.
+  function applyMapPoints(rows) {
     if (!Array.isArray(rows) || !rows.length) return false;
-    var todayFade = Object.create(null);   // -> window.fieldToday.fade
-    var nestFade = Object.create(null);    // -> window.fieldNestFade
-    var big = Object.create(null);         // -> window.fieldNestBig
-    rows.forEach(function (r) {
-      if (!r) return;
-      // Join on the DB primary key (gps_point.point_id), which map_weather.js
-      // stamps onto every marker as _pointId. Never join on coordinates: the
-      // serializer rounds doubles to 4dp, and a coordinate join fails SILENTLY
-      // (matches nothing) rather than erroring.
-      var key = r.idx;
-      if (!key) return;
-      // Keep the two fades SEPARATE, exactly as applyFilter applies them: the
-      // non-current fade always, the today fade only while the today-subset is
-      // on. (The view also gives a combined `opacity`, but using that alone
-      // would make the toggle unable to tell them apart.)
-      if (Number(r.is_current) === 0) nestFade[key] = 0.5;
-      if (Number(r.scheduled_today) === 0) todayFade[key] = 0.5;
-      if (Number(r.size) > 1) big[key] = true;
-    });
-    _mapPointFade = todayFade;
-    _mapPointBig = big;
-    window.fieldNestFade = nestFade;
-    window.fieldNestBig = big;
-    if (window.fieldToday) window.fieldToday.fade = todayFade;
-    rebroadcastFilterState();
+    window.fieldMapMarkers = rows;
+    if (typeof window.fieldRenderMapPoints === "function") {
+      try { window.fieldRenderMapPoints(); } catch (e) {
+        if (window.console) console.error("renderMapPoints failed:", e);
+      }
+    }
     return true;
   }
 
-  // Fetch the marker styling and apply it. Cache-backed so an offline boot still
-  // styles the map from the last known state.
-  function loadMapPointStyles() {
+  // Fetch the markers and draw them. Cache-backed: a later launch redraws from
+  // IndexedDB offline (the FIRST offline launch is bare -- accepted trade).
+  // Exposed so a local write (new nest/point) can redraw the map at once
+  // instead of waiting for the next change-feed poll.
+  function loadMapPoints() {
     return api.getMapPoints().then(function (rows) {
-      if (!applyMapPointStyles(rows)) return false;
+      if (!applyMapPoints(rows)) return false;
       if (store) store.setMeta("mapPoints", rows).catch(function () {});
       return true;
-    }).catch(function () {
+    }).catch(function (err) {
+      if (window.console) {
+        console.warn("GET /map_points failed (" +
+          ((err && err.status) || "network") + "): " +
+          ((err && err.message) || err) + " -- falling back to cache.");
+      }
       if (!store) return false;
       return store.getMeta("mapPoints").then(function (cached) {
-        return applyMapPointStyles(cached);
+        return applyMapPoints(cached);
       }).catch(function () { return false; });
     });
   }
@@ -278,14 +255,9 @@
       addPatch(r.search_patch_2);
     });
 
-    // patches drive the today-subset (hide/show); the per-marker fade comes from
-    // the DB via applyMapPointStyles(), so carry the latest one through rather
-    // than recomputing (or, as this once did, nulling) it here.
-    window.fieldToday = {
-      date: pick,
-      patches: patches,
-      fade: _mapPointFade
-    };
+    // patches drive the today-subset (hide/show). Per-marker opacity is NOT
+    // here any more: it rides on each marker's v_map_point row (opacityFor).
+    window.fieldToday = { date: pick, patches: patches };
     return true;
   }
 
@@ -437,7 +409,7 @@
       // Marker styling (opacity / size) comes from the DB view. Fire-and-forget:
       // it re-broadcasts the filter state itself, so a slow response simply
       // restyles a moment later rather than holding up the boot.
-      loadMapPointStyles();
+      loadMapPoints();
 
       reRender();
       loadedOnce = true;
@@ -473,7 +445,7 @@
       // Offline: style the markers from the last cached /map_points rows.
       if (store) {
         store.getMeta("mapPoints").then(function (cached) {
-          applyMapPointStyles(cached);
+          applyMapPoints(cached);
         }).catch(function () {});
       }
       reRender();
@@ -498,11 +470,8 @@
     try {
       if (typeof window.renderWaypoints === "function") window.renderWaypoints();
     } catch (e) {}
-    // Draw/refresh the live API nest overlay (current nests, incl. app-created
-    // ones not in the baked map), from the freshly loaded globals.
-    try {
-      if (typeof window.fieldRenderApiNests === "function") window.fieldRenderApiNests();
-    } catch (e) {}
+    // (No nest overlay to redraw: markers come from GET /map_points via
+    // renderMapPoints(), which loadMapPoints() drives.)
     // Warm the nest-photo cache SILENTLY, in the background, only once the map +
     // UI have settled -- deferred to browser idle time (fallback: a short timer)
     // so photo fetching never competes with the initial render. IndexedDB-backed
@@ -644,7 +613,10 @@
       }
       // A nest / point / schedule change can all move a marker's opacity or
       // size, so re-pull the DB's styling verdict instead of inferring it here.
-      if (wantNests || wantGps || wantSched) loadMapPointStyles();
+      // Any nest / point / schedule change can move a marker, its icon, its
+      // opacity or its size -- re-pull the DB's rows and redraw. This is what
+      // makes a new nest or track appear on every device within one poll.
+      if (wantNests || wantGps || wantSched) loadMapPoints();
       reRender();
     }).catch(function () {});
   }
@@ -754,6 +726,7 @@
   }
 
   window.NestApiWiring = {
+    refreshMapPoints: loadMapPoints,
     cacheNest: cacheNest,
     bootDataLoad: bootDataLoad,
     flushQueue: flushQueue,

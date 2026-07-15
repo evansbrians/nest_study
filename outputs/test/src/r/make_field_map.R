@@ -922,8 +922,12 @@ paths_json <-
 field_icons_js <-
   str_c("window.fieldIcons = ", icons_json, ";")
 
-field_map_points_js <-
-  str_c("window.fieldMapPoints = ", map_points_json, ";")
+# window.fieldMapPoints is NO LONGER BAKED. Every marker now comes from the
+# v_map_point view via GET /map_points (renderMapPoints() in map_weather.js),
+# which carries its own position, icon, opacity, size and popup facts. Baking a
+# second copy of the same points is what let the two planes disagree.
+# (map_points_json above is now unused -- delete with the rest of the bake.)
+field_map_points_js <- ""
 
 field_paths_js <-
   str_c("window.fieldPaths = ", paths_json, ";")
@@ -955,7 +959,6 @@ writeLines(
 writeLines(
   c(
     "/* field_data.js */",
-    field_map_points_js,
     field_paths_js,
     field_nav_points_js,
     field_schedule_js
