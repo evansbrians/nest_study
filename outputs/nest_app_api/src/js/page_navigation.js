@@ -74,26 +74,6 @@
     if (menuBtn) menuBtn.setAttribute("aria-expanded", "true");
   }
 
-  function openAccordion(btn) {
-    if (!btn) return;
-    btn.classList.add("active");
-    var panel = btn.nextElementSibling;
-    if (panel && panel.classList.contains("panel")) panel.style.display = "block";
-  }
-
-  function findNestAccordion(nestId) {
-    var groups = document.querySelectorAll("#nestsDoc .nest-view");
-    for (var g = 0; g < groups.length; g++) {
-      if (groups[g].offsetParent === null) continue;
-      var accs = groups[g].querySelectorAll(".accordion");
-      for (var i = 0; i < accs.length; i++) {
-        var st = accs[i].querySelector("strong");
-        if (st && st.textContent.replace(/\.\s*$/, "") === nestId) return accs[i];
-      }
-    }
-    return null;
-  }
-
   // View now opens the dedicated Nest info page.
   window.fieldViewNest = function (nestId) {
     if (window.fieldOpenNestInfo) window.fieldOpenNestInfo(nestId);

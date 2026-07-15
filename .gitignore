@@ -69,4 +69,4 @@ outputs/nest_app/offline_tiles/
 outputs/app_testing/offline_tiles/
 
 # Build input only: baked into field_offline_tiles.js at render, never served.
-outputs/test/offline_tiles/
+outputs/nest_app_api/offline_tiles/

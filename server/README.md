@@ -16,10 +16,10 @@ Everything here lives under `server/`. Nothing outside `server/` is modified.
 | `plumber.R` | the API: auth filter, reads, writes, live push |
 | `entrypoint.R` | boots plumber on `127.0.0.1:8000` |
 | `mint_token.R` | mint / revoke / list per-user bearer tokens |
-| `nightly_load.R` | **stub** for the nightly Sheets→DB batch (point counts, coverboards, visits) |
 | `Caddyfile` | auto-HTTPS reverse proxy → the plumber port |
 | `nest-api.service` | systemd unit for the API |
-| `nest-api-nightly.{service,timer}` | systemd timer for the nightly batch |
+| `v_map_point.sql` | the view every map marker is drawn from |
+| `deploy.sh` | push this dir to the VM + restart + smoke-test |
 | `provision.sh` | one-shot fresh-Ubuntu-VM setup |
 | `photos/` | disk store for larger (non-nav) photos |
 
@@ -205,12 +205,15 @@ process; not needed for a 2–4 person field crew.
   base64 `image` + `kind` + `nest_id`/`point_id`/`bearing`; stored on disk in
   `photos/`, served by `GET /photos/:id`.
 
-## Nightly batch (stub)
+## Batch loads run on a workstation, not here
 
-`nightly_load.R` is a clearly-marked stub; `nest-api-nightly.timer` runs it at
-02:30 daily. The batch tables (`point_count`, `coverboard`, `visit`) are loaded
-here (reusing the sheet-reading code from `scripts/utils/updater.R`), **not**
-through the API. Columns are pinned when that job is actually built.
+The batch tables (`point_count`, `coverboard_*`, `visit`) and the materialized
+`schedule_day` are loaded by `scripts/db/nightly_load.R` and
+`scripts/db/schedule_load.R`, run from a workstation by `scripts/utils/updater.R`.
+
+They live there because their inputs do: `data/field_data.rds` is built on a
+workstation and the Google Sheets creds never touch the VM. `schedule_load.R`
+pushes its rows here via `POST /schedule`; there is no server-side timer.
 
 ## What was validated vs. not
 

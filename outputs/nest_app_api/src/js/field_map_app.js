@@ -154,23 +154,26 @@
     patchButtonLabel();
   }
 
-  // The embedded data may load a beat after this script; wait for it.
+  // Patch geometry (window.fieldPatches) is static shell data, so it is present
+  // as soon as field_patches.js has parsed. window.fieldToday is NO LONGER baked
+  // -- it is built from the LIVE schedule (GET /schedule -> rebuildFieldToday),
+  // so it simply does not exist yet on first paint. Waiting on it here would
+  // gate the dropdown on a network round-trip; instead build it now from what we
+  // have, and rebuild when the schedule lands (nestapi_wiring fires the event).
 
-  var dataReady = function () {
-    if (!window.fieldPatches) return false;
-    if (todayToggle && todayToggle.checked && typeof window.fieldToday === "undefined") {
-      return false;
-    }
-    return true;
-  };
-  if (dataReady()) {
+  if (window.fieldPatches) {
     rebuildPatchDropdown();
   } else {
     var pt = 0;
     var piv = setInterval(function () {
-      if (dataReady() || ++pt > 50) { clearInterval(piv); rebuildPatchDropdown(); }
+      if (window.fieldPatches || ++pt > 50) { clearInterval(piv); rebuildPatchDropdown(); }
     }, 100);
   }
+  // The live schedule decides which patches are "today", so the dropdown has to
+  // be rebuilt once it arrives (and on each later change-feed refresh).
+  window.addEventListener("fieldtoday:changed", function () {
+    try { rebuildPatchDropdown(); } catch (e) {}
+  });
 
   if (patchSelect) {
     patchSelect.addEventListener("change", function () {
@@ -415,18 +418,6 @@
     overlay.classList.add("is-visible");
   }
 
-  function downloadGeojson(filename, ws) {
-    var fc = { type: "FeatureCollection", features: ws.map(waypointFeature) };
-    var blob = new Blob([JSON.stringify(fc, null, 2)], { type: "application/geo+json" });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-  }
 
   // Photo capture: downscale and compress to a JPEG data URI so the image
   // can be put inside the GeoJSON file.
@@ -685,7 +676,23 @@
     // Hidden via the manager
 
     if (w.visible === false) return;
-    var m = L.marker([w.latitude, w.longitude], { icon: wpIcon(wpColorHex(w)) }).addTo(map);
+    var m = L.marker([w.latitude, w.longitude], { icon: wpIcon(wpColorHex(w)) });
+    // Into the layerManager's "Waypoints" group rather than straight onto the
+    // map, so map_weather.js's applyFilter() sweeps these like every other point
+    // layer -- a waypoint outside today's patches now hides with them. Added
+    // directly to the map, they were invisible to the filter and always showed.
+    // The manager's per-point toggle still governs membership (add/remove here);
+    // the filter only governs whether a member is currently on the map, so the
+    // two compose instead of fighting.
+    if (map.layerManager && typeof map.layerManager.addLayer === "function") {
+      try {
+        map.layerManager.addLayer(m, "marker", "wp-" + w.point_id, "Waypoints");
+      } catch (e) {
+        m.addTo(map);
+      }
+    } else {
+      m.addTo(map);
+    }
     m.bindPopup(wpPopupHtml(w));
     m.on("popupopen", function (ev) {
       var el = ev.popup.getElement();
@@ -707,7 +714,17 @@
 
   function removeWaypointMarker(id) {
     var m = wpMarkers[id];
-    if (m && window.fieldMap) window.fieldMap.removeLayer(m);
+    var map = window.fieldMap;
+    if (m && map) {
+      // Remove from the layerManager GROUP, not just the map. Removing it from
+      // the map alone would leave it a member of "Waypoints", and the next
+      // applyFilter() sweep would put it straight back -- silently undoing the
+      // manager's hide.
+      if (map.layerManager && typeof map.layerManager.removeLayer === "function") {
+        try { map.layerManager.removeLayer("marker", "wp-" + id); } catch (e) {}
+      }
+      if (map.hasLayer(m)) map.removeLayer(m);
+    }
     delete wpMarkers[id];
   }
 
@@ -1090,10 +1107,27 @@
 
   function padNest(n) { return String(n).padStart(3, "0"); }
 
+  // THE marker lookup: name -> its v_map_point row (window.fieldMapMarkers,
+  // GET /map_points). One row per GPS point, so this is the app's single
+  // answer for "where is <name>". Returns null if it has no usable position.
+
+  function mapPointByName(name) {
+    var rows = window.fieldMapMarkers || [];
+
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+
+      if (r && r.name === name && r.lat != null && r.lng != null &&
+          !isNaN(r.lat) && !isNaN(r.lng)) {
+        return r;
+      }
+    }
+    return null;
+  }
+
   // True when `name` already belongs to a GPS point somewhere the app knows
-  // about: a baked map point with coordinates, a cached waypoint with a
-  // location, or a live nest whose coordinates came back from the relay. Used to
-  // block naming a brand-new nest the same as an existing GPS point.
+  // about: a map point, a cached waypoint, or a live nest. Used to block
+  // naming a brand-new nest the same as an existing GPS point.
   function nestNameHasGpsPoint(name) {
     name = String(name || "");
     if (!name) return false;
@@ -1102,11 +1136,8 @@
       if (pts[i].name === name && pts[i].lat != null && pts[i].lng != null &&
           !isNaN(pts[i].lat) && !isNaN(pts[i].lng)) return true;
     }
-    var mpts = window.fieldMapPoints || [];
-    for (var m = 0; m < mpts.length; m++) {
-      if (mpts[m].name === name && mpts[m].lat != null && mpts[m].lng != null &&
-          !isNaN(mpts[m].lat) && !isNaN(mpts[m].lng)) return true;
-    }
+    if (mapPointByName(name)) return true;
+
     var arr = loadWaypoints();
     for (var j = 0; j < arr.length; j++) {
       if (arr[j].point_name === name && arr[j].latitude != null &&
@@ -1679,9 +1710,13 @@
   }
 
   // Zoom the map tight (level 19) onto a point and drop back to the map view.
-  function zoomToPoint(lat, lng) {
+  // Jump the main map to a point and close the menu over it. `zoom` defaults to
+  // 19 (the old fixed behaviour); the nest-info map passes 18.
+  function zoomToPoint(lat, lng, zoom) {
     if (lat == null || lng == null) return;
-    if (window.fieldMap) window.fieldMap.setView([lat, lng], 19);
+    if (window.fieldMap) {
+      window.fieldMap.setView([lat, lng], (zoom == null) ? 19 : zoom);
+    }
     closeMenu();
   }
 
@@ -1690,26 +1725,15 @@
   var niCurrentNest = null;
 
   function niCoords(nestId) {
-    var pts = window.fieldMapPoints || [];
-    for (var i = 0; i < pts.length; i++) {
-      if (pts[i].name === nestId && pts[i].lat != null && pts[i].lng != null &&
-          !isNaN(pts[i].lat) && !isNaN(pts[i].lng)) {
-        return { lat: pts[i].lat, lng: pts[i].lng };
-      }
-    }
+    var p = mapPointByName(nestId);
+    if (p) return { lat: p.lat, lng: p.lng };
+
     var arr = loadWaypoints();
+
     for (var j = 0; j < arr.length; j++) {
       if (arr[j].point_name === nestId && arr[j].latitude != null) {
         return { lat: arr[j].latitude, lng: arr[j].longitude };
       }
-    }
-    return null;
-  }
-
-  function niMapPoint(nestId) {
-    var pts = window.fieldMapPoints || [];
-    for (var i = 0; i < pts.length; i++) {
-      if (pts[i].name === nestId) return pts[i];
     }
     return null;
   }
@@ -1726,20 +1750,10 @@
       if (nav[j].name === nestId && nav[j].photo &&
           String(nav[j].photo).indexOf("data:") === 0) return nav[j].photo;
     }
-    // Fallback: the API GPS point's nav_photo (base64 from GET /gps_points),
-    // so a nest discovered on another device still shows its photo. The API
-    // value is raw base64, so wrap it as a data URL (stripping any wrapping
-    // whitespace) for direct use in an <img>.
-    var mp = window.fieldMapPoints || [];
-    for (var k = 0; k < mp.length; k++) {
-      if (mp[k].name === nestId && mp[k].photo) {
-        var p = String(mp[k].photo).trim();
-        if (!p) continue;
-        return /^data:/.test(p)
-          ? p
-          : ("data:image/jpeg;base64," + p.replace(/\s+/g, ""));
-      }
-    }
+    // No third branch here: GET /gps_points deliberately no longer ships
+    // nav_photo bytes (only a has_nav_photo flag), so the old fallback that
+    // read them could never fire. NestApiData.resolveNestPhoto covers this.
+
     return null;
   }
 
@@ -1786,9 +1800,12 @@
     layer.addTo(map);
     map.setView([c.lat, c.lng], 18);
 
-    // Same marker as the main map: the nest's icon from window.fieldIcons.
-    var p = niMapPoint(nestId);
-    var ic = (p && window.fieldIcons) ? window.fieldIcons[p.icon_id] : null;
+    // Same marker as the main map: the nest's real icon, straight off its
+    // v_map_point row. (This used to read a hardcoded "nest_inactive", so an
+    // active nest drew the inactive icon here.)
+
+    var p = mapPointByName(nestId);
+    var ic = (p && window.fieldIcons) ? window.fieldIcons[p.icon] : null;
     if (ic) {
       window.L.marker([c.lat, c.lng], {
         icon: window.L.icon({
@@ -1802,6 +1819,13 @@
         radius: 7, color: "#136aec", weight: 2, fillColor: "#8ec5ff", fillOpacity: 0.9
       }).addTo(map);
     }
+
+    // Tapping this mini-map jumps to the MAIN map, centred on the nest at z18.
+    // (The mini-map is deliberately non-interactive -- dragging/zoom disabled --
+    // so a tap has no other meaning, and "show me this nest on the real map" is
+    // what you'd want it to do.)
+    map.on("click", function () { zoomToPoint(c.lat, c.lng, 18); });
+    host.style.cursor = "pointer";
 
     host._nimap = map;
     setTimeout(function () { try { map.invalidateSize(); } catch (e) {} }, 250);
@@ -1820,19 +1844,16 @@
     ph.style.display = "";
   }
 
-  // Lazy-fetch a nest's GPS-point photo (list is now photo-free) and show it.
+  // Lazy-fetch a nest's photo for the info page, through the SAME resolver the
+  // map popups use (NestApiData.resolveNestPhoto): memory -> IndexedDB -> the
+  // gps point's nav_photo -> a disk photo from the `photo` table. This page used
+  // to look at nav_photo alone, so a nest whose photo lives in the photo table
+  // (e.g. NQ060) appeared in its popup but not on its page -- two resolvers, two
+  // answers. One resolver, one answer.
   function niLazyInfoPhoto(nestId, ph) {
-    if (!wpApiOnline()) return;
-    var pts = window.fieldMapPoints || [];
-    var pid = null, has = false;
-    for (var i = 0; i < pts.length; i++) {
-      if (pts[i] && pts[i].name === nestId) {
-        pid = pts[i].point_id; has = !!pts[i].hasPhoto; break;
-      }
-    }
-    if (!pid || !has) return;
-    NestApi.api.getGpsPointPhoto(pid).then(function (r) {
-      var uri = wpPhotoDataUri(r && r.nav_photo);
+    if (!window.NestApiData ||
+        typeof window.NestApiData.resolveNestPhoto !== "function") return;
+    window.NestApiData.resolveNestPhoto(nestId).then(function (uri) {
       if (uri) niSetInfoPhoto(ph, uri);
     }).catch(function () {});
   }
@@ -2322,30 +2343,29 @@
     fieldRefreshNests();
   };
 
-  // Infra nav-points (coverboards + trail cameras) are refreshed from the live
-  // GET /gps_points set: window.fieldMapPoints carries point_class for every
-  // point, so the Waypoint manager reflects live data, not the baked snapshot.
-  // The baked window.fieldNavPoints entries are the fallback when the API set is
-  // absent (offline first boot). DB point_class codes match the baked ones.
+  // Infra nav-points (coverboards + trail cameras) come from the live
+  // v_map_point rows, so the Waypoint manager reflects live data. The baked
+  // fieldNavPoints are the fallback when the rows are absent (offline boot).
+
   var NAV_TYPE_FROM_CLASS = { coverboard: "Coverboard", trailcam: "Trail camera" };
 
   function apiNavInfraPoints() {
-    var mp = window.fieldMapPoints || [];
+    var mp = window.fieldMapMarkers || [];
     var out = [];
     mp.forEach(function (p) {
       if (!p) return;
-      var type = NAV_TYPE_FROM_CLASS[String(p.point_class || "").toLowerCase()];
+      var type = NAV_TYPE_FROM_CLASS[String(p["class"] || "").toLowerCase()];
       if (!type) return;
       if (p.lat == null || p.lng == null || isNaN(p.lat) || isNaN(p.lng)) return;
       out.push({
-        point_id: p.point_id || null,
+        point_id: p.idx || null,
         name: p.name,
         lat: p.lat,
         lng: p.lng,
         type: type,
-        point_class: String(p.point_class).toLowerCase(),
+        point_class: String(p["class"]).toLowerCase(),
         note: p.note || null,
-        photo: p.photo || null
+        photo: null
       });
     });
     return out;
@@ -3376,21 +3396,6 @@
     updateTrackUI();
   }
 
-  function xmlEsc(s) {
-    return String(s).replace(/[<>&'"]/g, function (c) {
-      return { "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" }[c];
-    });
-  }
-  function trackGPX(name, pts) {
-    var seg = pts.map(function (p) {
-      return '<trkpt lat="' + p.lat + '" lon="' + p.lng + '">' +
-             (p.t ? "<time>" + p.t + "</time>" : "") + "</trkpt>";
-    }).join("");
-    return '<?xml version="1.0" encoding="UTF-8"?>\n' +
-      '<gpx version="1.1" creator="Nest Study Field Map" ' +
-      'xmlns="http://www.topografix.com/GPX/1/1">' +
-      "<trk><name>" + xmlEsc(name) + "</name><trkseg>" + seg + "</trkseg></trk></gpx>";
-  }
   function downloadText(filename, text, mime) {
     var blob = new Blob([text], { type: mime });
     var url = URL.createObjectURL(blob);
@@ -3414,67 +3419,35 @@
 
   var savedLayers = {};   // track id -> Leaflet polyline (when visible)
 
-  // All drawn tracks live in one feature group so a single Leaflet control
-  // checkbox can show/hide the whole tracks layer at once (individual tracks are
-  // still toggled from the manager). The control only appears while >=1 track is
-  // on the map.
+  // All drawn tracks live in one feature group, registered with the widget's
+  // layerManager so the main layers control owns the Tracks checkbox alongside
+  // Nests / Coverboards / Trail Cameras / Point Counts.
+
   var tracksGroup = null;
-  var tracksLayerOn = true;
-  var tracksControl = null;
-  var tracksControlCheckbox = null;
 
   function ensureTracksGroup() {
     if (!tracksGroup && window.L && window.L.featureGroup) {
       tracksGroup = window.L.featureGroup();
-      if (tracksLayerOn && window.fieldMap) tracksGroup.addTo(window.fieldMap);
+
+      var map = window.fieldMap;
+
+      if (map && map.layerManager &&
+          typeof map.layerManager.addLayer === "function") {
+        try {
+          map.layerManager.addLayer(
+            tracksGroup,
+            "shape",
+            "tracks-group",
+            "Tracks"
+          );
+        } catch (e) {
+          tracksGroup.addTo(map);
+        }
+      } else if (map) {
+        tracksGroup.addTo(map);
+      }
     }
     return tracksGroup;
-  }
-
-  function countDrawnTracks() {
-    var n = 0, k;
-    for (k in savedLayers) if (savedLayers.hasOwnProperty(k)) n++;
-    return n;
-  }
-
-  function setTracksLayerVisible(on) {
-    tracksLayerOn = on;
-    var grp = ensureTracksGroup();
-    if (!grp || !window.fieldMap) return;
-    if (on && !window.fieldMap.hasLayer(grp)) grp.addTo(window.fieldMap);
-    else if (!on && window.fieldMap.hasLayer(grp)) window.fieldMap.removeLayer(grp);
-  }
-
-  function updateTracksControl() {
-    if (!tracksControl) return;
-    var c = tracksControl.getContainer && tracksControl.getContainer();
-    if (c) c.style.display = countDrawnTracks() > 0 ? "" : "none";
-    if (tracksControlCheckbox) tracksControlCheckbox.checked = tracksLayerOn;
-  }
-
-  // Build the master "Tracks" checkbox control once, on demand (needs the map).
-  function ensureTracksControl() {
-    if (tracksControl || !window.fieldMap || !window.L) return;
-    var ctrl = window.L.control({ position: "topright" });
-    ctrl.onAdd = function () {
-      var div = window.L.DomUtil.create(
-        "div", "leaflet-control leaflet-bar field-tracks-control");
-      var label = window.L.DomUtil.create("label", "field-tracks-toggle", div);
-      var cb = window.L.DomUtil.create("input", "", label);
-      cb.type = "checkbox";
-      cb.checked = tracksLayerOn;
-      var span = window.L.DomUtil.create("span", "", label);
-      span.textContent = "Tracks";
-      window.L.DomEvent.disableClickPropagation(div);
-      window.L.DomEvent.on(cb, "change", function () {
-        setTracksLayerVisible(cb.checked);
-      });
-      tracksControlCheckbox = cb;
-      return div;
-    };
-    ctrl.addTo(window.fieldMap);
-    tracksControl = ctrl;
-    updateTracksControl();
   }
 
   function loadTracks() {
@@ -3592,8 +3565,6 @@
     var grp = ensureTracksGroup();
     if (grp) grp.addLayer(line);
     else line.addTo(window.fieldMap);
-    ensureTracksControl();
-    updateTracksControl();
   }
   // Update an on-map track's popup after edits
 
@@ -3606,7 +3577,6 @@
       else if (window.fieldMap) window.fieldMap.removeLayer(savedLayers[id]);
     }
     delete savedLayers[id];
-    updateTracksControl();
   }
 
   // Persist one change to the track with the given id; returns the record.
@@ -3956,8 +3926,7 @@
 
   whenMapReady(function () {
     loadTracks().forEach(function (t) { if (t.visible) drawSavedTrack(t); });
-    ensureTracksControl();
-    updateTracksControl();
+    ensureTracksGroup();
   });
   renderTrackList();
   updateReadout();

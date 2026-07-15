@@ -36,9 +36,8 @@ echo "== provision: installing R packages =="
 # the server. This keeps provisioning light (sf pulls GDAL/GEOS/PROJ). The
 # nightly R analysis on a snapshot can use sf on a workstation instead.
 # plumber.R itself stays base-R, but the CLI/boot scripts (init_db.R,
-# entrypoint.R, mint_token.R), the migration (migrate/migrate.R), and the
-# nightly batch load (nightly_load.R) use the tidyverse string/data helpers,
-# so install those too.
+# entrypoint.R, mint_token.R) and the migration (migrate/migrate.R) use the
+# tidyverse string/data helpers, so install those too.
 # Install from Posit's PRECOMPILED binaries (jammy = Ubuntu 22.04) instead of
 # source -- on a small VM, compiling stringi/dplyr/etc. from source is slow and
 # can OOM. The HTTPUserAgent line is what makes Posit serve binaries, not source.
@@ -96,11 +95,12 @@ fi
 echo "== provision: installing systemd units =="
 # render the service with the right paths (the shipped unit assumes /opt/nest-api)
 install -m 644 "${SRC_DIR}/nest-api.service"         /etc/systemd/system/nest-api.service
-install -m 644 "${SRC_DIR}/nest-api-nightly.service" /etc/systemd/system/nest-api-nightly.service
-install -m 644 "${SRC_DIR}/nest-api-nightly.timer"   /etc/systemd/system/nest-api-nightly.timer
 systemctl daemon-reload
 systemctl enable --now nest-api.service
-systemctl enable --now nest-api-nightly.timer
+
+# No nightly timer: the batch loads (scripts/db/nightly_load.R and
+# schedule_load.R) run on a workstation, which is where field_data.rds and the
+# Sheets creds live. schedule_load.R pushes its results to this API.
 
 echo "== provision: configuring Caddy =="
 sed -e "s/nest\.example\.org/${DOMAIN}/g" \

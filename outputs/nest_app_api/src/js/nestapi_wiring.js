@@ -1,12 +1,12 @@
 // nestapi_wiring.js -- Settings screen + async boot data-load + live sync.
 //
-// The glue between the field app (baked Sheets/Drive globals) and the REST API
-// client (window.NestApi.*). Runs at end of body, after page_glue.js, so the
-// app's globals and DOM already exist. EVERY effect is gated on
-// NestApi.settings.hasCreds(): with no token stored, this file wires only the
-// Settings inputs and otherwise no-ops, leaving the baked data path untouched
-// (safe parallel run). Exposes a small window.NestApiWiring surface the app
-// IIFE calls into (e.g. cacheNest after a create).
+// The glue between the field app's globals and the REST API client
+// (window.NestApi.*). Runs at end of body, after page_glue.js, so the app's
+// globals and DOM already exist.
+//
+// Every effect is gated on NestApi.settings.hasCreds(): with no token stored
+// this file wires only the Settings inputs and otherwise no-ops. Exposes a
+// window.NestApiWiring surface the app IIFE calls into (e.g. cacheNest).
 (function () {
   "use strict";
 
@@ -67,39 +67,6 @@
     });
   }
 
-  // ---- Shape mapping: API -> app globals --------------------------------
-
-  // GeoJSON FeatureCollection (GET /gps_points) -> the window.fieldMapPoints
-  // array shape the app expects: { name, lat, lng, icon_id, ... }. Only nest
-  // points get a nest icon; the app uses name/lat/lng for its lookups.
-  function gpsFcToMapPoints(fc) {
-    var feats = (fc && fc.features) || [];
-    return feats.map(function (f) {
-      var props = (f && f.properties) || {};
-      var coords = (f && f.geometry && f.geometry.coordinates) || [];
-      var cls = props["class"] || props.point_class || "";
-      return {
-        point_id: props.point_id || null,
-        name: props.name || props.point_name,
-        lat: coords[1],
-        lng: coords[0],
-        icon_id: (String(cls).toLowerCase() === "nest") ? "nest_inactive" : null,
-        point_class: cls,
-        note: props.note || null,
-        photo: props.nav_photo || props.photo || null,   // usually null now (lazy)
-        hasPhoto: !!(props.has_nav_photo || props.nav_photo || props.photo)
-      };
-    }).filter(function (p) {
-      // Keep EVERY point that has real coordinates. Points are in the DB because
-      // someone recorded them, so by default they must be available to render on
-      // every device -- dropping any here (previously: nameless non-nest points)
-      // silently hid DB points from other techs (bug: points missing on Tara's
-      // phone). Nest points resolve by point_id and a NULL point_name is common
-      // for migrated points; other classes render/lookup fine without a name too.
-      return p.lat != null && p.lng != null;
-    });
-  }
-
   // ---- IndexedDB cache helpers ------------------------------------------
 
   function cacheNest(nest) {
@@ -116,14 +83,9 @@
 
   // ---- Live "today" filter (rebuild fieldToday from the schedule) --------
 
-  // The map's today-filter reads window.fieldToday.patches. make_field_map.R
-  // bakes that at RENDER time (a { patches:[...], fade:{"lat,lng":0.5} } entry
-  // selected from window.fieldSchedule for the phone's date), so if the schedule
-  // changes after render the map's "today" goes stale. Here we rebuild
-  // fieldToday.patches from the LIVE schedule rows (window.fieldScheduleRows,
-  // GET /schedule) for today's local date, then re-broadcast the current filter
-  // state so both filters (map_weather.js baked groups + nestapi_map.js API
-  // overlay) re-run against the fresh value.
+  // The map's today-filter reads window.fieldToday.patches, rebuilt from the
+  // live schedule rows. That is all it carries: per-marker opacity rides on
+  // each marker's v_map_point row, so no fade map here can go stale.
 
   function _todayIso() {
     var n = new Date();
@@ -145,10 +107,9 @@
   // one and any cache render (see renderSchedule precedence in nestapi_schedule).
   var _scheduleSeq = 0;
 
-  // Render the last-cached schedule from IndexedDB. Used when the live fetch
-  // fails so the schedule screen shows the most recent known week instead of a
-  // blank page. No-op if nothing was ever cached. Tagged {cache:true} so it can
-  // never overwrite a live render.
+  // Render the last-cached schedule from IndexedDB when the live fetch fails,
+  // so the screen shows the most recent known week instead of a blank page.
+  // Tagged {cache:true} so it can never overwrite a live render.
   function renderScheduleFromCache() {
     if (!store) return;
     store.getMeta("scheduleRows").then(function (cached) {
@@ -166,76 +127,50 @@
     return !!r && (r.field === true || String(r.field) === "TRUE");
   }
 
-  // ---- Marker styling, straight from the DB (GET /map_points) --------------
-  //
-  // The v_map_point view decides how every marker renders: its opacity already
-  // folds in BOTH fades (non-current AND not-scheduled-today), and its size
-  // carries the 15%-larger rule for current nests. We translate those rows into
-  // the two "lat,lng"-keyed maps map_weather.js already reads, so the rendering
-  // code is untouched but the NUMBERS are the database's, not re-derived here.
-  // This replaces the old client-side fade computation, which had to re-join the
-  // schedule against point names and silently produced nothing when any of that
-  // drifted (every coverboard/trailcam stuck at full opacity).
+  // ---- The map's markers, straight from the DB (GET /map_points) ----------
 
-  var _mapPointFade = Object.create(null);  // point_id -> opacity (<1 only)
-  var _mapPointBig = Object.create(null);   // point_id -> true (render larger)
-
-  function applyMapPointStyles(rows) {
+  // The map's markers ARE these rows (GET /map_points -> the v_map_point view).
+  // renderMapPoints() draws them; nothing here re-derives any of it. Errors are
+  // logged, not swallowed -- a silent catch here cost a long debugging session.
+  function applyMapPoints(rows) {
     if (!Array.isArray(rows) || !rows.length) return false;
-    var todayFade = Object.create(null);   // -> window.fieldToday.fade
-    var nestFade = Object.create(null);    // -> window.fieldNestFade
-    var big = Object.create(null);         // -> window.fieldNestBig
-    rows.forEach(function (r) {
-      if (!r) return;
-      // Join on the DB primary key (gps_point.point_id), which map_weather.js
-      // stamps onto every marker as _pointId. Never join on coordinates: the
-      // serializer rounds doubles to 4dp, and a coordinate join fails SILENTLY
-      // (matches nothing) rather than erroring.
-      var key = r.idx;
-      if (!key) return;
-      // Keep the two fades SEPARATE, exactly as applyFilter applies them: the
-      // non-current fade always, the today fade only while the today-subset is
-      // on. (The view also gives a combined `opacity`, but using that alone
-      // would make the toggle unable to tell them apart.)
-      if (Number(r.is_current) === 0) nestFade[key] = 0.5;
-      if (Number(r.scheduled_today) === 0) todayFade[key] = 0.5;
-      if (Number(r.size) > 1) big[key] = true;
-    });
-    _mapPointFade = todayFade;
-    _mapPointBig = big;
-    window.fieldNestFade = nestFade;
-    window.fieldNestBig = big;
-    if (window.fieldToday) window.fieldToday.fade = todayFade;
-    rebroadcastFilterState();
+    window.fieldMapMarkers = rows;
+    if (typeof window.fieldRenderMapPoints === "function") {
+      try { window.fieldRenderMapPoints(); } catch (e) {
+        if (window.console) console.error("renderMapPoints failed:", e);
+      }
+    }
     return true;
   }
 
-  // Fetch the marker styling and apply it. Cache-backed so an offline boot still
-  // styles the map from the last known state.
-  function loadMapPointStyles() {
+  // Fetch the markers and draw them. Cache-backed: a later launch redraws from
+  // IndexedDB offline (the first offline launch is bare -- accepted trade).
+  // Exposed so a local write can redraw at once, not on the next poll.
+  function loadMapPoints() {
     return api.getMapPoints().then(function (rows) {
-      if (!applyMapPointStyles(rows)) return false;
+      if (!applyMapPoints(rows)) return false;
       if (store) store.setMeta("mapPoints", rows).catch(function () {});
       return true;
-    }).catch(function () {
+    }).catch(function (err) {
+      if (window.console) {
+        console.warn("GET /map_points failed (" +
+          ((err && err.status) || "network") + "): " +
+          ((err && err.message) || err) + " -- falling back to cache.");
+      }
       if (!store) return false;
       return store.getMeta("mapPoints").then(function (cached) {
-        return applyMapPointStyles(cached);
+        return applyMapPoints(cached);
       }).catch(function () { return false; });
     });
   }
 
-  // Rebuild window.fieldToday from window.fieldScheduleRows for today's local
-  // date. "Today's patches" is every patch VISITED today, so we take the UNION
-  // of the day's point-count patches (patch_count) AND its nest-search patches
-  // (search_patch_1/2): a patch searched today but not point-counted (e.g.
-  // witch_hazel) is still "today", and its nests must not be hidden by the map
-  // filter. Values are used RAW (not prettified) so they match window.fieldPatches
-  // keys and the dropdown option values the filters compare against. Mirrors the
-  // R selector's fallback: if today is not a field day (e.g. Sunday) advance to
-  // the next scheduled field day so the map never blanks. Returns true if it
-  // updated fieldToday, false if it left the baked value untouched (empty/absent
-  // rows).
+  // Rebuild window.fieldToday from fieldScheduleRows for today's local date.
+  // "Today's patches" is the UNION of the day's point-count patches and its
+  // nest-search patches: a patch searched but not counted is still today.
+  //
+  // Values stay RAW (not prettified) so they match fieldPatches keys and the
+  // dropdown values. If today is not a field day, advance to the next one so
+  // the map never blanks. Returns true if it updated fieldToday.
   function rebuildFieldToday() {
     var rows = window.fieldScheduleRows;
     if (!Array.isArray(rows) || !rows.length) return false; // keep baked value
@@ -278,21 +213,20 @@
       addPatch(r.search_patch_2);
     });
 
-    // patches drive the today-subset (hide/show); the per-marker fade comes from
-    // the DB via applyMapPointStyles(), so carry the latest one through rather
-    // than recomputing (or, as this once did, nulling) it here.
-    window.fieldToday = {
-      date: pick,
-      patches: patches,
-      fade: _mapPointFade
-    };
+    // patches drive the today-subset (hide/show). Per-marker opacity is NOT
+    // here any more: it rides on each marker's v_map_point row (opacityFor).
+    window.fieldToday = { date: pick, patches: patches };
+    // The patch dropdown + Nests-page "today" flags are built from this, and it
+    // is no longer baked -- so tell them it now exists / just changed.
+    try {
+      window.dispatchEvent(new Event("fieldtoday:changed"));
+    } catch (e) {}
     return true;
   }
 
-  // Re-broadcast the current filter state (switch + dropdown) so both listeners
-  // (map_weather.js setToday/setPatch and nestapi_map.js) re-read the fresh
-  // window.fieldToday and re-filter. Defaults mirror the app: switch on,
-  // dropdown "__all__".
+  // Re-broadcast the current filter state (switch + dropdown) so the listeners
+  // re-read the fresh window.fieldToday and re-filter. Defaults mirror the app:
+  // switch on, dropdown "__all__".
   function rebroadcastFilterState() {
     var toggle = document.getElementById("todayToggle");
     var on = toggle ? !!toggle.checked : true;
@@ -315,19 +249,17 @@
   var loadedOnce = false;
   var _probedLookups;   // one-shot: auth-probe lookups handed to the next bootDataLoad
 
-  // Fetch lookups / nests / gps_points / predator cameras, map them into the
-  // shapes the app expects, cache them, populate the globals, and re-render.
-  // Non-blocking: shows a loading state, resolves regardless. On a network
-  // failure it falls back to the IndexedDB cache, then to the baked data.
-  // Load the schedule INDEPENDENTLY of the heavier nests/gps batch: the schedule
-  // render used to wait on Promise.all, so a slow GET /gps_points (base64 photos
-  // for every point) delayed the schedule screen by many seconds. Cache-first --
-  // show the last-known week instantly, then overwrite when the live fetch lands.
+  // Fetch lookups / nests / gps_points / predator cameras, cache them, populate
+  // the globals, re-render. Non-blocking; on a network failure it falls back to
+  // the IndexedDB cache.
+  //
+  // The schedule loads INDEPENDENTLY of the heavier nests/gps batch, which used
+  // to delay it by seconds via Promise.all. Cache-first: show the last-known
+  // week instantly, then overwrite when the live fetch lands.
   function loadSchedule() {
-    // Seed the giraffe lookup (fieldApiNests) from the nests cache FIRST, so the
-    // schedule's selfie-stick 🦒 marks show immediately with the cache-first
-    // render -- otherwise they wait on the (slow) fresh getNests in the boot
-    // batch. The fresh nests re-render (see bootDataLoad) refreshes them later.
+    // Seed the giraffe lookup (fieldApiNests) from the nests cache first, so the
+    // schedule's selfie-stick marks show with the cache-first render instead of
+    // waiting on the slow getNests in the boot batch. bootDataLoad refreshes.
     var seed = (store && !(Array.isArray(window.fieldApiNests) && window.fieldApiNests.length))
       ? store.getAll("nests").then(function (cached) {
           if (Array.isArray(cached) && cached.length &&
@@ -415,11 +347,13 @@
 
       if (gps && gps.features) {
         gotAnything = true;
-        window.fieldMapPoints = gpsFcToMapPoints(gps);
-        // Cache raw features so an offline boot can rebuild fieldMapPoints.
+
+        // GET /gps_points exists ONLY to restore waypoints now: markers come
+        // from GET /map_points. The waypoint store needs raw props (colour,
+        // datetime, nav_photo_name) the v_map_point view does not carry.
+
         if (store) store.setMeta("gpsPointsFC", gps).catch(function () {});
-        // Restore non-Temp waypoints into the local store so they survive a
-        // cache clear (they're already in the DB; Temp is never uploaded).
+
         if (typeof window.fieldMergeApiWaypoints === "function") {
           try { window.fieldMergeApiWaypoints(gps); } catch (e) {}
         }
@@ -437,7 +371,7 @@
       // Marker styling (opacity / size) comes from the DB view. Fire-and-forget:
       // it re-broadcasts the filter state itself, so a slow response simply
       // restyles a moment later rather than holding up the boot.
-      loadMapPointStyles();
+      loadMapPoints();
 
       reRender();
       loadedOnce = true;
@@ -459,7 +393,14 @@
       store.getMeta("scheduleRows").catch(function () { return null; })
     ]).then(function (res) {
       var fc = res[0], nests = res[1], cams = res[2], sched = res[3];
-      if (fc && fc.features) window.fieldMapPoints = gpsFcToMapPoints(fc);
+
+      // Waypoints only: the cached mapPoints rows (restored below) are what
+      // the markers are drawn from.
+
+      if (fc && fc.features && typeof window.fieldMergeApiWaypoints === "function") {
+        try { window.fieldMergeApiWaypoints(fc); } catch (e) {}
+      }
+
       if (Array.isArray(nests) && nests.length) window.fieldApiNests = nests;
       if (Array.isArray(cams)) window.fieldPredatorCameras = cams;
       if (Array.isArray(sched) && sched.length) {
@@ -473,7 +414,7 @@
       // Offline: style the markers from the last cached /map_points rows.
       if (store) {
         store.getMeta("mapPoints").then(function (cached) {
-          applyMapPointStyles(cached);
+          applyMapPoints(cached);
         }).catch(function () {});
       }
       reRender();
@@ -481,32 +422,25 @@
     }).catch(function () { reflectCreds(); });
   }
 
-  // Push lookup vocabularies into the globals the app reads. The app's picker
-  // lists (NEST_SPECIES/NEST_SUBSTRATES) live inside the IIFE closure and can't
-  // be reassigned from here, so we expose the lookups for the app to consult
-  // and overwrite the flat window-level vocab globals that ARE reachable.
+  // Push lookup vocabularies into the globals the app reads. The picker lists
+  // live inside the IIFE closure and can't be reassigned from here, so expose
+  // the lookups and overwrite the window-level vocab globals that ARE reachable.
   function applyLookups(l) {
     window.fieldApiLookups = l;
     if (l.patches && !window.fieldApiPatches) window.fieldApiPatches = l.patches;
     if (l.observers) window.fieldApiObservers = l.observers;
   }
 
-  // Coarse re-render: repopulate the waypoint layer/manager (the parts that
-  // read window.fieldMapPoints at call time). A full rebuild of the R-rendered
-  // primary map layer is out of scope here; see WIRING_STATUS.md.
+  // Repopulate the waypoint layer/manager. The markers themselves are not
+  // touched here: loadMapPoints() -> renderMapPoints() owns those.
+
   function reRender() {
     try {
       if (typeof window.renderWaypoints === "function") window.renderWaypoints();
     } catch (e) {}
-    // Draw/refresh the live API nest overlay (current nests, incl. app-created
-    // ones not in the baked map), from the freshly loaded globals.
-    try {
-      if (typeof window.fieldRenderApiNests === "function") window.fieldRenderApiNests();
-    } catch (e) {}
-    // Warm the nest-photo cache SILENTLY, in the background, only once the map +
-    // UI have settled -- deferred to browser idle time (fallback: a short timer)
-    // so photo fetching never competes with the initial render. IndexedDB-backed
-    // and idempotent, so only new nests are ever fetched.
+    // Warm the nest-photo cache silently once the map and UI have settled,
+    // deferred to browser idle time so it never competes with the initial
+    // render. IndexedDB-backed and idempotent: only new nests are fetched.
     var warmPhotos = function () {
       try {
         if (window.NestApiData && typeof window.NestApiData.prefetchNestPhotos === "function") {
@@ -544,11 +478,9 @@
 
   var syncStarted = false;
 
-  // Debounced, SELECTIVE refresh in reaction to the live change feed. The old
-  // behaviour re-ran the full 6-endpoint bootDataLoad + full re-render on every
-  // batch -- heavy and janky when other devices are actively editing. Instead
-  // we look at which entity types actually changed and refetch only those,
-  // coalescing a burst of batches into one refresh ~400ms later.
+  // Debounced, selective refresh driven by the live change feed. Refetches only
+  // the entity types that actually changed, coalescing a burst into one refresh
+  // ~400ms later, rather than re-running the whole 6-endpoint boot load.
   var _refreshTimer = null;
   var _pendingEntities = Object.create(null);
 
@@ -564,22 +496,16 @@
             window.NestApiData && typeof window.NestApiData.invalidateNest === "function") {
           try { window.NestApiData.invalidateNest(String(e.entity_id)); } catch (x) {}
         }
-        // An "interval_check" event's entity_id is the CHECK's surrogate id
-        // (e.g. 471), NOT the nest -- and a routine check emits no accompanying
-        // nest event -- so targeting entity_id invalidated a non-existent key
-        // and left the nest's cached interval list stale until a full reload.
-        // The event doesn't carry the parent nest id, so drop the whole detail
-        // cache on any interval change; it's cheap and refilled on demand.
+        // An interval_check event's entity_id is the CHECK's id, not the nest,
+        // so targeting it invalidated nothing and left the nest's interval list
+        // stale. Drop the whole detail cache instead: cheap, refills on demand.
         if (ent === "interval_check" &&
             window.NestApiData && typeof window.NestApiData.invalidateAllNests === "function") {
           try { window.NestApiData.invalidateAllNests(); } catch (x) {}
         }
-        // A photo or gps_point change on another device (e.g. Brian adds a nest
-        // point + discovery photo) means a nest that was PHOTOLESS here may now
-        // have one. The map popup lazy-fetches per nest and caches the result --
-        // including a "no photo" miss taken before the photo synced -- so drop
-        // that cache to force a re-fetch. (The cache lives in nestapi_map.js and
-        // registers this hook; no-op until it does.)
+        // A photo/gps_point change elsewhere means a nest that was photoless
+        // here may now have one, so drop the popup's per-nest cache (which may
+        // hold a "no photo" miss) to force a re-fetch. No-op until registered.
         if ((ent === "photo" || ent === "gps_point") &&
             window.NestApiData && typeof window.NestApiData.clearNestPhotoCache === "function") {
           try { window.NestApiData.clearNestPhotoCache(); } catch (x) {}
@@ -620,7 +546,6 @@
       var nests = res[0], gps = res[1], tracks = res[2], cams = res[3], sched = res[4];
       if (Array.isArray(nests)) { window.fieldApiNests = nests; cachePut("nests", nests); }
       if (gps && gps.features) {
-        window.fieldMapPoints = gpsFcToMapPoints(gps);
         if (store) store.setMeta("gpsPointsFC", gps).catch(function () {});
         if (typeof window.fieldMergeApiWaypoints === "function") {
           try { window.fieldMergeApiWaypoints(gps); } catch (e) {}
@@ -642,9 +567,10 @@
         // A live schedule edit landed -- rebuild the map's "today" + re-filter.
         refreshTodayFromSchedule();
       }
-      // A nest / point / schedule change can all move a marker's opacity or
-      // size, so re-pull the DB's styling verdict instead of inferring it here.
-      if (wantNests || wantGps || wantSched) loadMapPointStyles();
+      // Any nest / point / schedule change can move a marker, its icon, its
+      // opacity or its size, so re-pull the DB's rows and redraw rather than
+      // inferring it here. This is what syncs a new nest across devices.
+      if (wantNests || wantGps || wantSched) loadMapPoints();
       reRender();
     }).catch(function () {});
   }
@@ -672,11 +598,9 @@
 
   // ---- Boot --------------------------------------------------------------
 
-  // Load with the stored token. Probes auth first: a 401 means a wrong/expired
-  // token, so we clear it and re-prompt via promptForToken (the primary token
-  // UI; a redundant Settings screen also exists and is slated for removal). Any
-  // other failure (offline, server down) keeps the token and falls back to the
-  // IndexedDB cache.
+  // Load with the stored token, probing auth first: a 401 means a wrong or
+  // expired token, so clear it and re-prompt. Any other failure (offline,
+  // server down) keeps the token and falls back to the IndexedDB cache.
   function loadWithToken() {
     api.getLookups().then(function (lookups) {
       _probedLookups = lookups;   // hand the probe result to bootDataLoad (no refetch)
@@ -693,11 +617,9 @@
     });
   }
 
-  // First-run token prompt -- the primary token UI. The URL is baked
-  // (settings.DEFAULT_URL), so the tech only needs the token ("password"). Shown
-  // on first open with no token (and on a rejected token); on save it stores the
-  // token and loads. A redundant Settings screen (wireSettings) also exists and
-  // is slated for removal so this is the single token entry point.
+  // First-run token prompt -- the primary token UI. The URL is baked, so the
+  // tech only needs the token. Shown on first open and on a rejected token.
+  // The Settings screen (wireSettings) is a second, redundant entry point.
   function promptForToken(message) {
     var existing = document.getElementById("apiTokenPrompt");
     if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
@@ -754,6 +676,7 @@
   }
 
   window.NestApiWiring = {
+    refreshMapPoints: loadMapPoints,
     cacheNest: cacheNest,
     bootDataLoad: bootDataLoad,
     flushQueue: flushQueue,

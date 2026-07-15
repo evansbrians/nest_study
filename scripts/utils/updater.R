@@ -193,7 +193,7 @@ if (db_refreshed) {
   system2(
     "Rscript",
     c(
-      "brian_sandbox/migrate_to_db/server/nightly_load.R",
+      "scripts/db/nightly_load.R",
       "nest_study.sqlite"
     )
   )
@@ -239,7 +239,7 @@ schedule_push_status <-
   system2(
     "Rscript",
     c(
-      "brian_sandbox/migrate_to_db/server/schedule_load.R",
+      "scripts/db/schedule_load.R",
       "--api", api_url,
       "--token", api_token
     )

@@ -785,7 +785,7 @@ function(
   res
 }
 
-#* Materialized daily schedule (loaded by server/schedule_load.R). Serves one
+#* Materialized daily schedule (loaded by scripts/db/schedule_load.R). Serves one
 #* week of schedule_day rows as JSON; the app groups by date to build the
 #* accordion. Filters: ?week=<n> (sampling week) or ?date=YYYY-MM-DD (its
 #* week). Both absent -> the most-recent week present.
@@ -847,7 +847,7 @@ function(
 
 #* Replace the materialized schedule (workstation push from Google Sheets).
 #* The VM has no googlesheets4 credentials, so prep_schedule_data() runs on a
-#* workstation (server/schedule_load.R --api ...) and posts the finished rows
+#* workstation (scripts/db/schedule_load.R --api ...) and posts the finished rows
 #* here. Body: { rows: [ {week,date,day,...}, ... ] } with schedule_day columns.
 #* Truncate-reloads schedule_day in one transaction so the app's GET /schedule
 #* serves the new data with no app re-render.
