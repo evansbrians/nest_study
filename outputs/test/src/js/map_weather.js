@@ -73,27 +73,21 @@ function(el, x) {
   map.on("zoomend", scaleIconsForZoom);
   setTimeout(scaleIconsForZoom, 700);
 
-  // JS marker rendering (step B4) -----------------------------------------
-
   // ---- Markers, drawn straight from the database -------------------------
-  //
-  // window.fieldMapMarkers is GET /map_points (the v_map_point view): ONE row
-  // per marker, already carrying everything needed to draw it -- position, the
-  // icon_id, opacity, size, and the popup's facts. This function just draws
-  // what the DB says.
-  //
-  // Deliberately gone: the baked window.fieldMapPoints payload, the "lat,lng"
-  // fade maps (fieldNestFade / fieldNestBig / fieldToday.fade), fadeFor(), and
-  // the second nest renderer in nestapi_map.js. Each existed to reconstruct
-  // client-side what the view now states outright, and every disagreement
-  // between those copies was a bug.
+
+  // window.fieldMapMarkers is GET /map_points (the v_map_point view): one row
+  // per marker, carrying position, icon_id, opacity, size, and the popup's
+  // facts. This renderer just draws what the DB says.
+
+  // Classes this renderer owns. Landmarks are absent by design: the waypoint
+  // layer already draws them as coloured circle pins, and rendering them here
+  // too put two markers on one spot. One class, one owner.
 
   var MARKER_GROUP_FOR = {
     nest: "Nests",
     coverboard: "Coverboards",
     trailcam: "Trail Cameras",
-    point_count: "Point Counts",
-    landmark: "Landmarks"
+    point_count: "Point Counts"
   };
 
   function esc(s) {
@@ -101,14 +95,15 @@ function(el, x) {
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
   }
+
   function dash(v) {
     return (v === null || v === undefined || v === "") ? "&mdash;" : esc(v);
   }
 
-  // The DB's opacity, applied the way the app treats its two fades: the
-  // non-current fade always, the not-scheduled-today fade only while "Subset to
-  // today's data" is on. (v_map_point also ships a combined `opacity`, but
-  // using it alone would leave the toggle unable to tell the two apart.)
+  // The DB's two fades, applied separately: non-current always, not-scheduled-
+  // today only while the "today" toggle is on. v_map_point also ships a
+  // combined `opacity`, but that alone can't tell the two apart.
+
   function opacityFor(layer) {
     var r = layer && layer._row;
     if (!r) return 1;
@@ -211,10 +206,9 @@ function(el, x) {
       map.layerManager.addLayer(marker, "marker", gname + "-" + (idx++), gname);
     });
 
-    // The markers are added to their groups but NOT yet subject to the current
-    // patch/today filter -- applyFilter() ran long before these arrived. Re-run
-    // it so the initial view is today's patches rather than everything. noFit:
-    // keep the map where the user has it (a live refresh must not yank the view).
+    // applyFilter() ran long before these markers arrived, so re-run it or the
+    // initial view shows everything instead of today's patches. noFit: a live
+    // refresh must not yank the map away from where the user put it.
     applyFilter({ noFit: true });
   }
 
@@ -224,9 +218,8 @@ function(el, x) {
 
   // patches + paths (step B5) ---------------------------------------------
 
-  // Draw patch boundaries (window.fieldPatches) and Garmin paths
-  // (window.fieldPaths) in JS, into the same "Patches" / "Paths" layerManager
-  // groups the layers control and patch/today filter already drive -- so the R
+  // Draw patch boundaries and Garmin paths into the same "Patches" / "Paths"
+  // layerManager groups the layers control and filter already drive, so the R
   // addPolygons/addPolylines are no longer needed.
 
   function prettyPatch(n) {
@@ -293,7 +286,7 @@ function(el, x) {
 
   // map layer options -----------------------------------------------------
 
-  // Layer visibililty:
+  // Layer visibility:
   // - setWeather  -- Precipitation + NEXRAD              (default off)
   // - setPatches  -- patch boundaries                    (default on)
   // - setSampling -- coverboards/cams/point counts/nests (default on)
@@ -418,13 +411,15 @@ function(el, x) {
   // from window.fieldPatches (embedded by make_field_map.R) as rings of
   // [lat, lng]. Distances use a local equirectangular projection.
 
-  // Patch boundaries are intentionally NOT here: their visibility is governed
-  // solely by the "Include patch boundaries" toggle (setPatches), so the
-  // today-subset never hides them. applyFilter still subsets/fades the points
-  // and zooms to today's patches via patchBounds().
+  // Patch boundaries are deliberately absent: only the "Include patch
+  // boundaries" toggle governs them, so the today-subset never hides them.
+  // applyFilter still subsets the points and zooms via patchBounds().
 
+  // Groups applyFilter() sweeps for the patch/today subset. "Waypoints" is here
+  // so tech-recorded points (landmarks included) hide with the patches they sit
+  // in, rather than always showing.
   var PATCH_GROUPS =
-    ["Nests", "Coverboards", "Trail Cameras", "Point Counts", "Paths"];
+    ["Nests", "Coverboards", "Trail Cameras", "Point Counts", "Paths", "Waypoints"];
 
   function segDist(px, py, ax, ay, bx, by) {
     var dx = bx - ax, dy = by - ay;
@@ -555,10 +550,9 @@ function(el, x) {
   var filterToday = true;        // switch default on
   var filterPatch = "__all__";   // dropdown default
 
-  // Which patches are active given the current state. null = no spatial
-  // subset (show everything, e.g. switch off + "All patches"). If the schedule
-  // data is missing or empty (no field day), the switch is treated as inactive
-  // so the map never goes blank.
+  // Which patches are active right now. null = no spatial subset. A missing or
+  // empty schedule (no field day) counts as inactive, so the map never goes
+  // blank.
 
   function activePatchNames() {
     var tp = (filterToday && window.fieldToday && window.fieldToday.patches) || null;
@@ -601,12 +595,9 @@ function(el, x) {
 
     if (names === null) {
 
-      // Show every patch, except test-site nests (prefixed). Opacity still
-      // applies: the non-current fade AND -- when "Subset to today's data" is on
-      // -- the not-scheduled-today fade. This branch used to ignore `fade`
-      // entirely, which meant coverboards and trailcams (which never appear in
-      // fieldNestFade) sat at full opacity in the All-patches view no matter
-      // what the schedule said. Same rule as the per-patch branch below.
+      // Show every patch except test-site nests (prefixed). Opacity still
+      // applies here, same rule as the per-patch branch below -- this branch
+      // used to skip it, leaving everything opaque in the All-patches view.
 
       eachPatchFeature(function (layer, gname) {
         if (gname === "Nests" && isTestNestLayer(layer)) {

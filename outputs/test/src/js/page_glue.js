@@ -76,7 +76,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function nestPoint(nestId) {
-    var pts = window.fieldMapPoints || [];
+    var pts = window.fieldMapMarkers || [];
     for (var i = 0; i < pts.length; i++) {
       var p = pts[i];
       if (p.name === nestId && p.lat != null && p.lng != null &&
@@ -89,7 +89,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function buildNestMap(container, nestId) {
     if (!window.L) return null;
-    var pts = window.fieldMapPoints || [];
+    var pts = window.fieldMapMarkers || [];
     var target = nestPoint(nestId);
     if (!target) return null;
     var center = [target.lat, target.lng];
@@ -122,7 +122,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     pts.forEach(function (p) {
       var op = (p.name === nestId) ? 1 : 0.3;
-      var ic = window.fieldIcons && window.fieldIcons[p.icon_id];
+      var ic = window.fieldIcons && window.fieldIcons[p.icon];
       var marker;
       if (ic) {
         marker = window.L.marker([p.lat, p.lng], {

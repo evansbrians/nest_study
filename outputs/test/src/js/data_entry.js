@@ -1282,16 +1282,18 @@
   }
 
   // Optimistically move a re-recorded nest's marker: rewrite the matching
-  // window.fieldMapPoints entry (by point_id, else by name == nest id) with the
-  // new lat/lng and redraw the live nest overlay, so the icon jumps to the new
-  // spot immediately instead of waiting for the next /gps_points refresh.
+  // v_map_point row (by point_id -> idx, else by name) so the icon jumps to
+  // the new spot at once instead of waiting for the /map_points refetch below.
+
   function moveApiMapPoint(pointId, name, lat, lng) {
-    var pts = window.fieldMapPoints || [];
+    var pts = window.fieldMapMarkers || [];
+
     for (var i = 0; i < pts.length; i++) {
       var p = pts[i];
       if (!p) continue;
-      if ((pointId && p.point_id === pointId) || (name && p.name === name)) {
-        p.lat = lat; p.lng = lng;
+      if ((pointId && p.idx === pointId) || (name && p.name === name)) {
+        p.lat = lat;
+        p.lng = lng;
       }
     }
     // A new nest/point just landed -- re-pull /map_points so its marker shows
@@ -1500,14 +1502,6 @@
   // un-configured build behaves exactly like the old Sheets/Drive path.
   function apiEnabled() {
     return !!(window.NestApi && NestApi.settings && NestApi.settings.hasCreds());
-  }
-
-  // A queue-able connectivity failure: offline, or a thrown fetch error with no
-  // HTTP .status (DNS/abort/network). A real 4xx/5xx (ApiError with .status) is
-  // NOT this -- it means the server rejected the payload, so surface the error.
-  function apiShouldQueue(err) {
-    if (!NestApi.api.isOnline()) return true;
-    return !!(err && typeof err.status !== "number");
   }
 
   // Debounced, non-blocking background flush of the write queue. Called after

@@ -1,22 +1,16 @@
 // nestapi_map.js -- nest PHOTO + navigation service (no rendering).
 //
-// This file used to be a second nest renderer: it drew its own marker overlay
-// because the baked map couldn't show app-created nests. That is gone. Every
-// marker now comes from ONE place -- GET /map_points (the v_map_point view),
-// drawn by renderMapPoints() in map_weather.js. Two renderers meant two copies
-// of "how a nest looks", and every disagreement between them was a bug.
+// Markers all come from GET /map_points, drawn by renderMapPoints() in
+// map_weather.js. What lives here is the part that isn't the DB's job:
+// fetching a nest's photo for a popup slot, and resolving coords for Navigate.
 //
-// What remains is the part that genuinely isn't the DB's job: fetching a nest's
-// photo (auth-gated bytes, cached in memory + IndexedDB) to fill a popup's
-// .api-nest-photo-slot, and resolving a nest's coordinates for Navigate.
-//
-// Assembled INTO the main field-map IIFE (after field_map_app.js), so it can
+// Assembled into the main field-map IIFE (after field_map_app.js), so it can
 // call startNavigation / niCoords / escapeHtml directly.
 
-// Normalize a nest's patch to the app's test-patch KEY. Test-site nests have DB
-// patch_id "snedgen_park" / "long_branch" (or NSP##/NLB## ids), but the patch
-// dropdown + labels key them as "test_snedgen_park" / "test_long_branch" -- so
-// filtering by raw patch_id never matched. Mirrors field_map_app.js.
+// Normalize a nest's patch to the app's test-patch key: the DB says
+// "snedgen_park", the dropdown says "test_snedgen_park", so filtering on raw
+// patch_id never matched. Mirrors field_map_app.js.
+
 function apiNestPatchKey(nest) {
   var id = String((nest && nest.nest_id) || "");
   if (/^NSP\d+$/.test(id)) return "test_snedgen_park";
@@ -27,22 +21,17 @@ function apiNestPatchKey(nest) {
   return (nest && nest.patch_id) || null;
 }
 
-// point_id -> {lat, lng, photo} from the API-loaded gps points.
+// point_id -> {lat, lng} from the map's v_map_point rows (idx IS point_id).
+
 function apiPointCoordIndex() {
   var idx = {};
-  (window.fieldMapPoints || []).forEach(function (p) {
-    if (p && p.point_id && p.lat != null && p.lng != null) {
-      idx[p.point_id] = { lat: p.lat, lng: p.lng, photo: p.photo || null };
+
+  (window.fieldMapMarkers || []).forEach(function (p) {
+    if (p && p.idx && p.lat != null && p.lng != null) {
+      idx[p.idx] = { lat: p.lat, lng: p.lng };
     }
   });
   return idx;
-}
-
-// Artificial = the nest's SPECIES is Artificial (code ARNE), or an NQ id. NOT
-// artificial_candidate -- that's a "could become artificial" flag real nests
-// carry, which must not drive the artificial icon.
-function apiNestIsArtificial(nest) {
-  return /^NQ/.test(String(nest.nest_id)) || nest.species_code === "ARNE";
 }
 
 // Prettify a patch_id ("long_branch" -> "Long Branch").
@@ -72,25 +61,17 @@ function asDataUri(photo) {
 
 // ---- Lazy popup photo for old / migrated nests --------------------------
 //
-// New nests store their discovery photo on the GPS point's nav_photo, which
-// GET /gps_points returns as base64 -> fieldMapPoints[].photo -> the popup
-// `photo` param below. Migrated nests often have NO nav_photo (the source
-// geojson carried no nav thumbnail) and the migration never wrote the `photo`
-// table, so nothing the map already holds can show their photo. When a nest is
-// photoless here, fetch GET /nests/<id> on popup open: use its gps_point's
-// nav_photo if present, else a disk photo from its photos[] via GET /photos/<id>.
-// /photos/<id> is auth-gated, so a plain <img src> would 401 -- we fetch the
-// bytes WITH the bearer token and hand the popup an object URL. Results (incl.
-// "no photo") are cached so a re-opened popup doesn't refetch.
-// In-memory photo cache: nest_id -> dataURI (a hit), false (known no photo), or
-// an in-flight Promise (de-dupes concurrent callers).
+// Migrated nests often have no nav_photo, so nothing the map holds can show
+// their photo; fetch GET /nests/<id> on popup open instead. /photos/<id> is
+// auth-gated, so we fetch the bytes with the token rather than <img src>.
+
+// In-memory cache: nest_id -> dataURI (hit), false (known no photo), or an
+// in-flight Promise (de-dupes concurrent callers).
 var _apiNestPhotoCache = {};
 
-// The change feed (nestapi_wiring.js) calls this when a photo/gps_point change
-// arrives from another device, so a "no photo" miss cached before the photo
-// synced is dropped and the next popup open re-fetches. Memory only -- the
-// persistent IndexedDB cache is keyed per nest and additive, so it is kept
-// (a genuinely new nest is simply absent from it and gets fetched fresh).
+// The change feed calls this when a photo/gps_point change arrives from another
+// device, dropping a "no photo" miss cached before the photo synced. Memory
+// only: the IndexedDB cache is per-nest and additive, so it is kept.
 window.NestApiData = window.NestApiData || {};
 window.NestApiData.clearNestPhotoCache = function () { _apiNestPhotoCache = {}; };
 
@@ -101,10 +82,9 @@ function apiCredsOnline() {
 
 // ---- Persistent photo cache (IndexedDB via NestApi.store `meta`) ----------
 //
-// A nest's photo is fetched ONCE and reused across sessions, so popups open
-// instantly from cache with no broken-image "?" flash and only NEW nests are
-// fetched on later opens. Held as one meta blob { nest_id: dataURI }, mirrored
-// in memory (_apiNestPhotoIdb) after a one-time load so reads are cheap.
+// A nest's photo is fetched once and reused across sessions, so only new nests
+// are fetched later. One meta blob { nest_id: dataURI }, mirrored in memory
+// after a one-time load so reads are cheap.
 var IDB_PHOTO_KEY = "apiNestPhotos";
 var _apiNestPhotoIdb = null;      // nest_id -> dataURI (null until loaded)
 var _apiNestPhotoIdbLoad = null;  // in-flight load promise
@@ -187,11 +167,9 @@ function apiSetSlotPhoto(slot, uri) {
   im.src = uri;
 }
 
-// Resolve a nest's best photo as a data URI (Promise -> dataURI | false). Order:
-// in-memory cache, then the persistent IndexedDB cache, then the network (the
-// gps point's nav_photo, else a disk photo from the `photo` table, discovery
-// preferred). Persists any hit so later sessions skip the fetch. false == the
-// nest truly has no photo anywhere.
+// Resolve a nest's best photo as a data URI (Promise -> dataURI | false).
+// Order: memory, IndexedDB, then network (nav_photo, else the `photo` table).
+// Persists any hit. false == the nest has no photo anywhere.
 function apiResolveNestPhoto(nestId) {
   if (!nestId) return Promise.resolve(false);
   nestId = String(nestId);
@@ -240,11 +218,9 @@ function apiLazyLoadNestPhoto(nestId, slot) {
   });
 }
 
-// Background prefetch: after boot, resolve every nest's photo into the cache so
-// popups open instantly with no "?" flash. IndexedDB-backed, so only nests not
-// already cached are fetched on later sessions. Throttled (a few in flight) so it
-// never competes with the field UI. No-op offline / without creds. Safe to call
-// repeatedly (skips anything already cached).
+// Background prefetch: resolve every nest's photo into the cache after boot so
+// popups open instantly. Throttled so it never competes with the field UI.
+// No-op offline / without creds; safe to call repeatedly.
 var _apiPrefetchRunning = false;
 function apiPrefetchNestPhotos() {
   if (_apiPrefetchRunning || !apiCredsOnline()) return;
@@ -284,11 +260,9 @@ window.NestApiData.prefetchNestPhotos = apiPrefetchNestPhotos;
 // calls this on popupopen -- the only hook the renderer needs from here.
 window.NestApiData.lazyLoadNestPhoto = apiLazyLoadNestPhoto;
 
-// THE resolver: nest_id -> dataURI | false. Checks memory, then IndexedDB, then
-// the network -- the gps point's nav_photo, ELSE a disk photo from the `photo`
-// table. Exposed so the nest-info page uses this same path instead of its own
-// weaker one (it only looked at nav_photo, so a nest whose photo lives in the
-// photo table -- e.g. NQ060 -- showed in the popup but not on its page).
+// THE resolver: nest_id -> dataURI | false. Memory, then IndexedDB, then the
+// network. Exposed so the nest-info page shares this path -- its own weaker
+// one read only nav_photo, so photo-table nests (NQ060) showed only in popups.
 window.NestApiData.resolveNestPhoto = apiResolveNestPhoto;
 
 window.fieldNavigateNest = function (nestId) {

@@ -322,7 +322,8 @@ map <-
         "Coverboards",
         "Trail Cameras",
         "Point Counts",
-        "Nests"
+        "Nests",
+        "Tracks"
       ),
     options = layersControlOptions(collapsed = TRUE)
   ) %>%
@@ -841,63 +842,6 @@ icons_json <-
     error = function(e) "{}"
   )
 
-map_points_json <-
-  tryCatch(
-    {
-      map_points_df <-
-        function(sfobj, group, fallback_icon = NA_character_) {
-          cc <- st_coordinates(st_transform(sfobj, 4326))
-          ic <-
-            if (!is.null(sfobj$icon_id)) {
-              as.character(sfobj$icon_id)
-            } else {
-              fallback_icon
-            }
-          pop <-
-            if (!is.null(sfobj$nest_popup)) {
-              as.character(sfobj$nest_popup)
-            } else {
-              as.character(sfobj$name)
-            }
-          tibble(
-            name = as.character(sfobj$name),
-
-            # gps_point.point_id -- the DB primary key, carried through so
-            # map_weather.js can stamp it on every marker (_pointId) and join the
-            # v_map_point styling (opacity/size) to it. Without this the markers
-            # have no stable key and the only join available is coordinates,
-            # which fails silently on float rounding.
-            point_id =
-              if (!is.null(sfobj$point_id)) {
-                as.character(sfobj$point_id)
-              } else {
-                NA_character_
-              },
-            lat = cc[, "Y"],
-            lng = cc[, "X"],
-            icon_id = ic,
-            popup = pop,
-            group = group,
-            patch =
-              if (!is.null(sfobj$patch_id)) {
-                as.character(sfobj$patch_id)
-              } else {
-                NA_character_
-              }
-          )
-        }
-
-      list(
-        map_points_df(nests_mapping, "Nests"),
-        map_points_df(coverboards, "Coverboards"),
-        map_points_df(trailcams, "Trail Cameras"),
-        map_points_df(point_counts, "Point Counts", "pc")
-      ) %>%
-        list_rbind() %>%
-        jsonlite::toJSON(dataframe = "rows", digits = NA)
-    },
-    error = function(e) "[]"
-  )
 
 paths_json <-
   tryCatch(
@@ -924,11 +868,9 @@ paths_json <-
 field_icons_js <-
   str_c("window.fieldIcons = ", icons_json, ";")
 
-# window.fieldMapPoints is NO LONGER BAKED. Every marker now comes from the
-# v_map_point view via GET /map_points (renderMapPoints() in map_weather.js),
-# which carries its own position, icon, opacity, size and popup facts. Baking a
-# second copy of the same points is what let the two planes disagree.
-# (map_points_json above is now unused -- delete with the rest of the bake.)
+# Map points are NOT baked. Every marker comes from the v_map_point view via
+# GET /map_points, which carries its own position, icon, opacity, size and
+# popup facts. Baking a second copy is what let the two planes disagree.
 field_map_points_js <- ""
 
 field_paths_js <-
