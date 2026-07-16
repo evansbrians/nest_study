@@ -5,9 +5,22 @@
 
 set -euo pipefail
 
-KEY="${1:-brian_sandbox/ssh-key-2026-07-06_private.key}"
+# The key is personal and never in git, so its path differs per machine. Set
+# NEST_SSH_KEY (e.g. in ~/.Renviron, which R exports to this script) or pass it
+# as $1. The fallback is one contributor's layout, not a shared location.
+
+KEY="${1:-${NEST_SSH_KEY:-brian_sandbox/ssh-key-2026-07-06_private.key}}"
 LOCAL_DB="${2:-nest_study.sqlite}"
-VM="ubuntu@snednestudy.duckdns.org"
+VM="${NEST_VM:-ubuntu@snednestudy.duckdns.org}"
+
+if [ ! -f "$KEY" ]; then
+  echo "refresh_local_db: no SSH key at '$KEY'." >&2
+  echo "  Set NEST_SSH_KEY to your key, e.g. in ~/.Renviron:" >&2
+  echo "    NEST_SSH_KEY=/Users/you/.ssh/nest_vm_key" >&2
+  echo "  The key must be chmod 600, and its VM account needs sudo." >&2
+  exit 1
+fi
+
 TMP="$(mktemp)"
 trap 'rm -f "$TMP"' EXIT
 

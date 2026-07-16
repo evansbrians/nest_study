@@ -189,19 +189,29 @@ message("Refreshing local DB from the VM...")
 db_refreshed <-
   system2("bash", "scripts/utils/refresh_local_db.sh") == 0
 
-if (db_refreshed) {
-  system2(
-    "Rscript",
-    c(
-      "scripts/db/nightly_load.R",
-      "nest_study.sqlite"
-    )
-  )
-} else {
-  warning(
-    "refresh_local_db.sh failed -- local DB left unchanged; using its prior state."
+# A failed refresh is FATAL, not a warning. Everything below derives from this
+# DB: the nests folded into field_data.rds, the spatial files, and the schedule's
+# check_nests. Carrying on would push a schedule built from stale nests -- one
+# found yesterday would be missing from today's check list -- and a warning in a
+# long console log is not a defence against that.
+
+if (!db_refreshed) {
+  stop(
+    "refresh_local_db.sh failed, so the local DB is stale.\n",
+    "  Everything below (nests, spatial files, the schedule's check_nests) is\n",
+    "  derived from it, so this run would push a schedule built from old nests.\n",
+    "  Fix the refresh and re-run. If the key is the problem, set NEST_SSH_KEY.",
+    call. = FALSE
   )
 }
+
+system2(
+  "Rscript",
+  c(
+    "scripts/db/nightly_load.R",
+    "nest_study.sqlite"
+  )
+)
 
 # database-entered field data ---------------------------------------------
 

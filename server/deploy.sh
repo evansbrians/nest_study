@@ -17,8 +17,11 @@
 #
 set -euo pipefail
 
-KEY="${KEY:-brian_sandbox/ssh-key-2026-07-06_private.key}"
-VM="${VM:-ubuntu@snednestudy.duckdns.org}"
+# Same env vars as scripts/utils/refresh_local_db.sh, so there is one thing to
+# set per machine. The key is personal and never in git.
+
+KEY="${KEY:-${NEST_SSH_KEY:-brian_sandbox/ssh-key-2026-07-06_private.key}}"
+VM="${NEST_VM:-${VM:-ubuntu@snednestudy.duckdns.org}}"
 APP_DIR="/opt/nest-api/server"
 DRY=""
 [ "${1:-}" = "--dry-run" ] && DRY="--dry-run"
