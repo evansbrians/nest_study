@@ -18,9 +18,11 @@
 set -euo pipefail
 
 # Same env vars as scripts/utils/refresh_local_db.sh, so there is one thing to
-# set per machine. The key is personal and never in git.
+# set per machine. The key is personal and never in git, and there is deliberately
+# no default: a fallback to one person's gitignored key works silently for them
+# and fails cryptically for anyone else -- including them, on another machine.
 
-KEY="${KEY:-${NEST_SSH_KEY:-brian_sandbox/ssh-key-2026-07-06_private.key}}"
+KEY="${KEY:-${NEST_SSH_KEY:-}}"
 VM="${NEST_VM:-${VM:-ubuntu@snednestudy.duckdns.org}}"
 APP_DIR="/opt/nest-api/server"
 DRY=""
@@ -28,6 +30,12 @@ DRY=""
 
 cd "$(dirname "$0")/.."   # repo root
 
+[ -n "$KEY" ] || {
+  echo "NEST_SSH_KEY is not set (or pass KEY=/path/to/key)." >&2
+  echo "  Add it to ~/.Renviron so R and bash agree on one path:" >&2
+  echo "    NEST_SSH_KEY=/Users/you/.ssh/nest_vm_key" >&2
+  exit 1
+}
 [ -f "$KEY" ] || { echo "No ssh key at $KEY (override with KEY=...)" >&2; exit 1; }
 [ -f server/plumber.R ] || { echo "Run me from the repo root." >&2; exit 1; }
 

@@ -5,13 +5,25 @@
 
 set -euo pipefail
 
-# The key is personal and never in git, so its path differs per machine. Set
-# NEST_SSH_KEY (e.g. in ~/.Renviron, which R exports to this script) or pass it
-# as $1. The fallback is one contributor's layout, not a shared location.
+# The key is personal and never in git, so its path differs per machine. Every
+# contributor sets NEST_SSH_KEY (e.g. in ~/.Renviron, which R exports to this
+# script) or passes it as $1.
+#
+# There is deliberately NO default. It used to fall back to one contributor's
+# gitignored key, which meant the script worked for exactly one person and told
+# everyone else their key was missing from a sandbox path they'd never heard of.
 
-KEY="${1:-${NEST_SSH_KEY:-brian_sandbox/ssh-key-2026-07-06_private.key}}"
+KEY="${1:-${NEST_SSH_KEY:-}}"
 LOCAL_DB="${2:-nest_study.sqlite}"
 VM="${NEST_VM:-ubuntu@snednestudy.duckdns.org}"
+
+if [ -z "$KEY" ]; then
+  echo "refresh_local_db: NEST_SSH_KEY is not set." >&2
+  echo "  Add your key's path to ~/.Renviron, then restart R:" >&2
+  echo "    NEST_SSH_KEY=/Users/you/.ssh/nest_vm_key" >&2
+  echo "  Check it took with Sys.getenv(\"NEST_SSH_KEY\") in the R console." >&2
+  exit 1
+fi
 
 if [ ! -f "$KEY" ]; then
   echo "refresh_local_db: no SSH key at '$KEY'." >&2
