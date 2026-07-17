@@ -10,7 +10,13 @@ format:
     # one file. render_push.sh copies them all. Rollback: set back to true.
     embed-resources: false
     include-in-header:
-      text: '<link rel="icon" type="image/png" href="icons/favicon.png">'
+      # Quarto emits user-scalable=yes, which lets a stray two-finger touch zoom
+      # the whole PAGE: the fixed bottom bar then sits outside the visual
+      # viewport and the map looks full-screen. This meta lands later in <head>
+      # and wins. The map's own pinch-zoom is Leaflet's, and is untouched.
+      text: |
+        <link rel="icon" type="image/png" href="icons/favicon.png">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 ---
 
 ```{r}

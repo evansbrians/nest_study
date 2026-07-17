@@ -418,6 +418,66 @@
     overlay.classList.add("is-visible");
   }
 
+  // Replaces window.confirm, which is a SILENT no-op here: the app ships in a
+  // WKWebView with no uiDelegate, so confirm() shows nothing and just returns
+  // false -- every guarded button did nothing at all. Callback-based because a
+  // web modal cannot block the way confirm() does.
+
+  function fieldConfirm(msg, onYes) {
+    var overlay = document.getElementById("fieldConfirmModal");
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.id = "fieldConfirmModal";
+      overlay.className = "field-upload-modal-overlay";
+      var box = document.createElement("div");
+      box.className = "field-upload-modal";
+      var text = document.createElement("div");
+      text.className = "field-upload-modal-text";
+      var row = document.createElement("div");
+      row.className = "field-confirm-modal-buttons";
+      var no = document.createElement("button");
+      no.type = "button";
+      no.className = "field-button";
+      no.textContent = "Cancel";
+      var yes = document.createElement("button");
+      yes.type = "button";
+      yes.className = "field-button field-confirm-yes";
+      yes.textContent = "Yes";
+      row.appendChild(no);
+      row.appendChild(yes);
+      box.appendChild(text);
+      box.appendChild(row);
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
+      overlay._textEl = text;
+      overlay._yesEl = yes;
+
+      // Cancel on the button OR on a backdrop tap; a tap inside the box must
+      // not count as either answer.
+
+      box.addEventListener("click", function (e) { e.stopPropagation(); });
+      overlay.addEventListener("click", function () { hideConfirm(overlay); });
+      no.addEventListener("click", function () { hideConfirm(overlay); });
+    }
+    overlay._textEl.textContent = msg;
+
+    // Re-bind Yes each call: the handler closes over THIS call's onYes, and a
+    // stale one left over would fire the previous button's action.
+
+    var fresh = overlay._yesEl.cloneNode(true);
+    overlay._yesEl.parentNode.replaceChild(fresh, overlay._yesEl);
+    overlay._yesEl = fresh;
+    fresh.addEventListener("click", function () {
+      hideConfirm(overlay);
+      if (typeof onYes === "function") onYes();
+    });
+    overlay.classList.add("is-visible");
+  }
+
+  function hideConfirm(overlay) {
+    overlay.classList.remove("is-visible");
+  }
+
 
   // Photo capture: downscale and compress to a JPEG data URI so the image
   // can be put inside the GeoJSON file.
@@ -2555,10 +2615,12 @@
   var nmMakeArt = document.getElementById("nmMakeArtificial");
   if (nmMakeArt) nmMakeArt.addEventListener("click", function () {
     if (!modifyNestId) return;
-    if (!window.confirm("Reassign " + modifyNestId +
-        " as an artificial nest? This adds a discovery row (Artificial nest) " +
-        "and a first interval check with 2 host eggs.")) return;
-    makeArtificialNest(modifyNestId);
+    fieldConfirm(
+      "Reassign " + modifyNestId + " as an artificial nest? This adds a " +
+        "discovery row (Artificial nest) and a first interval check with " +
+        "2 host eggs.",
+      function () { makeArtificialNest(modifyNestId); }
+    );
   });
   var nmAddNestDisc = document.getElementById("nmAddNestDiscovery");
   if (nmAddNestDisc) nmAddNestDisc.addEventListener("click", function () {
@@ -2578,23 +2640,25 @@
   var ndDeleteBtn = document.getElementById("ndDeleteBtn");
   if (ndDeleteBtn) ndDeleteBtn.addEventListener("click", function () {
     if (!nestDataCtx || nestDataCtx.mode !== "edit") return;
-    if (!window.confirm("Delete this nest's discovery row from the sheet?")) return;
-    var st = document.getElementById("nestDataStatus");
-    if (st) st.textContent = "Deleting…";
-    deleteSheetRow("nest_level", nestDataCtx.sheetRow,
-      function () { showUploadModal("Nest data deleted."); closeMenu(); },
-      function (msg) { if (st) st.textContent = msg; });
+    fieldConfirm("Delete this nest's discovery row?", function () {
+      var st = document.getElementById("nestDataStatus");
+      if (st) st.textContent = "Deleting…";
+      deleteSheetRow("nest_level", nestDataCtx.sheetRow,
+        function () { showUploadModal("Nest data deleted."); closeMenu(); },
+        function (msg) { if (st) st.textContent = msg; });
+    });
   });
 
   var intervalDeleteBtn = document.getElementById("intervalDeleteBtn");
   if (intervalDeleteBtn) intervalDeleteBtn.addEventListener("click", function () {
     if (!intervalCtx || intervalCtx.mode !== "edit") return;
-    if (!window.confirm("Delete this interval check from the sheet?")) return;
-    var st = document.getElementById("intervalStatus");
-    if (st) st.textContent = "Deleting…";
-    deleteSheetRow("interval_level", intervalCtx.sheetRow,
-      function () { showUploadModal("Interval check deleted."); closeMenu(); },
-      function (msg) { if (st) st.textContent = msg; });
+    fieldConfirm("Delete this interval check?", function () {
+      var st = document.getElementById("intervalStatus");
+      if (st) st.textContent = "Deleting…";
+      deleteSheetRow("interval_level", intervalCtx.sheetRow,
+        function () { showUploadModal("Interval check deleted."); closeMenu(); },
+        function (msg) { if (st) st.textContent = msg; });
+    });
   });
 
   // Test nests created in the app go straight to Drive; the (server-rendered)
@@ -2735,16 +2799,24 @@
     clearBtn.addEventListener("click", function () {
       var arr = loadWaypoints();
       if (!arr.length) return;
-      if (window.confirm("Clear cached waypoints? (Points still waiting to reach Drive are kept so they can upload when you reconnect.)")) {
-        // Remove every cached waypoint's marker from the map. Still-pending
-        // points stay in the cache + the manager (off the map) so they can still
-        // upload.
-        arr.forEach(function (w) { removeWaypointMarker(w.point_id); });
-        var keep = arr.filter(isPending).map(function (w) { w.visible = false; return w; });
-        storeWaypoints(keep);
-        renderWaypoints();
-        retryPendingUploads();
-      }
+      fieldConfirm(
+        "Clear cached waypoints? (Points still waiting to upload are kept so " +
+          "they can go up when you reconnect.)",
+        function () {
+
+          // Remove every cached waypoint's marker from the map. Still-pending
+          // points stay in the cache + the manager (off the map) so they can
+          // still upload.
+
+          arr.forEach(function (w) { removeWaypointMarker(w.point_id); });
+          var keep = arr
+            .filter(isPending)
+            .map(function (w) { w.visible = false; return w; });
+          storeWaypoints(keep);
+          renderWaypoints();
+          retryPendingUploads();
+        }
+      );
     });
   }
 
@@ -3393,8 +3465,17 @@
       onTrackLoc = onFix;
       map.on("locationfound", onTrackLoc);
 
+      clearTrackRecovery();
+
+      // The 1s tick is the single backup hook: it already runs for the whole
+      // recording, so it covers every place a vertex gets pinned. The
+      // length check keeps it to one write per new vertex, not one per second.
+
       if (clockIv) clearInterval(clockIv);
-      clockIv = setInterval(updateReadout, 1000);   // tick clock/speed/length
+      clockIv = setInterval(function () {
+        updateReadout();
+        if (committed.length !== _recoverySaved) saveTrackRecovery();
+      }, 1000);
 
       trackStatus("Recording — pause at corners to pin them.");
       updateReadout();
@@ -3416,10 +3497,19 @@
     if (errPoly && window.fieldMap) { window.fieldMap.removeLayer(errPoly); errPoly = null; }
     redrawLive();
     updateReadout();
+    saveTrackRecovery();
     trackStatus("Stopped — " + committed.length + " vertices, " +
       fmtDist(trackDistance(committed)) + ".");
     updateTrackUI();
   }
+
+  // Back the track up the moment the page is hidden: that is precisely when iOS
+  // reclaims a WKWebView's memory, and the reload that follows is what lost the
+  // track in the field.
+
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) saveTrackRecovery();
+  });
 
   function downloadText(filename, text, mime) {
     var blob = new Blob([text], { type: mime });
@@ -3482,6 +3572,51 @@
   function storeTracks(arr) {
     try { localStorage.setItem(TRACKS_KEY, JSON.stringify(arr)); return true; }
     catch (e) { return false; }
+  }
+
+  // ---- crash recovery for the IN-PROGRESS track -------------------------
+  // `committed` lived only in memory, so anything that reloaded the page --
+  // an iOS memory-pressure jettison, a crash, a stray refresh -- silently
+  // threw away the whole walk. Vertices are mirrored here as they are pinned,
+  // and offered back on the next boot.
+
+  var RECOVERY_KEY = "fieldTrackRecovery";
+  var _recoverySaved = -1;
+
+  // Deliberately not gated on `tracking`: a stopped-but-unsaved track is just
+  // as losable, and that is the window where someone is standing still fiddling
+  // with the name field.
+
+  function saveTrackRecovery() {
+    if (!committed.length) return;
+    try {
+      localStorage.setItem(RECOVERY_KEY, JSON.stringify({
+        committed: committed,
+        startMs: startMs,
+        patch_id: trackPatchId,
+        name: (trackNameEl && trackNameEl.value) || trackAutoName || "",
+        note: (trackNoteEl && trackNoteEl.value) || "",
+        activity: trackActivity(),
+        saved_at: new Date().toISOString()
+      }));
+      _recoverySaved = committed.length;
+    } catch (e) {
+
+      // A full quota is exactly when a long track matters most, so say so
+      // rather than failing mute.
+
+      trackStatus("Warning: couldn't back up this track (storage full).");
+    }
+  }
+
+  function clearTrackRecovery() {
+    _recoverySaved = -1;
+    try { localStorage.removeItem(RECOVERY_KEY); } catch (e) {}
+  }
+
+  function loadTrackRecovery() {
+    try { return JSON.parse(localStorage.getItem(RECOVERY_KEY)) || null; }
+    catch (e) { return null; }
   }
 
   // ---- track sync (shared across devices via the API) -------------------
@@ -3682,9 +3817,13 @@
       recNewBtn.textContent = "Record new track";
       recNewBtn.addEventListener("click", function (e) {
         e.stopPropagation();
-        if (!window.confirm("Are you sure? This will delete the previous track!")) return;
-        trackMenu.hidden = true;
-        startRecordNew(t);
+        fieldConfirm(
+          "Are you sure? This will delete the previous track!",
+          function () {
+            trackMenu.hidden = true;
+            startRecordNew(t);
+          }
+        );
       });
       var avgNewBtn = document.createElement("button");
       avgNewBtn.type = "button"; avgNewBtn.className = "field-button";
@@ -3821,10 +3960,18 @@
   // Drive on every save and wasn't shareable). An explicit "Download (GeoJSON)"
   // button in the track manager still exports one on demand.
 
+  // The single funnel for both save paths (normal + averaged), so it is also
+  // the one place the crash-recovery copy is retired -- only ever AFTER the
+  // track is safely in storage.
+
   function commitSavedTrack(t) {
     var arr = loadTracks();
     arr.push(t);
-    storeTracks(arr);
+    if (!storeTracks(arr)) {
+      trackStatus("Couldn't save the track — storage is full.");
+      return;
+    }
+    clearTrackRecovery();
     syncTrackCreate(t);   // share to the server (optimistic; no-op without token)
     drawSavedTrack(t);
     renderTrackList();
@@ -3931,6 +4078,7 @@
       live = null;
       walkAgainTarget = null;   // cancel any pending "walk again" average
       replaceTarget = null;
+      clearTrackRecovery();
       trackStatus("Track cleared.");
       updateReadout();
       updateTrackUI();
@@ -3956,6 +4104,50 @@
   renderTrackList();
   updateReadout();
   updateTrackUI();
+
+  // Recover a track the last run was in the middle of. It comes back STOPPED,
+  // not recording: the GPS gap since the crash is unknown, so resuming would
+  // draw a straight line across wherever the walk actually went. The vertices
+  // are restored and the user saves or clears them.
+
+  function restoreTrackInProgress() {
+    var rec = loadTrackRecovery();
+    if (!rec || !rec.committed || rec.committed.length < 2) {
+      if (rec) clearTrackRecovery();
+      return;
+    }
+    whenMapReady(function (map) {
+      committed = rec.committed;
+      live = null;
+      tracking = false;
+      startMs = rec.startMs || 0;
+      trackPatchId = rec.patch_id || "patch-none";
+      trackAutoName = rec.name || "";
+      if (trackNameEl && rec.name) trackNameEl.value = rec.name;
+      if (trackNoteEl && rec.note) trackNoteEl.value = rec.note;
+      if (trackActivityEl && rec.activity) trackActivityEl.value = rec.activity;
+      activeLine = window.L
+        .polyline(
+          committed.map(function (p) { return [p.lat, p.lng]; }),
+          TRACK_STYLE
+        )
+        .addTo(map);
+      updateReadout();
+      updateTrackUI();
+      trackStatus(
+        "Recovered an unsaved track (" + committed.length + " vertices, " +
+        fmtDist(trackDistance(committed)) + ") from " +
+        String(rec.saved_at || "").slice(11, 16) +
+        ". Save it or clear it."
+      );
+      showUploadModal(
+        "Recovered a track the app lost (" + committed.length +
+        " vertices). It's on the map under Tracks — save or clear it."
+      );
+    });
+  }
+
+  restoreTrackInProgress();
 
   // ---- Concealment photos ------------------------------------------------
 

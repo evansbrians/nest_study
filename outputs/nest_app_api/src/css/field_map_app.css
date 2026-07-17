@@ -1185,6 +1185,33 @@ input[type="file"].field-input {
 }
 
 
+/* In-app confirm (window.confirm does nothing in the WKWebView). Reuses the
+   upload modal's shell, but slate rather than the success green -- it asks a
+   question, and some answers delete data. */
+
+#fieldConfirmModal .field-upload-modal {
+  background: #24303a;
+  padding: 28px 24px;
+}
+
+.field-confirm-modal-buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.field-confirm-modal-buttons .field-button {
+  flex: 1;
+  margin: 0;
+}
+
+.field-confirm-yes {
+  background: #1b7f3b;
+  border-color: #1b7f3b;
+  color: #fff;
+}
+
+
 /* Voice-dictation mic button (free-text fields) */
 
 /* Nest discovery data form */
