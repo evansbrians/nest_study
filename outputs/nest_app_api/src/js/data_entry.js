@@ -1783,27 +1783,14 @@
       NestApi.api.getNest(nestId).then(function (detail) {
         if (!detail || !detail.nest) { cb(null); return; }
         var disc = detail.nest;
-        // The DB row speaks the schema vocabulary (height_m); the form speaks the
-        // Sheets vocabulary (height). Bridge the one renamed field so the shared
-        // pre-fill (fillNestForm) reads it. discovery_date already matches.
-        if (disc.height == null || disc.height === "") {
-          if (disc.height_m != null && disc.height_m !== "") disc.height = disc.height_m;
-        }
-        // Server keeps substrate as an array of { substrate_id, label } objects;
-        // the form expects a joined string of labels. Pull the label off each.
-        if (Array.isArray(detail.substrates) && detail.substrates.length &&
-            (disc.substrate == null || disc.substrate === "")) {
-          disc.substrate = detail.substrates.map(function (s) {
-            return (s && typeof s === "object") ? (s.label || s.substrate_id) : s;
-          }).filter(Boolean).join(", ");
-        }
+
+        // The response splits one nest across siblings; flatten substrates onto
+        // the record under its OWN name. This renames nothing -- the forms read
+        // the schema vocabulary, so there is nothing left to translate.
+
+        disc.substrates = detail.substrates;
+
         var ivs = (detail.intervals || []).map(function (iv) {
-          // interval_check rows use check_date/check_time/observer_id; the edit
-          // form reads date/time/observer. Copy the schema fields onto the form
-          // names (leaving the originals intact) so pre-fill + the header show.
-          if (iv.date == null && iv.check_date != null) iv.date = iv.check_date;
-          if (iv.time == null && iv.check_time != null) iv.time = iv.check_time;
-          if (iv.observer == null && iv.observer_id != null) iv.observer = iv.observer_id;
           return { data: iv, row: iv.check_id };
         });
         cb({ discovery: { data: disc, row: disc.nest_id }, intervals: ivs });
@@ -1876,20 +1863,24 @@
       if (n && n.nest_id === nestId) {
         var d = {};
         Object.keys(n).forEach(function (k) { d[k] = n[k]; });
-        // schema vocab -> form vocab (same bridges fetchNestDetail applies).
-        if ((d.height == null || d.height === "") && d.height_m != null && d.height_m !== "") d.height = d.height_m;
-        if ((d.species == null || d.species === "") && d.species_code != null) d.species = d.species_code;
-        // GET /nests joins substrates into a comma string under `substrates`.
-        if ((d.substrate == null || d.substrate === "") && d.substrates != null) d.substrate = d.substrates;
-        if ((d.gps_point == null || d.gps_point === "") && d.gps_point_id != null) d.gps_point = d.gps_point_id;
+
+        // The API row already speaks the vocabulary the form reads, so it is
+        // passed through untouched. gps_point is display-only chrome, not data.
+
+        if ((d.gps_point == null || d.gps_point === "") && d.gps_point_id != null) {
+          d.gps_point = d.gps_point_id;
+        }
         return d;
       }
     }
     var info = (window.fieldNestInfo && window.fieldNestInfo[nestId]) || null;
     if (info) {
       return {
-        species: info.species, patch_id: info.patch_id, substrate: info.substrate,
-        height: info.height, location_description: info.location_description,
+        species_code: info.species_code,
+        patch_id: info.patch_id,
+        substrates: info.substrates,
+        height_m: info.height_m,
+        location_description: info.location_description,
         discovery_date: info.discovery_date
       };
     }
@@ -1938,9 +1929,6 @@
     NestApi.api.getNestIntervals(nestId).then(function (rows) {
       if (!Array.isArray(rows)) { cb(null); return; }
       var ivs = rows.map(function (iv) {
-        if (iv.date == null && iv.check_date != null) iv.date = iv.check_date;
-        if (iv.time == null && iv.check_time != null) iv.time = iv.check_time;
-        if (iv.observer == null && iv.observer_id != null) iv.observer = iv.observer_id;
         return { data: iv, row: iv.check_id };
       });
       cb(ivs);
@@ -2012,7 +2000,7 @@
       row.type = "button";
       row.className = "field-patch-overlay-row";
       var d = item.data || {};
-      row.textContent = (d.date || "?") + "  " + (d.time || "");
+      row.textContent = (d.check_date || "?") + "  " + (d.check_time || "");
       row.addEventListener("click", function () {
         close();
         openIntervalDataEdit(nestId, item.data, item.row);
@@ -2106,18 +2094,57 @@
     }
   }
 
+  // One reader for the two shapes `substrates` ships in: a comma string (GET
+  // /nests) or an array of {substrate_id,label} (GET /nests/<id>).
+
+  function substrateLabels(value) {
+    if (value == null || value === "") return [];
+
+    if (Array.isArray(value)) {
+      return value
+        .map(function (s) { return (s && s.label != null) ? String(s.label) : String(s); })
+        .filter(Boolean);
+    }
+    return String(value)
+      .split(",")
+      .map(function (x) { return x.trim(); })
+      .filter(Boolean);
+  }
+
+  // Reads the SCHEMA vocabulary (species_code, height_m, substrates) -- the same
+  // names the API and DB use. There is deliberately no second dialect: the two
+  // bridges that used to translate into a "form vocabulary" disagreed (one
+  // mapped species_code, the other didn't), and whichever ran last won, which is
+  // how a filled species dropdown silently blanked itself.
+
   function fillNestForm(data) {
     data = data || {};
     var sp = ndEl("ndSpecies");
-    var spVal = (data.species != null) ? String(data.species) : "";
-    // Back-compat: older rows wrote the code "ARNE" for artificial nests.
+    var spVal = (data.species_code != null) ? String(data.species_code) : "";
+
+    // Bird options are keyed by CODE ("INBU"), but the two specials are keyed by
+    // NAME, because speciesChoicesFromLookups drops UNKN/ARNE/OTHER and adds
+    // them back by hand. Map the codes onto those names or they miss and fall
+    // into the free-text "Other" box.
+
     if (spVal === "ARNE") spVal = "Artificial nest";
+    else if (spVal === "UNKN") spVal = "Unknown";
+
     if (sp) {
       var known = false;
       Array.prototype.forEach.call(sp.options, function (o) { if (o.value === spVal) known = true; });
+
+      // A genuine free-text species lives in species_other; fall back to the
+      // raw value so an unrecognised code is still shown rather than dropped.
+
+      var spOther = (data.species_other != null && data.species_other !== "")
+        ? String(data.species_other) : "";
+
       if (spVal && known) sp.value = spVal;
-      else if (spVal) { sp.value = "__other__"; ndEl("ndSpeciesOther").value = spVal; }
-      else sp.selectedIndex = 0;
+      else if (spOther || spVal) {
+        sp.value = "__other__";
+        ndEl("ndSpeciesOther").value = spOther || spVal;
+      } else sp.selectedIndex = 0;
     }
     fillNestPatchOptions(data.patch_id || "patch-none");
     ndEl("ndDiscoveryStage").value = data.discovery_stage || "";
@@ -2128,9 +2155,15 @@
     ndEl("ndCameraDeploymentDate").value =
       data.camera_deployment_date ? String(data.camera_deployment_date).slice(0, 10) : "";
     ndEl("ndCameraDateWrap").style.display = (cam === "Camera") ? "" : "none";
-    ndEl("ndHeight").value = (data.height != null && data.height !== "") ? String(data.height) : "";
+    ndEl("ndHeight").value =
+      (data.height_m != null && data.height_m !== "") ? String(data.height_m) : "";
     var su = ndEl("ndSubstrate");
-    var subs = String(data.substrate || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+
+    // `substrates` arrives as a comma string from GET /nests but as an array of
+    // {substrate_id,label} from GET /nests/<id>. Accept both here rather than
+    // reintroducing a per-caller bridge; normalise to labels.
+
+    var subs = substrateLabels(data.substrates);
     var others = [];
     if (su) {
       Array.prototype.forEach.call(su.options, function (o) { o.selected = false; });
@@ -2181,8 +2214,15 @@
 
   function fillIntervalForm(data) {
     data = data || {};
-    var active = !!(data.adult_present || data.nest_status || data.young_status ||
-      (data.host_eggs != null && data.host_eggs !== ""));
+
+    // interval_check STORES current_state ('Active'/'Empty'), so trust it. Only
+    // infer for legacy rows that predate the column: an Active check with empty
+    // counts would otherwise reopen as Empty, silently contradicting the record.
+
+    var active = (data.current_state != null && data.current_state !== "")
+      ? (String(data.current_state) === "Active")
+      : !!(data.adult_present || data.nest_status || data.young_status ||
+           (data.host_eggs != null && data.host_eggs !== ""));
     var radios = overlay.querySelectorAll('input[name="ivCurrentState"]');
     for (var i = 0; i < radios.length; i++) {
       radios[i].checked = (radios[i].value === (active ? "Active" : "Empty"));
@@ -2196,10 +2236,10 @@
       ivEl("ivBhcoYoung").value = numText(data.bhco_young);
       ivEl("ivNestStatus").value = data.nest_status || "CN";
       ivEl("ivYoungStatus").value = data.young_status || "NO";
-      ivEl("ivObserverActive").value = data.observer || "TNS";
+      ivEl("ivObserverActive").value = data.observer_id || "TNS";
       ivEl("ivNotesActive").value = data.notes || "";
     } else {
-      ivEl("ivObserver").value = data.observer || "TNS";
+      ivEl("ivObserver").value = data.observer_id || "TNS";
       ivEl("ivNotes").value = data.notes || "";
     }
     applyIntervalState();
@@ -2207,8 +2247,11 @@
 
   function openIntervalDataEdit(nestId, data, row) {
     intervalCtx = {
-      nestId: nestId, mode: "edit", sheetRow: row,
-      date: (data && data.date) || null, time: (data && data.time) || null
+      nestId: nestId,
+      mode: "edit",
+      sheetRow: row,
+      date: (data && data.check_date) || null,
+      time: (data && data.check_time) || null
     };
     // Edit mode never drafts.
     _ivDraftKey = null;
@@ -2217,6 +2260,10 @@
     fillIntervalForm(data);
     toggleIntervalEditChrome(true);
     // Modifying a check: let the user correct its date + time.
-    toggleIvDateTimeEdit(true, (data && data.date) || null, (data && data.time) || null);
+    toggleIvDateTimeEdit(
+      true,
+      (data && data.check_date) || null,
+      (data && data.check_time) || null
+    );
     showScreen("intervaldata");
   }

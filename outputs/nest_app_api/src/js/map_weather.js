@@ -618,7 +618,13 @@ function(el, x) {
       });
       eachPatchFeature(function (layer, gname) {
         var show;
-        if (gname === "Patches") {
+
+        // Temp waypoints opt out: a scratch point the tech just dropped is
+        // always relevant, wherever it sits. field_map_app.js sets the flag.
+
+        if (layer._alwaysShow) {
+          show = true;
+        } else if (gname === "Patches") {
 
           // Outlines: show only the active patches themselves.
 

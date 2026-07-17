@@ -432,18 +432,14 @@ map_tracking
                placeholder="Type the plant" autocomplete="off">
       </label>
 
+      <!-- No dictate button: the app ships in a WKWebView, which exposes
+           webkitSpeechRecognition but cannot grant it permission, so the button
+           silently did nothing. The keyboard's own mic key dictates into this
+           field on both iOS and Android. -->
+
       <label class="field-field-label">Location description
-        <div class="field-mic-row">
-          <textarea id="ndLocationDescription" class="field-input field-mic-input" rows="3"
-                    placeholder="Describe how to find this nest"></textarea>
-          <button type="button" id="ndLocationMic" class="field-mic-btn"
-                  aria-label="Dictate location description" title="Dictate">
-            <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
-              <path fill="currentColor" d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3z"/>
-              <path fill="currentColor" d="M17 11a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/>
-            </svg>
-          </button>
-        </div>
+        <textarea id="ndLocationDescription" class="field-input" rows="3"
+                  placeholder="Describe how to find this nest"></textarea>
       </label>
 
       <!-- Note + Photo belong to the waypoint (add flow); hidden when editing an

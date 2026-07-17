@@ -677,6 +677,13 @@
 
     if (w.visible === false) return;
     var m = L.marker([w.latitude, w.longitude], { icon: wpIcon(wpColorHex(w)) });
+
+    // Temp points are scratch marks the tech just dropped and will act on now,
+    // so they are ALWAYS relevant: the patch/today filter must never hide one.
+    // Everything else in this group hides with the patches it sits in.
+
+    m._alwaysShow = (w.point_class === "Temp");
+
     // Into the layerManager's "Waypoints" group rather than straight onto the
     // map, so map_weather.js's applyFilter() sweeps these like every other point
     // layer -- a waypoint outside today's patches now hides with them. Added
@@ -1433,54 +1440,11 @@
   wireNestPicker("ndCameraOrControlBtn", "ndCameraOrControl", "Camera or control", "Control", false, null);
   wireNestPicker("ndSubstrateBtn", "ndSubstrate", "Substrate", "Choose substrate", true, syncNestOther);
 
-  // Voice dictation for free-text fields (Web Speech API). Tap the mic to
-  // dictate into the field and tap again to stop; the transcript is appended to
-  // whatever is already there so a correction typed by hand isn't lost. The
-  // button hides itself where the browser has no speech recognition. Note: iOS
-  // and Android do the recognition server-side, so it needs a network
-  // connection and microphone permission.
-  function wireDictation(btn, target, onText) {
-    if (!btn || !target) return;
-    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { btn.style.display = "none"; return; }
-    var rec = null, listening = false, baseText = "";
-    btn.addEventListener("click", function () {
-      if (listening) { if (rec) { try { rec.stop(); } catch (e) {} } return; }
-      rec = new SR();
-      rec.lang = "en-US";
-      rec.interimResults = true;
-      rec.continuous = true;
-      // Start from the current text (+ a trailing space) so dictation appends.
-      baseText = target.value ? target.value.replace(/\s+$/, "") + " " : "";
-      rec.onstart = function () { listening = true; btn.classList.add("is-listening"); };
-      rec.onend = function () {
-        listening = false;
-        btn.classList.remove("is-listening");
-        rec = null;
-        if (onText) onText();
-      };
-      rec.onerror = function () { /* no-speech / not-allowed: onend still fires */ };
-      rec.onresult = function (ev) {
-        var finalTxt = "", interim = "";
-        for (var i = ev.resultIndex; i < ev.results.length; i++) {
-          var r = ev.results[i];
-          if (r.isFinal) finalTxt += r[0].transcript;
-          else interim += r[0].transcript;
-        }
-        if (finalTxt) baseText += finalTxt;
-        target.value = baseText + interim;
-        if (onText) onText();
-      };
-      try { rec.start(); }
-      catch (e) { listening = false; btn.classList.remove("is-listening"); }
-    });
-  }
+  // No in-app dictation: the app ships in a WKWebView, which exposes
+  // webkitSpeechRecognition but cannot grant it microphone permission, so
+  // start() failed and the mic button silently did nothing. The keyboard's own
+  // mic key dictates into these fields on both iOS and Android.
 
-  wireDictation(
-    document.getElementById("ndLocationMic"),
-    ndEl("ndLocationDescription"),
-    function () { if (window.fieldSaveNestDraft) window.fieldSaveNestDraft(); }
-  );
 
   var ndSaveBtn = ndEl("nestDataSaveBtn");
   if (ndSaveBtn) ndSaveBtn.addEventListener("click", saveNestData);
@@ -1814,7 +1778,7 @@
     if (be > 0 && by > 0) sub = be + " BHCO eggs & " + by + " BHCO nestlings";
     else if (be > 0) sub = be + " BHCO eggs";
     else if (by > 0) sub = by + " BHCO nestlings";
-    return { line: (iv.date || "?") + ": " + host, sub: sub };
+    return { line: (iv.check_date || "?") + ": " + host, sub: sub };
   }
 
   function niBuildMap(nestId) {
@@ -1907,9 +1871,12 @@
     niCurrentNest = nestId;
     var info = (window.fieldNestInfo && window.fieldNestInfo[nestId]) || {};
 
+    // Formatted for display here, at the edge, from the stored code.
+
+    var spLabel = apiNestSpecies(info);
     var t = document.getElementById("niTitle");
     if (t) t.textContent = nestId +
-      (info.species && info.species !== "Unknown" ? " — " + info.species : "");
+      (spLabel && spLabel !== "Unknown" ? " — " + spLabel : "");
 
     var ph = document.getElementById("niPhoto");
     if (ph) {
@@ -1935,8 +1902,8 @@
         s.appendChild(li);
       };
       addRow("Patch", info.patch_id);
-      addRow("Plant spp", info.substrate);
-      addRow("Height (m)", info.height);
+      addRow("Plant spp", info.substrates);
+      addRow("Height (m)", info.height_m);
       addRow("Location", info.location_description);
       addRow("Discovered", info.discovery_date);
       addRow("Last check", info.last_check);
@@ -1983,14 +1950,14 @@
         if (!Array.isArray(rows) || niCurrentNest !== nestId) return;
         var full = rows.map(function (iv) {
           return {
-            date: iv.date || iv.check_date || null,
+            check_date: iv.check_date || null,
             host_eggs: iv.host_eggs,
             host_young: iv.host_young,
             bhco_eggs: iv.bhco_eggs,
             bhco_young: iv.bhco_young
           };
         }).sort(function (a, b) {
-          var ka = a.date || "", kb = b.date || "";
+          var ka = a.check_date || "", kb = b.check_date || "";
           return ka < kb ? -1 : (ka > kb ? 1 : 0);
         });
         if (window.fieldNestInfo && window.fieldNestInfo[nestId]) {
@@ -2055,8 +2022,14 @@
     return "Empty";
   }
 
+  // The API serves the common name under TWO names: `species` (GET /nests, via
+  // v_current_nest) and `species_common` (GET /nests/<id>). Until the server
+  // settles on one, this is the single place that reconciles them -- not four
+  // scattered bridges. Falls back to the code so a nest is never label-less.
+
   function apiNestSpecies(n) {
-    return n.species_common || n.species_other || n.species_code || "Unknown";
+    return n.species_common || n.species || n.species_other ||
+      n.species_code || "Unknown";
   }
 
   // One API nest row -> the shape window.fieldOpenNestInfo reads. The list load
@@ -2066,18 +2039,26 @@
     var intervals = [];
     if (n.last_check) {
       intervals.push({
-        date: n.last_check,
+        check_date: n.last_check,
         host_eggs: apiNum(n.last_eggs),
         host_young: apiNum(n.last_young),
         bhco_eggs: null,
         bhco_young: null
       });
     }
+
+    // Carries the API's own names. This used to rename species_code/height_m/
+    // substrates into a second dialect, which is how the info page and the
+    // discovery form ended up disagreeing about what a nest's species is
+    // called. Species is formatted for display at render, not stored renamed.
+
     return {
-      species: apiNestSpecies(n),
+      species_code: n.species_code || null,
+      species_common: n.species_common || n.species || null,
+      species_other: n.species_other || null,
       patch_id: n.patch_id || null,
-      substrate: n.substrates || null,
-      height: (n.height_m == null || n.height_m === "") ? null : String(n.height_m),
+      substrates: n.substrates || null,
+      height_m: (n.height_m == null || n.height_m === "") ? null : String(n.height_m),
       location_description: n.location_description || null,
       discovery_date: n.discovery_date || null,
       last_check: n.last_check || null,
