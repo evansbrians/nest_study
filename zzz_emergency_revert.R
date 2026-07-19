@@ -1,4 +1,4 @@
-repo <- "/Volumes/ssd980/gits/nest_study"
+repo <- "."   # run from the repo root
 system(paste("rm -f", file.path(repo, ".git/index.lock")))
 cat("== reset ==\n")
 cat(system2("git", c("-C", repo, "reset", "--hard", "67ad1a9"), stdout=TRUE, stderr=TRUE), sep="\n")

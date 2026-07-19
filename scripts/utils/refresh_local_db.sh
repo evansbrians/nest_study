@@ -25,11 +25,22 @@ if [ -z "$KEY" ]; then
   exit 1
 fi
 
+# Expand a leading ~ ourselves. R passes the value through as a literal string,
+# and the shell only expands ~ in unquoted text it parses -- never in a
+# variable's contents. So NEST_SSH_KEY=~/.ssh/key looks correct in .Renviron and
+# then fails here looking for a directory actually named "~".
+
+case "$KEY" in
+  "~/"*) KEY="$HOME/${KEY#\~/}" ;;
+  "~")   KEY="$HOME" ;;
+esac
+
 if [ ! -f "$KEY" ]; then
   echo "refresh_local_db: no SSH key at '$KEY'." >&2
-  echo "  Set NEST_SSH_KEY to your key, e.g. in ~/.Renviron:" >&2
+  echo "  NEST_SSH_KEY is set, but nothing is at that path. Check for a typo," >&2
+  echo "  and make sure it's your home directory (run 'echo \$HOME')." >&2
   echo "    NEST_SSH_KEY=/Users/you/.ssh/nest_vm_key" >&2
-  echo "  The key must be chmod 600, and its VM account needs sudo." >&2
+  echo "  Use the PRIVATE key (no .pub), and it must be chmod 600." >&2
   exit 1
 fi
 
