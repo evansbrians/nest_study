@@ -922,16 +922,16 @@
   // at the same point). Cleared once the (fast, local) enqueue settles.
   var _artInFlight = false;
 
-  function makeArtificialNest(nestId) {
+  function makeArtificialNest(nestId, camOrControl) {
     if (!nestId) return;
     if (_artInFlight) return;
     _artInFlight = true;
 
-    // Camera-vs-control designation, read from the nest-modify screen's optional
-    // <select id="nmArtCameraOrControl"> (Control / Camera). Absent -> default
-    // Control; editable later from the nest's discovery page either way.
-    var artCamEl = ndEl("nmArtCameraOrControl");
-    var artCam = (artCamEl && artCamEl.value === "Camera") ? "Camera" : "Control";
+    // Camera-vs-control designation, chosen in the prompt that launched this
+    // (see fieldChoose). Default Control if somehow unset; editable later from
+    // the nest's discovery page either way.
+
+    var artCam = (camOrControl === "Camera") ? "Camera" : "Control";
 
     // API path: one server call creates a NEW NQ nest that SHARES this nest's
     // GPS point + a first interval (2 host eggs). The server allocates the NQ

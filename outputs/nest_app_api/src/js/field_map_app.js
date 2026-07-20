@@ -191,6 +191,13 @@
     });
   }
 
+  var artCandToggle = document.getElementById("artCandToggle");
+  if (artCandToggle) {
+    artCandToggle.addEventListener("change", function () {
+      window.postMessage({ type: "setArtCand", on: artCandToggle.checked }, "*");
+    });
+  }
+
   // Large, near-full-screen patch picker. The native <select> dropdown is tiny
   // and OS-controlled; this overlay is readable for low-vision use. The hidden
   // <select> stays the source of truth and drives setPatch via its change event.
@@ -476,6 +483,56 @@
 
   function hideConfirm(overlay) {
     overlay.classList.remove("is-visible");
+  }
+
+  // Like fieldConfirm, but the question IS the choice: it shows one button per
+  // option and hands the picked value to onPick, instead of a yes/no. Cancel or
+  // a backdrop tap dismisses without picking. Buttons are rebuilt each call so
+  // labels and handlers always match this invocation.
+
+  function fieldChoose(msg, options, onPick) {
+    var overlay = document.getElementById("fieldChooseModal");
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.id = "fieldChooseModal";
+      overlay.className = "field-upload-modal-overlay";
+      var box = document.createElement("div");
+      box.className = "field-upload-modal";
+      var text = document.createElement("div");
+      text.className = "field-upload-modal-text";
+      var row = document.createElement("div");
+      row.className = "field-confirm-modal-buttons";
+      box.appendChild(text);
+      box.appendChild(row);
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
+      overlay._textEl = text;
+      overlay._rowEl = row;
+      box.addEventListener("click", function (e) { e.stopPropagation(); });
+      overlay.addEventListener("click", function () { hideConfirm(overlay); });
+    }
+    overlay._textEl.textContent = msg;
+
+    var row = overlay._rowEl;
+    row.innerHTML = "";
+    var cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "field-button";
+    cancel.textContent = "Cancel";
+    cancel.addEventListener("click", function () { hideConfirm(overlay); });
+    row.appendChild(cancel);
+    options.forEach(function (opt) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "field-button field-confirm-yes";
+      b.textContent = opt.label;
+      b.addEventListener("click", function () {
+        hideConfirm(overlay);
+        if (typeof onPick === "function") onPick(opt.value);
+      });
+      row.appendChild(b);
+    });
+    overlay.classList.add("is-visible");
   }
 
 
@@ -2615,11 +2672,20 @@
   var nmMakeArt = document.getElementById("nmMakeArtificial");
   if (nmMakeArt) nmMakeArt.addEventListener("click", function () {
     if (!modifyNestId) return;
-    fieldConfirm(
-      "Reassign " + modifyNestId + " as an artificial nest? This adds a " +
-        "discovery row (Artificial nest) and a first interval check with " +
+
+    // The prompt IS the camera/control decision now -- picking either one both
+    // confirms the action and sets the designation, so there is no separate
+    // yes/no step and no dropdown to set beforehand.
+
+    fieldChoose(
+      "Make an artificial nest at " + modifyNestId + "'s point — camera or " +
+        "control? Adds an Artificial nest discovery and a first check with " +
         "2 host eggs.",
-      function () { makeArtificialNest(modifyNestId); }
+      [
+        { label: "Control", value: "Control" },
+        { label: "Camera", value: "Camera" }
+      ],
+      function (choice) { makeArtificialNest(modifyNestId, choice); }
     );
   });
   var nmAddNestDisc = document.getElementById("nmAddNestDiscovery");
@@ -2633,6 +2699,104 @@
   var nmReRec = document.getElementById("nmReRecordGps");
   if (nmReRec) nmReRec.addEventListener("click", function () {
     if (window.fieldReRecordNestPoint) window.fieldReRecordNestPoint(modifyNestId);
+  });
+
+  // ---- Delete a nest / its intervals / its GPS point (Modify nest menu) ----
+  // Each enqueues a DELETE to the API (optimistic; the queue flushes + syncs),
+  // then refreshes the map/list. The three server routes cascade appropriately;
+  // the GPS-point route also refuses a shared point, but the button is hidden in
+  // that case (see fieldOpenNestModify) so it never gets that far.
+
+  // A nest's GPS point id, and whether that point carries a second nest -- both
+  // by FK (gps_point_id) off the live GET /nests list, never by name.
+
+  function nestPointId(nestId) {
+    var nests = window.fieldApiNests || [];
+    for (var i = 0; i < nests.length; i++) {
+      if (nests[i] && nests[i].nest_id === nestId) {
+        return nests[i].gps_point_id || null;
+      }
+    }
+    return null;
+  }
+
+  function pointSharedByTwoNests(nestId) {
+    var pid = nestPointId(nestId);
+    if (!pid) return false;
+    var nests = window.fieldApiNests || [];
+    var count = 0;
+    for (var i = 0; i < nests.length; i++) {
+      if (nests[i] && nests[i].gps_point_id === pid) count++;
+    }
+    return count > 1;
+  }
+  window.fieldPointSharedByTwoNests = pointSharedByTwoNests;
+
+  function enqueueDelete(kind, endpoint, tempId) {
+    return NestApi.queue.enqueue({
+      kind: kind,
+      tempId: tempId || undefined,
+      endpoint: endpoint,
+      method: "DELETE",
+      body: null,
+      idemKey: NestApi.api.newIdemKey()
+    });
+  }
+
+  function afterDelete(msg) {
+    flushSoon();
+    if (window.fieldRefresh) window.fieldRefresh();
+    showUploadModal(msg);
+    closeMenu();
+  }
+
+  var nmDelInt = document.getElementById("nmDeleteIntervals");
+  if (nmDelInt) nmDelInt.addEventListener("click", function () {
+    if (!modifyNestId) return;
+    fieldConfirm(
+      "Delete ALL interval checks for " + modifyNestId +
+        "? The nest and its point stay.",
+      function () {
+        enqueueDelete(
+          "deleteNestIntervals",
+          "/nests/" + encodeURIComponent(modifyNestId) + "/intervals",
+          modifyNestId
+        );
+        afterDelete("Interval data deleted for " + modifyNestId + ".");
+      }
+    );
+  });
+
+  var nmDelDisc = document.getElementById("nmDeleteDiscovery");
+  if (nmDelDisc) nmDelDisc.addEventListener("click", function () {
+    if (!modifyNestId) return;
+    fieldConfirm(
+      "Delete " + modifyNestId + "'s discovery data (and its interval checks)? " +
+        "The GPS point stays.",
+      function () {
+        enqueueDelete(
+          "deleteNest",
+          "/nests/" + encodeURIComponent(modifyNestId),
+          modifyNestId
+        );
+        afterDelete("Discovery data deleted for " + modifyNestId + ".");
+      }
+    );
+  });
+
+  var nmDelGps = document.getElementById("nmDeleteGps");
+  if (nmDelGps) nmDelGps.addEventListener("click", function () {
+    if (!modifyNestId) return;
+    var pid = nestPointId(modifyNestId);
+    if (!pid) { showUploadModal("No GPS point on record for " + modifyNestId + "."); return; }
+    fieldConfirm(
+      "Delete " + modifyNestId + "'s GPS point? This removes the point AND the " +
+        "nest's discovery and interval data. This cannot be undone.",
+      function () {
+        enqueueDelete("deletePoint", "/gps_points/" + encodeURIComponent(pid), pid);
+        afterDelete("GPS point deleted for " + modifyNestId + ".");
+      }
+    );
   });
 
   // Delete buttons on the discovery + interval forms (edit mode only).

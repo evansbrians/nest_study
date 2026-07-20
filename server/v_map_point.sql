@@ -119,6 +119,7 @@ nest_disp AS (
     n.gps_point_id,
     n.discovery_date,
     n.nest_fate,
+    n.artificial_candidate,
 
     -- Popup facts. The DB states them; the client renders the markup (SQL is
     -- the wrong place for buttons/photo slots, but the right place for facts).
@@ -204,6 +205,7 @@ flagged AS (
     g.point_id, g.point_name, g.point_class, g.latitude, g.longitude,
     g.note,
     np.nest_id, np.icon AS nest_icon, np.brood_status, np.is_current,
+    np.artificial_candidate,
     np.species, np.nest_patch, np.height_m, np.location_description,
     np.substrates, np.discovery_date, np.last_check, np.last_eggs, np.last_young,
     pc.camera_id, COALESCE(np.nest_patch, pc.patch_id) AS patch,
@@ -291,6 +293,12 @@ SELECT
   height_m,
   location_description,
   discovery_date,
+
+  -- 1 only for natural nests flagged as artificial-nest candidates; 0 otherwise
+  -- (including non-nest classes). Drives the "Map options" candidates-only filter.
+  CASE WHEN point_class = 'nest' THEN COALESCE(artificial_candidate, 0) ELSE 0 END
+                                 AS artificial_candidate,
+
   last_check,
   last_eggs,
   last_young,

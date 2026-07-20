@@ -549,6 +549,18 @@ function(el, x) {
 
   var filterToday = true;        // switch default on
   var filterPatch = "__all__";   // dropdown default
+  var filterArtCand = false;     // "only artificial nest candidates" switch
+
+  // When the candidates-only switch is on, a nest marker shows only if the DB
+  // flagged it an artificial-nest candidate (v_map_point.artificial_candidate,
+  // carried on the marker row). Non-nest classes are never affected.
+
+  function candidateHidden(layer, gname) {
+    if (!filterArtCand || gname !== "Nests") return false;
+    var r = layer._row;
+    var flag = r && r.artificial_candidate;
+    return !(flag === 1 || flag === true || flag === "1");
+  }
 
   // Which patches are active right now. null = no spatial subset. A missing or
   // empty schedule (no field day) counts as inactive, so the map never goes
@@ -604,6 +616,10 @@ function(el, x) {
           if (map.hasLayer(layer)) map.removeLayer(layer);
           return;
         }
+        if (candidateHidden(layer, gname)) {
+          if (map.hasLayer(layer)) map.removeLayer(layer);
+          return;
+        }
         if (!map.hasLayer(layer)) map.addLayer(layer);
         setLayerOpacity(layer, opacityFor(layer));
       });
@@ -645,6 +661,7 @@ function(el, x) {
             show = true;
           }
         }
+        if (show && candidateHidden(layer, gname)) show = false;
         if (show) {
           if (!map.hasLayer(layer)) map.addLayer(layer);
           setLayerOpacity(layer, opacityFor(layer));
@@ -673,6 +690,7 @@ function(el, x) {
 
   function setPatch(name) { filterPatch = name; applyFilter(); }
   function setToday(on) { filterToday = !!on; applyFilter(); }
+  function setArtCand(on) { filterArtCand = !!on; applyFilter({ noFit: true }); }
 
   // Apply the defaults (these match the host page's checkbox defaults).
 
@@ -705,5 +723,6 @@ function(el, x) {
     else if (d.type === "setBasemap") setBasemap(!!d.on);
     else if (d.type === "setPatch") setPatch(d.name);
     else if (d.type === "setToday") setToday(!!d.on);
+    else if (d.type === "setArtCand") setArtCand(!!d.on);
   });
 }

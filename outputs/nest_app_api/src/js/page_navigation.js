@@ -95,6 +95,17 @@
     if (reRec) reRec.style.display = hasCoords ? "" : "none";
     if (addDisc) addDisc.style.display = hasCoords ? "" : "none";
 
+    // A GPS point shared by two nests (an N and its NQ twin) must not be
+    // deletable from here -- hide the button. The server also refuses it, but
+    // hiding is the clear signal. Needs coords AND sole ownership of the point.
+
+    var delGps = document.getElementById("nmDeleteGps");
+    if (delGps) {
+      var shared = window.fieldPointSharedByTwoNests &&
+        window.fieldPointSharedByTwoNests(nestId);
+      delGps.style.display = (hasCoords && !shared) ? "" : "none";
+    }
+
     showScreen("nestmodify");
   };
 

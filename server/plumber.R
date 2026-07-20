@@ -1684,6 +1684,144 @@ function(
   result
 }
 
+#* Delete a nest: its discovery row plus its interval checks, substrates and
+#* nest-level photos. The gps_point is KEPT -- a twin nest may still use it, and
+#* a point with no nest is a valid waypoint.
+#* @delete /nests/<nest_id>
+#* @serializer unboxedJSON list(digits = 9)
+function(
+  req,
+  res,
+  nest_id
+) {
+  observer <- req$observer_id
+  key <- idem_key(req)
+  nid <- nest_id
+
+  exists <-
+    dbGetQuery(
+      con,
+      "SELECT nest_id FROM nest WHERE nest_id = ?",
+      params = list(nid)
+    )
+  if (nrow(exists) == 0) {
+    return(err(res, 404, "nest not found"))
+  }
+
+  result <- NULL
+  with_txn(con, function() {
+    if (!record_idempotency(con, key, "nest", nid)) {
+      result <<-
+        list(replayed = TRUE, nest_id = nid, deleted = TRUE)
+      return(invisible(NULL))
+    }
+    dbExecute(con, "DELETE FROM interval_check WHERE nest_id = ?", params = list(nid))
+    dbExecute(con, "DELETE FROM nest_substrate WHERE nest_id = ?", params = list(nid))
+    dbExecute(con, "DELETE FROM photo          WHERE nest_id = ?", params = list(nid))
+    dbExecute(con, "DELETE FROM nest           WHERE nest_id = ?", params = list(nid))
+    ev <- log_change(con, "nest", nid, "delete", observer)
+    result <<-
+      list(deleted = TRUE, nest_id = nid, event_id = ev)
+  })
+  result
+}
+
+#* Delete ALL interval checks for a nest, keeping the nest and its point.
+#* @delete /nests/<nest_id>/intervals
+#* @serializer unboxedJSON list(digits = 9)
+function(
+  req,
+  res,
+  nest_id
+) {
+  observer <- req$observer_id
+  key <- idem_key(req)
+  nid <- nest_id
+
+  result <- NULL
+  with_txn(con, function() {
+    if (!record_idempotency(con, key, "interval_check", nid)) {
+      result <<-
+        list(replayed = TRUE, nest_id = nid, deleted = TRUE)
+      return(invisible(NULL))
+    }
+    n <-
+      dbGetQuery(
+        con,
+        "SELECT COUNT(*) AS n FROM interval_check WHERE nest_id = ?",
+        params = list(nid)
+      )$n
+    dbExecute(con, "DELETE FROM interval_check WHERE nest_id = ?", params = list(nid))
+    ev <- log_change(con, "interval_check", nid, "delete_all", observer)
+    result <<-
+      list(deleted = TRUE, nest_id = nid, checks_deleted = n, event_id = ev)
+  })
+  result
+}
+
+#* Delete a GPS point and everything on it (its nest + that nest's children,
+#* plus point-level photos and predator_camera). REFUSED 409 when two nests
+#* share the point -- the client hides the button then; this enforces it so a
+#* stale client can't slip a shared-point delete through. Single-threaded server,
+#* so the pre-txn guard has no race.
+#* @delete /gps_points/<point_id>
+#* @serializer unboxedJSON list(digits = 9)
+function(
+  req,
+  res,
+  point_id
+) {
+  observer <- req$observer_id
+  key <- idem_key(req)
+  pid <- point_id
+
+  exists <-
+    dbGetQuery(
+      con,
+      "SELECT point_id FROM gps_point WHERE point_id = ?",
+      params = list(pid)
+    )
+  if (nrow(exists) == 0) {
+    return(err(res, 404, "point not found"))
+  }
+  nests <-
+    dbGetQuery(
+      con,
+      "SELECT nest_id FROM nest WHERE gps_point_id = ?",
+      params = list(pid)
+    )
+  if (nrow(nests) > 1) {
+    return(err(res, 409, "point is shared by two nests; delete a nest instead"))
+  }
+
+  result <- NULL
+  with_txn(con, function() {
+    if (!record_idempotency(con, key, "gps_point", pid)) {
+      result <<-
+        list(replayed = TRUE, point_id = pid, deleted = TRUE)
+      return(invisible(NULL))
+    }
+    for (nid in nests$nest_id) {
+      dbExecute(con, "DELETE FROM interval_check WHERE nest_id = ?", params = list(nid))
+      dbExecute(con, "DELETE FROM nest_substrate WHERE nest_id = ?", params = list(nid))
+      dbExecute(con, "DELETE FROM photo          WHERE nest_id = ?", params = list(nid))
+      dbExecute(con, "DELETE FROM nest           WHERE nest_id = ?", params = list(nid))
+    }
+    dbExecute(con, "DELETE FROM photo           WHERE point_id     = ?", params = list(pid))
+    dbExecute(con, "DELETE FROM predator_camera WHERE gps_point_id = ?", params = list(pid))
+    dbExecute(con, "DELETE FROM gps_point       WHERE point_id     = ?", params = list(pid))
+    ev <- log_change(con, "gps_point", pid, "delete", observer)
+    result <<-
+      list(
+        deleted = TRUE,
+        point_id = pid,
+        nests_deleted = as.list(nests$nest_id),
+        event_id = ev
+      )
+  })
+  result
+}
+
 #* Create a GPS point (waypoint). Client supplies point_id (UUID). Optional
 #* nav_photo (base64) stored in-DB.
 #* @post /gps_points

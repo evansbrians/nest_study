@@ -247,6 +247,14 @@ map_tracking
       </label>
 
       <label class="field-toggle">
+        <input type="checkbox" id="artCandToggle" class="field-toggle-input">
+        <span class="field-toggle-track">
+          <span class="field-toggle-thumb"></span>
+        </span>
+        <span class="field-toggle-label">Only artificial nest candidates</span>
+      </label>
+
+      <label class="field-toggle">
         <input type="checkbox" id="weatherToggle" class="field-toggle-input">
         <span class="field-toggle-track">
           <span class="field-toggle-thumb"></span>
@@ -647,11 +655,6 @@ map_tracking
         <button type="button" id="nmModifyWaypoint" class="field-button">
           Modify waypoint
         </button>
-        <div class="field-field-label">Artificial: camera or control</div>
-        <select id="nmArtCameraOrControl" class="field-patch-select">
-          <option value="Control">Control</option>
-          <option value="Camera">Camera</option>
-        </select>
         <button type="button" id="nmMakeArtificial" class="field-button">
           Make artificial nest
         </button>
@@ -666,6 +669,18 @@ map_tracking
         <button type="button" id="nmReRecordGps" class="field-button"
                 style="display:none;">
           Re-record GPS
+        </button>
+        <button type="button" id="nmDeleteIntervals"
+                class="field-button field-button--danger">
+          Delete interval data
+        </button>
+        <button type="button" id="nmDeleteDiscovery"
+                class="field-button field-button--danger">
+          Delete discovery data
+        </button>
+        <button type="button" id="nmDeleteGps"
+                class="field-button field-button--danger" style="display:none;">
+          Delete GPS point
         </button>
         <button type="button" id="nmCancelBtn"
                 class="field-button field-button--danger">
