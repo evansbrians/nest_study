@@ -85,25 +85,48 @@
     var idEl = document.getElementById("nmNestId");
     if (idEl) idEl.textContent = nestId || "--";
 
-    // GPS buttons depend on whether the nest already has a location: no coords
-    // -> Add GPS point; has coords -> Re-record GPS + Add nest discovery.
-    var hasCoords = (typeof niCoords === "function") && !!niCoords(nestId);
-    var addGps = document.getElementById("nmAddGps");
-    var reRec = document.getElementById("nmReRecordGps");
-    var addDisc = document.getElementById("nmAddNestDiscovery");
-    if (addGps) addGps.style.display = hasCoords ? "none" : "";
-    if (reRec) reRec.style.display = hasCoords ? "" : "none";
-    if (addDisc) addDisc.style.display = hasCoords ? "" : "none";
+    // Show only the buttons that apply to THIS target -- a full nest and a bare
+    // gps_point (a stray waypoint with no nest data) need different menus.
+    // fieldModifyContext resolves the point + what data exists.
 
-    // A GPS point shared by two nests (an N and its NQ twin) must not be
-    // deletable from here -- hide the button. The server also refuses it, but
-    // hiding is the clear signal. Needs coords AND sole ownership of the point.
+    var ctx = (window.fieldModifyContext && window.fieldModifyContext(nestId)) || {};
+    var show = function (id, on) {
+      var el = document.getElementById(id);
+      if (el) el.style.display = on ? "" : "none";
+    };
+
+    // Location: no point -> Add GPS; has a point -> Re-record + Modify waypoint.
+
+    show("nmAddGps", !ctx.hasCoords);
+    show("nmReRecordGps", ctx.hasCoords);
+    show("nmModifyWaypoint", ctx.hasCoords);
+
+    // Discovery: a nest exists -> Modify + Delete; a bare point -> Add.
+
+    show("nmModifyDiscovery", ctx.isNest);
+    show("nmDeleteDiscovery", ctx.isNest);
+    show("nmAddNestDiscovery", ctx.hasCoords && !ctx.isNest);
+
+    // Interval data lives UNDER a nest (interval_check.nest_id FK), so Add/Modify
+    // interval only make sense once discovery exists. Modify + Delete need a
+    // recorded check.
+
+    show("nmAddInterval", ctx.isNest);
+    show("nmModifyInterval", ctx.hasIntervals);
+    show("nmDeleteIntervals", ctx.hasIntervals);
+
+    // Reassigning to an artificial nest acts on an existing nest.
+
+    show("nmMakeArtificial", ctx.isNest);
+
+    // Delete the point itself -- needs a point and sole ownership (a point shared
+    // by an N + NQ twin is refused; the server enforces this too). Label reflects
+    // whether it carries a nest.
 
     var delGps = document.getElementById("nmDeleteGps");
     if (delGps) {
-      var shared = window.fieldPointSharedByTwoNests &&
-        window.fieldPointSharedByTwoNests(nestId);
-      delGps.style.display = (hasCoords && !shared) ? "" : "none";
+      delGps.textContent = ctx.isNest ? "Delete GPS point" : "Delete waypoint";
+      delGps.style.display = (ctx.hasCoords && !ctx.shared) ? "" : "none";
     }
 
     showScreen("nestmodify");

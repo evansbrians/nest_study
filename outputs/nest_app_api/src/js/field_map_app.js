@@ -2732,6 +2732,36 @@
   }
   window.fieldPointSharedByTwoNests = pointSharedByTwoNests;
 
+  // Everything the Modify menu needs to decide which buttons apply, whether the
+  // target is a full nest or a bare gps_point (a waypoint with no nest data).
+  // The point is resolved by id (works when there is no nest, e.g. a stray
+  // point); `shared` counts nests on that point; `hasIntervals` reads the
+  // latest-check the nests list already carries.
+
+  function modifyContext(id) {
+    var nests = window.fieldApiNests || [];
+    var nestRow = null;
+    for (var i = 0; i < nests.length; i++) {
+      if (nests[i] && nests[i].nest_id === id) { nestRow = nests[i]; break; }
+    }
+    var pt = mapPointForNest(id) || mapPointByName(id);
+    var pid = pt ? pt.idx : (nestRow ? nestRow.gps_point_id : null);
+    var shareCount = 0;
+    if (pid) {
+      for (var j = 0; j < nests.length; j++) {
+        if (nests[j] && nests[j].gps_point_id === pid) shareCount++;
+      }
+    }
+    return {
+      pointId: pid,
+      hasCoords: !!pt || !!(nestRow && nestRow.gps_point_id),
+      isNest: !!nestRow,
+      hasIntervals: !!(nestRow && nestRow.last_check != null && nestRow.last_check !== ""),
+      shared: shareCount > 1
+    };
+  }
+  window.fieldModifyContext = modifyContext;
+
   function enqueueDelete(kind, endpoint, tempId) {
     return NestApi.queue.enqueue({
       kind: kind,
@@ -2787,16 +2817,25 @@
   var nmDelGps = document.getElementById("nmDeleteGps");
   if (nmDelGps) nmDelGps.addEventListener("click", function () {
     if (!modifyNestId) return;
-    var pid = nestPointId(modifyNestId);
-    if (!pid) { showUploadModal("No GPS point on record for " + modifyNestId + "."); return; }
-    fieldConfirm(
-      "Delete " + modifyNestId + "'s GPS point? This removes the point AND the " +
-        "nest's discovery and interval data. This cannot be undone.",
-      function () {
-        enqueueDelete("deletePoint", "/gps_points/" + encodeURIComponent(pid), pid);
-        afterDelete("GPS point deleted for " + modifyNestId + ".");
-      }
-    );
+    var ctx = modifyContext(modifyNestId);
+    if (!ctx.pointId) {
+      showUploadModal("No GPS point on record for " + modifyNestId + ".");
+      return;
+    }
+    var bare = !ctx.isNest;
+    var msg = bare
+      ? "Delete waypoint " + modifyNestId + "? This removes the GPS point. This " +
+        "cannot be undone."
+      : "Delete " + modifyNestId + "'s GPS point? This removes the point AND the " +
+        "nest's discovery and interval data. This cannot be undone.";
+    fieldConfirm(msg, function () {
+      enqueueDelete(
+        "deletePoint",
+        "/gps_points/" + encodeURIComponent(ctx.pointId),
+        ctx.pointId
+      );
+      afterDelete((bare ? "Waypoint" : "GPS point") + " deleted for " + modifyNestId + ".");
+    });
   });
 
   // Delete buttons on the discovery + interval forms (edit mode only).
