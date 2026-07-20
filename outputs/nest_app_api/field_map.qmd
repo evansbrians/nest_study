@@ -359,6 +359,10 @@ map_tracking
         <button type="button" id="addWaypointSaveBtn" class="field-button">
           Save waypoint
         </button>
+        <button type="button" class="field-button field-back-modify"
+                style="display:none;">
+          Back
+        </button>
         <button type="button" id="addWaypointCancelBtn"
                 class="field-button field-button--danger">
           Cancel
@@ -474,6 +478,10 @@ map_tracking
       <div class="field-waypoint-actions">
         <button type="button" id="nestDataSaveBtn" class="field-button">
           Save nest data
+        </button>
+        <button type="button" class="field-button field-back-modify"
+                style="display:none;">
+          Back
         </button>
         <button type="button" id="ndDeleteBtn"
                 class="field-button field-button--danger" style="display:none;">
@@ -616,6 +624,10 @@ map_tracking
       <div class="field-waypoint-actions">
         <button type="button" id="intervalSaveBtn" class="field-button">
           Save interval data
+        </button>
+        <button type="button" class="field-button field-back-modify"
+                style="display:none;">
+          Back
         </button>
         <button type="button" id="intervalDeleteBtn"
                 class="field-button field-button--danger" style="display:none;">

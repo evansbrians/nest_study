@@ -529,8 +529,19 @@
     // Edit mode: overwrite the existing sheet row and return to the map.
 
     if (nestDataCtx && nestDataCtx.mode === "edit") {
+      var editNestId = nestDataCtx.nestId;
       updateSheetRow("nest_level", nestDataCtx.sheetRow, rec,
-        function () { showUploadModal("Nest data updated for " + rec.nest_id + "."); closeMenu(); },
+        function () {
+
+          // A newly-picked photo replaces the nest's picture. nestPhoto is set
+          // only when the user chooses one (the existing photo is lazy-loaded,
+          // not prefilled here), so this uploads exactly when they picked a new
+          // one -- the same POST /photos the add path uses.
+
+          if (nestPhoto) uploadNestPhoto(editNestId, nestPhoto, null);
+          showUploadModal("Nest data updated for " + rec.nest_id + ".");
+          window.fieldFinishSubForm();
+        },
         function (msg) { if (status) status.textContent = msg; });
       return;
     }
@@ -549,7 +560,7 @@
 
         // The note + photo were captured here but belong to the waypoint saved
         // a screen earlier. Attach them to that waypoint and re-upload it so the
-        // Drive copy carries the photo/note.
+        // server copy carries the photo/note.
 
         var pointId = nestDataCtx ? nestDataCtx.pointId : null;
         var note = ndEl("ndNote") ? ndEl("ndNote").value.trim() : "";
@@ -571,7 +582,7 @@
           });
           if (updated) {
             refreshWaypointMarker(updated);
-            uploadToDrive("individual_points",
+            savePointToApi("individual_points",
               updated.point_name + "_" + syncTimestamp() + ".geojson",
               waypointsFC([updated]), null, null);
           }
@@ -827,12 +838,12 @@
     if (window.console && console.log) console.log("[interval_level row]", rec);
     if (intervalCtx && intervalCtx.mode === "edit") {
       updateSheetRow("interval_level", intervalCtx.sheetRow, rec,
-        function () { applyPresumedFate(rec); showUploadModal("Interval check updated."); closeMenu(); },
+        function () { applyPresumedFate(rec); showUploadModal("Interval check updated."); window.fieldFinishSubForm(); },
         function (msg) { if (status) status.textContent = msg; });
       return;
     }
     uploadIntervalRow(rec,
-      function () { clearIntervalDraft(); applyPresumedFate(rec); showUploadModal("Interval check saved for " + intervalCtx.nestId + "."); closeMenu(); },
+      function () { clearIntervalDraft(); applyPresumedFate(rec); showUploadModal("Interval check saved for " + intervalCtx.nestId + "."); window.fieldFinishSubForm(); },
       function (msg) { if (status) status.textContent = msg; });
   }
 
@@ -1180,7 +1191,7 @@
     box.appendChild(lab);
     var modeRow = document.createElement("div");
     modeRow.className = "field-mgr-actions";
-    [["keep", "Keep current location"], ["replace", "Record new location"], ["average", "Average with new reading"]]
+    [["replace", "Record new location"], ["average", "Average with new reading"]]
       .forEach(function (m) {
         var b = document.createElement("button");
         b.type = "button";
@@ -1229,7 +1240,7 @@
   }
 
   function startModify(point, source) {
-    editWp = { id: point.point_id, source: source, point: point, mode: "keep" };
+    editWp = { id: point.point_id, source: source, point: point, mode: "replace" };
     if (wpName) wpName.value = point.point_name || "";
     if (wpNamePrefix) wpNamePrefix.style.display = "none";
     var clab = (wpClass && wpClass.closest) ? wpClass.closest(".field-field-label") : null;
@@ -1254,7 +1265,7 @@
       var d = mc.querySelector(".field-modify-delete");
       if (d) d.style.display = (source === "waypoint") ? "" : "none";
     }
-    setMode("keep");
+    setMode("replace");
 
     // Modify always edits the point's own note/photo in place, so keep those
     // fields visible regardless of class.
@@ -1309,6 +1320,7 @@
       return;
     }
     var a = avg;
+    var mode = editWp.mode;   // keep / replace / average (for the save message)
     stopAveraging();
     var now = new Date();
     var p = editWp.point;
@@ -1345,23 +1357,31 @@
     }
     if (apiEnabled()) {
       // Existing point -> PATCH in place (preserves point_id + all nest links).
+      // The confirmation names what the save DID: a fresh reading vs an average
+      // of the previous, else a plain update (keep / note / colour edits).
+
       patchGpsPoint(w.point_id, gpsPatchBody(w), function () {
         if (src === "waypoint") markUploaded([w.point_id]);
-        showUploadModal(w.point_name + " updated.");
+        var msg = (mode === "replace")
+          ? "New waypoint for this location saved!"
+          : (mode === "average")
+            ? "Waypoint averaged for the previous location!"
+            : w.point_name + " updated.";
+        showUploadModal(msg);
       });
       // Re-recording a server-side nest's point: move its live marker right away
       // (the PATCH is enqueued, so a /gps_points refetch could be far off).
       if (src === "nest") moveApiMapPoint(w.point_id, w.point_name, w.latitude, w.longitude);
     } else {
-      uploadToDrive("individual_points", w.point_name + "_" + syncTimestamp() + ".geojson", waypointsFC([w]), null, function () {
+      savePointToApi("individual_points", w.point_name + "_" + syncTimestamp() + ".geojson", waypointsFC([w]), null, function () {
         if (src === "waypoint") markUploaded([w.point_id]);
-        showUploadModal(w.point_name + " uploaded to Drive.");
+        showUploadModal(w.point_name + " saved.");
       });
     }
     renderWaypoints();
     resetAddForm();
     addStatus("");
-    closeMenu();
+    window.fieldFinishSubForm();
   }
 
   function saveAveraged() {
@@ -1431,7 +1451,7 @@
     if (wp.point_class === "Temp") {
       showUploadModal(wp.point_name + " added (temporary -- not saved).");
     } else {
-      uploadToDrive("individual_points", wp.point_name + "_" + syncTimestamp() + ".geojson", waypointsFC([wp]), null, function () {
+      savePointToApi("individual_points", wp.point_name + "_" + syncTimestamp() + ".geojson", waypointsFC([wp]), null, function () {
         markUploaded([wp.point_id]);
         // The nest-discovery form is the acknowledgement for brand-new nests;
         // everything else (incl. GPS-only for an existing nest) confirms here.
@@ -1444,7 +1464,7 @@
               showUploadModal("Location saved for " + forNest + " and linked to the nest.");
             });
           } else {
-            showUploadModal(forNest ? ("Location saved for " + forNest + ".") : (wp.point_name + " uploaded to Drive."));
+            showUploadModal(forNest ? ("Location saved for " + forNest + ".") : (wp.point_name + " saved."));
           }
         }
       });
@@ -1499,7 +1519,7 @@
   // ---- Sheet CRUD via the Apps Script relay -----------------------------
 
   // True when a REST API token is configured; gates every backend call so an
-  // un-configured build behaves exactly like the old Sheets/Drive path.
+  // un-configured build behaves exactly like the old legacy relay path.
   function apiEnabled() {
     return !!(window.NestApi && NestApi.settings && NestApi.settings.hasCreds());
   }

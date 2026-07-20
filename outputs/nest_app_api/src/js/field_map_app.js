@@ -373,14 +373,15 @@
     });
   }
 
-  // GeoJSON backups go to the REST API. (The legacy Google Drive relay branch
-  // was only reachable without a token, and the token is now mandatory.)
-  function uploadToDrive(target, filename, fc, onStatus, onSuccess) {
+  // Persist each GeoJSON feature to the database as a gps_point (POST via the
+  // offline-safe queue). filename/target are unused now, kept only so the
+  // existing call sites' signatures don't have to change.
+  function savePointToApi(target, filename, fc, onStatus, onSuccess) {
     function say(m) { if (typeof onStatus === "function") onStatus(m); }
     uploadFcToApi(target, fc, say, onSuccess);
   }
 
-  // Once a waypoint's GeoJSON has reached Drive, flag it uploaded: it drops out
+  // Once a waypoint's GeoJSON has reached the server, flag it uploaded: it drops out
   // of the manager list (renderWaypoints filters these) but keeps its map marker
   // and stays in storage as a local backup.
 
@@ -393,7 +394,7 @@
     renderWaypoints();
   }
 
-  // Full-screen "uploaded to Drive" confirmation; blocks until tapped.
+  // Full-screen "uploaded to the server" confirmation; blocks until tapped.
 
   function showUploadModal(msg) {
     var overlay = document.getElementById("fieldUploadModal");
@@ -1487,7 +1488,7 @@
 
 
   // Send one nest_level row to the Apps Script relay, which appends it to the
-  // nest_level sheet. Fire-and-forget over no-cors, mirroring uploadToDrive.
+  // nest_level sheet. Fire-and-forget over no-cors, mirroring savePointToApi.
 
 
 
@@ -1693,8 +1694,8 @@
   function renderWaypoints() {
     if (!listEl) return;
     var arr = loadWaypoints().filter(function (w) {
-      if (w.uploaded) return false;   // already on Drive
-      if (isPending(w)) return true;  // not on Drive yet -- always show so it can be uploaded
+      if (w.uploaded) return false;   // already on the server
+      if (isPending(w)) return true;  // not on the server yet -- always show so it can be uploaded
       return !w.cleared;              // Temp points drop out once cleared
     });
     listEl.innerHTML = "";
@@ -2864,9 +2865,9 @@
     });
   });
 
-  // Test nests created in the app go straight to Drive; the (server-rendered)
+  // Test nests created in the app go straight to the server; the (server-rendered)
   // Nests page won't include them until the pipeline ingests them. Inject them
-  // into their test-patch group client-side from the live Drive list (with
+  // into their test-patch group client-side from the live server list (with
   // coords, so Navigate works on any device), merged with this device's cache.
 
   var liveNestCoords = {};   // nest_id -> { lat, lng } from the relay
@@ -2969,7 +2970,7 @@
     });
   }
 
-  // Non-Temp waypoints that haven't reached Drive yet (saved offline, or a send
+  // Non-Temp waypoints that haven't reached the server yet (saved offline, or a send
   // that failed). Kept in the cache -- even through a Clear -- until uploaded.
 
   function isPending(w) {
@@ -2987,7 +2988,7 @@
     if (now - lastRetry < 3000) return;
     lastRetry = now;
     loadWaypoints().filter(isPending).forEach(function (w) {
-      uploadToDrive(
+      savePointToApi(
         "individual_points",
         w.point_name + "_" + syncTimestamp() + ".geojson",
         waypointsFC([w]),
@@ -4160,7 +4161,7 @@
   // /tracks, optimistic) so it appears on other devices, and draw it. The DB is
   // the shared source of truth; the local store + queued POST are the backups,
   // so we do NOT auto-download a GeoJSON here (that file landed in the user's
-  // Drive on every save and wasn't shareable). An explicit "Download (GeoJSON)"
+  // the server on every save and wasn't shareable). An explicit "Download (GeoJSON)"
   // button in the track manager still exports one on demand.
 
   // The single funnel for both save paths (normal + averaged), so it is also

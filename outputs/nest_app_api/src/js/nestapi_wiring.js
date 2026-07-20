@@ -38,7 +38,7 @@
         setStatus("API token set — connecting to " + settings.getUrl() + "…");
       }
     } else {
-      // The token is mandatory (no Sheets/Drive fallback remains); promptForToken
+      // The token is mandatory (no legacy fallback remains); promptForToken
       // is shown until one is entered.
       setStatus("No API token set — enter your token to connect.");
     }

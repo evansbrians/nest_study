@@ -31,8 +31,28 @@
     overlay.classList.toggle("field-fullscreen", onSub || onNestInfo);
   }
 
+  // True while a modify sub-form (discovery / interval / waypoint) was opened
+  // FROM the Modify menu, so Save and Back return there instead of the map.
+
+  var subFormReturn = false;
+  var MODIFY_SUBFORMS = { nestdata: true, intervaldata: true, addwaypoint: true };
+
   function showScreen(name) {
     var screens = overlay.querySelectorAll(".field-screen");
+    var prev = null;
+    for (var p = 0; p < screens.length; p++) {
+      if (screens[p].classList.contains("is-active")) prev = screens[p].dataset.name;
+    }
+    if (prev === "nestmodify" && MODIFY_SUBFORMS[name]) subFormReturn = true;
+
+    // "Back to nest" shows only when a sub-form was reached from the Modify menu
+    // -- otherwise Back has nowhere meaningful to return to.
+
+    var backBtns = overlay.querySelectorAll(".field-back-modify");
+    for (var b = 0; b < backBtns.length; b++) {
+      backBtns[b].style.display = subFormReturn ? "" : "none";
+    }
+
     for (var i = 0; i < screens.length; i++) {
       screens[i].classList.toggle("is-active", screens[i].dataset.name === name);
     }
@@ -54,7 +74,34 @@
     showScreen("main");
   }
 
+  // Where a modify sub-form goes on Save or Back: back to the Modify menu if it
+  // was opened from there (re-shown + refreshed so new buttons appear), else out
+  // to the map. Called by the sub-form save handlers and their Back buttons.
+
+  function finishSubForm() {
+    if (subFormReturn && modifyNestId && window.fieldOpenNestModify) {
+      subFormReturn = false;
+      window.fieldOpenNestModify(modifyNestId);
+    } else {
+      closeMenu();
+    }
+  }
+  window.fieldFinishSubForm = finishSubForm;
+
+  // Every "Back to nest" button (one per modify sub-form) returns to the menu.
+  // Bind via document, not `overlay`: this file is concatenated before the one
+  // that assigns `overlay`, so it isn't set yet at this init-time line. The
+  // buttons are static markup, present at DOMContentLoaded.
+
+  (function () {
+    var backBtns = document.querySelectorAll(".field-back-modify");
+    for (var i = 0; i < backBtns.length; i++) {
+      backBtns[i].addEventListener("click", finishSubForm);
+    }
+  })();
+
   function closeMenu() {
+    subFormReturn = false;
     overlay.classList.remove("is-open");
     menuBtn.setAttribute("aria-expanded", "false");
 

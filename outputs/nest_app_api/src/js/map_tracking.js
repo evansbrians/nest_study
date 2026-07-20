@@ -78,9 +78,11 @@ function(el, x) {
   
     map.invalidateSize(false);
   
+    // Crosshair tap recenters AND zooms to 19 (close enough to place a nest).
+
     map.setView(
       latestLatLng,
-      map.getZoom(),
+      19,
       {
         animate: false
       }

@@ -431,7 +431,33 @@ function() {
     young_status_codes = dbReadTable(con, "young_status_code"),
     discovery_stage_codes = dbReadTable(con, "discovery_stage_code"),
     nest_fate_codes = dbReadTable(con, "nest_fate_code"),
-    point_classes = dbReadTable(con, "point_class")
+    point_classes = dbReadTable(con, "point_class"),
+
+    # Added for the data-entry GUI (see brian_sandbox/gui/PAGE_CONTRACT.md):
+    # the point-count species type-ahead, the coverboard species dropdown, and
+    # the two count_interval CHECK vocabularies (mirrored here so no client
+    # hardcodes them).
+
+    species_engine = dbReadTable(con, "species_engine"),
+    coverboard_species = db_read(
+      con,
+      "SELECT species, COALESCE(label, species) AS label
+         FROM coverboard_species
+        UNION
+       SELECT DISTINCT species, species
+         FROM coverboard_obs
+        WHERE species IS NOT NULL
+          AND species NOT IN (SELECT species FROM coverboard_species)
+        ORDER BY species"
+    ),
+    count_distances = c(
+      "< 25 m",
+      "25-50 m",
+      "50-75 m",
+      "75-100 m",
+      "> 100 m"
+    ),
+    count_detections = c("A", "V", "B")
   )
 }
 
@@ -878,7 +904,13 @@ function(req, res) {
       "patch_count", "boards", "search_patch_1", "search_patch_2", "field",
       "notes", "helper_patch_1", "tns_patch_1", "helper_patch_2", "tns_patch_2",
       "check_nests", "predator_cameras", "departure_time", "scbi_departure_time",
-      "point_count_time", "weather"
+      "point_count_time", "weather",
+
+      # GUI-era extras (absent from the sheet loader's frame -> filled NA
+      # below, which is correct: a sheet push replaces the whole table).
+
+      "search_patch_3", "tns_patch_3", "helper_patch_3",
+      "search_patch_4", "tns_patch_4", "helper_patch_4"
     )
 
   df <- as.data.frame(rows, stringsAsFactors = FALSE)
@@ -2528,4 +2560,1115 @@ function(req, res, class = NULL) {
       params = list(class)
     )
   }
+}
+
+# ===========================================================================
+# GUI DATA-ENTRY ROUTES -- coverboards, point counts, visits, camera
+# maintenance, schedule days. Added for brian_sandbox/gui (its
+# PAGE_CONTRACT.md defines this surface). Same auth filter, same txn +
+# change_event + idempotency conventions as the field-app routes above.
+#
+# NOTE nightly_load.R truncate-reloads point_count / count_interval /
+# coverboard_check / coverboard_obs / visit from the Sheets pipeline. Once
+# the GUI is the entry path for a table, STOP loading that table nightly or
+# GUI-entered rows are wiped at the next run.
+# ===========================================================================
+
+# --- additive migrations, applied at boot (redeploy-safe) -------------------
+
+# The GUI's Edit-day popup writes up to four search patches; the sheet-era
+# schedule_day stops at two. Guarded by PRAGMA table_info so this is a no-op
+# once applied.
+
+gui_schedule_extra_cols <-
+  c(
+    "search_patch_3", "tns_patch_3", "helper_patch_3",
+    "search_patch_4", "tns_patch_4", "helper_patch_4"
+  )
+
+gui_existing_cols <-
+  dbGetQuery(con, "PRAGMA table_info(schedule_day)")$name
+
+for (.c in setdiff(gui_schedule_extra_cols, gui_existing_cols)) {
+  dbExecute(
+    con,
+    str_c("ALTER TABLE schedule_day ADD COLUMN ", .c, " TEXT")
+  )
+}
+
+# Coverboard species vocabulary. /lookups unions this with the DISTINCT
+# species already recorded in coverboard_obs, so the dropdown works before
+# anyone curates the table.
+
+dbExecute(
+  con,
+  "CREATE TABLE IF NOT EXISTS coverboard_species (
+     species  TEXT PRIMARY KEY,
+     label    TEXT
+   );"
+)
+
+# Some DBs were provisioned before species_engine landed in schema.sql; the
+# /lookups read must not 500 on them.
+
+dbExecute(
+  con,
+  "CREATE TABLE IF NOT EXISTS species_engine (
+     species_code  TEXT PRIMARY KEY,
+     species_name  TEXT NOT NULL
+   );"
+)
+
+# --- shared helpers ---------------------------------------------------------
+
+# A 1-row data.frame -> a plain list, dropping NA columns so a create
+# response serializes cleanly (jsonlite renders a length-1 NA as "NA").
+
+gui_row <-
+  function(.df) {
+    l <- as.list(.df[1, ])
+    Filter(
+      function(.v) !(length(.v) == 1 && is.na(.v)),
+      l
+    )
+  }
+
+gui_body <-
+  function(.req) {
+    .req$body %||%
+      tryCatch(
+        jsonlite::fromJSON(.req$postBody),
+        error = function(.e) list()
+      )
+  }
+
+# WHERE builder for the list routes' optional filters.
+# .clauses: named list of sql-fragment -> value; empty values are dropped.
+
+gui_where <-
+  function(.clauses) {
+    keep <-
+      Filter(
+        function(.v) !is.null(.v) && !is.na(.v) && nzchar(as.character(.v)),
+        .clauses
+      )
+    if (length(keep) == 0) {
+      return(list(sql = "", params = list()))
+    }
+    list(
+      sql = str_c(" WHERE ", str_flatten(names(keep), collapse = " AND ")),
+      params = unname(as.list(keep))
+    )
+  }
+
+# Generic single-row PATCH: intersect the body with the editable set, update,
+# log the change, return the fresh row (NULL when the id is unknown).
+
+gui_patch_row <-
+  function(
+    .req,
+    .entity,
+    .table,
+    .id_col,
+    .id,
+    .editable
+  ) {
+    body <- gui_body(.req)
+    observer <- .req$observer_id
+    key <- idem_key(.req)
+    fields <- intersect(names(body), .editable)
+
+    result <- NULL
+    with_txn(con, function() {
+      if (!record_idempotency(con, key, .entity, .id)) {
+        result <<- list(replayed = TRUE)
+        return(invisible(NULL))
+      }
+      exists <-
+        dbGetQuery(
+          con,
+          str_c("SELECT 1 FROM ", .table, " WHERE ", .id_col, " = ?"),
+          params = list(.id)
+        )
+      if (nrow(exists) == 0) {
+        return(invisible(NULL))
+      }
+      if ("patch_id" %in% fields) {
+        ensure_patch(con, body$patch_id %||% NA)
+      }
+      if (length(fields) > 0) {
+        set_sql <-
+          str_flatten(
+            str_c(fields, " = ?"),
+            collapse = ", "
+          )
+        params <-
+          c(
+            lapply(fields, function(.f) body[[.f]] %||% NA),
+            list(.id)
+          )
+        dbExecute(
+          con,
+          str_c(
+            "UPDATE ", .table, " SET ", set_sql,
+            " WHERE ", .id_col, " = ?"
+          ),
+          params = params
+        )
+      }
+      ev <- log_change(con, .entity, .id, "update", observer)
+      result <<-
+        list(
+          row = dbGetQuery(
+            con,
+            str_c("SELECT * FROM ", .table, " WHERE ", .id_col, " = ?"),
+            params = list(.id)
+          ),
+          event_id = ev
+        )
+    })
+    result
+  }
+
+# Generic single-row DELETE (children handled by the caller or by ON DELETE
+# CASCADE -- foreign_keys is ON). Returns NULL when the id is unknown.
+
+gui_delete_row <-
+  function(
+    .req,
+    .entity,
+    .table,
+    .id_col,
+    .id
+  ) {
+    observer <- .req$observer_id
+    key <- idem_key(.req)
+
+    exists <-
+      dbGetQuery(
+        con,
+        str_c("SELECT 1 FROM ", .table, " WHERE ", .id_col, " = ?"),
+        params = list(.id)
+      )
+    if (nrow(exists) == 0) {
+      return(NULL)
+    }
+
+    result <- NULL
+    with_txn(con, function() {
+      if (!record_idempotency(con, key, .entity, .id)) {
+        result <<- list(replayed = TRUE, deleted = TRUE)
+        return(invisible(NULL))
+      }
+      dbExecute(
+        con,
+        str_c("DELETE FROM ", .table, " WHERE ", .id_col, " = ?"),
+        params = list(.id)
+      )
+      ev <- log_change(con, .entity, .id, "delete", observer)
+      result <<- list(deleted = TRUE, event_id = ev)
+    })
+    result
+  }
+
+# --- coverboards ------------------------------------------------------------
+
+#* Coverboard checks. Filters: ?from, ?to (check_date), ?patch_id.
+#* @get /coverboard_checks
+#* @serializer unboxedJSON list(digits = 9)
+function(
+  req,
+  res,
+  from = "",
+  to = "",
+  patch_id = ""
+) {
+  w <-
+    gui_where(
+      list(
+        "check_date >= ?" = from,
+        "check_date <= ?" = to,
+        "patch_id = ?" = patch_id
+      )
+    )
+  db_read(
+    con,
+    str_c(
+      "SELECT * FROM coverboard_check",
+      w$sql,
+      " ORDER BY check_date DESC, patch_id, board_num"
+    ),
+    w$params
+  )
+}
+
+#* Create a coverboard check.
+#* @post /coverboard_checks
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res) {
+  body <- gui_body(req)
+  observer <- req$observer_id
+  key <- idem_key(req)
+
+  result <- NULL
+  with_txn(con, function() {
+    if (!record_idempotency(con, key, "coverboard_check", NA)) {
+      result <<- list(replayed = TRUE)
+      return(invisible(NULL))
+    }
+    ensure_patch(con, body$patch_id %||% NA)
+    dbExecute(
+      con,
+      "INSERT INTO coverboard_check
+         (patch_id, board_num, check_date, check_time, observer_id, notes)
+       VALUES (?,?,?,?,?,?)",
+      params = list(
+        body$patch_id %||% NA,
+        as.integer(body$board_num %||% NA),
+        body$check_date %||% NA,
+        body$check_time %||% NA,
+        body$observer_id %||% observer,
+        body$notes %||% NA
+      )
+    )
+    cid <- dbGetQuery(con, "SELECT last_insert_rowid() AS id")$id
+    ev <- log_change(con, "coverboard_check", cid, "insert", observer)
+    if (!is.null(key) && nzchar(key)) {
+      dbExecute(
+        con,
+        "UPDATE write_log SET entity_id = ? WHERE idempotency_key = ?",
+        params = list(cid, key)
+      )
+    }
+    result <<-
+      gui_row(
+        dbGetQuery(
+          con,
+          "SELECT * FROM coverboard_check WHERE coverboard_check_id = ?",
+          params = list(cid)
+        )[1, ]
+      )
+  })
+  res$status <- 201
+  result
+}
+
+#* Edit a coverboard check.
+#* @patch /coverboard_checks/<id>
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res, id) {
+  out <-
+    gui_patch_row(
+      req,
+      "coverboard_check",
+      "coverboard_check",
+      "coverboard_check_id",
+      as.integer(id),
+      c(
+        "patch_id", "board_num", "check_date", "check_time", "observer_id",
+        "notes"
+      )
+    )
+  if (is.null(out)) return(err(res, 404, "coverboard check not found"))
+  out
+}
+
+#* Delete a coverboard check (its observations cascade).
+#* @delete /coverboard_checks/<id>
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res, id) {
+  out <-
+    gui_delete_row(
+      req,
+      "coverboard_check",
+      "coverboard_check",
+      "coverboard_check_id",
+      as.integer(id)
+    )
+  if (is.null(out)) return(err(res, 404, "coverboard check not found"))
+  out
+}
+
+#* Observations under one check.
+#* @get /coverboard_checks/<id>/obs
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res, id) {
+  dbGetQuery(
+    con,
+    "SELECT * FROM coverboard_obs WHERE coverboard_check_id = ?
+       ORDER BY species",
+    params = list(as.integer(id))
+  )
+}
+
+#* Add an observation to a check.
+#* @post /coverboard_checks/<id>/obs
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res, id) {
+  body <- gui_body(req)
+  observer <- req$observer_id
+  key <- idem_key(req)
+  check_id <- as.integer(id)
+
+  parent <-
+    dbGetQuery(
+      con,
+      "SELECT 1 FROM coverboard_check WHERE coverboard_check_id = ?",
+      params = list(check_id)
+    )
+  if (nrow(parent) == 0) {
+    return(err(res, 404, "coverboard check not found"))
+  }
+
+  result <- NULL
+  with_txn(con, function() {
+    if (!record_idempotency(con, key, "coverboard_obs", NA)) {
+      result <<- list(replayed = TRUE)
+      return(invisible(NULL))
+    }
+    dbExecute(
+      con,
+      "INSERT INTO coverboard_obs
+         (coverboard_check_id, species, count, photo_id, notes)
+       VALUES (?,?,?,?,?)",
+      params = list(
+        check_id,
+        body$species %||% NA,
+        as.integer(body$count %||% 0),
+        body$photo_id %||% NA,
+        body$notes %||% NA
+      )
+    )
+    oid <- dbGetQuery(con, "SELECT last_insert_rowid() AS id")$id
+    ev <- log_change(con, "coverboard_obs", oid, "insert", observer)
+    if (!is.null(key) && nzchar(key)) {
+      dbExecute(
+        con,
+        "UPDATE write_log SET entity_id = ? WHERE idempotency_key = ?",
+        params = list(oid, key)
+      )
+    }
+    result <<-
+      gui_row(
+        dbGetQuery(
+          con,
+          "SELECT * FROM coverboard_obs WHERE obs_id = ?",
+          params = list(oid)
+        )[1, ]
+      )
+  })
+  res$status <- 201
+  result
+}
+
+#* Edit an observation.
+#* @patch /coverboard_obs/<id>
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res, id) {
+  out <-
+    gui_patch_row(
+      req,
+      "coverboard_obs",
+      "coverboard_obs",
+      "obs_id",
+      as.integer(id),
+      c("species", "count", "photo_id", "notes")
+    )
+  if (is.null(out)) return(err(res, 404, "observation not found"))
+  out
+}
+
+#* Delete an observation.
+#* @delete /coverboard_obs/<id>
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res, id) {
+  out <-
+    gui_delete_row(
+      req,
+      "coverboard_obs",
+      "coverboard_obs",
+      "obs_id",
+      as.integer(id)
+    )
+  if (is.null(out)) return(err(res, 404, "observation not found"))
+  out
+}
+
+# --- point counts -----------------------------------------------------------
+
+#* Point counts. Filters: ?from, ?to (count_date), ?patch_id.
+#* @get /point_counts
+#* @serializer unboxedJSON list(digits = 9)
+function(
+  req,
+  res,
+  from = "",
+  to = "",
+  patch_id = ""
+) {
+  w <-
+    gui_where(
+      list(
+        "count_date >= ?" = from,
+        "count_date <= ?" = to,
+        "patch_id = ?" = patch_id
+      )
+    )
+  db_read(
+    con,
+    str_c(
+      "SELECT * FROM point_count",
+      w$sql,
+      " ORDER BY count_date DESC, start_time"
+    ),
+    w$params
+  )
+}
+
+#* Create a point count (header row; counts go to /point_counts/<id>/intervals).
+#* @post /point_counts
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res) {
+  body <- gui_body(req)
+  observer <- req$observer_id
+  key <- idem_key(req)
+
+  result <- NULL
+  with_txn(con, function() {
+    if (!record_idempotency(con, key, "point_count", NA)) {
+      result <<- list(replayed = TRUE)
+      return(invisible(NULL))
+    }
+    ensure_patch(con, body$patch_id %||% NA)
+    dbExecute(
+      con,
+      "INSERT INTO point_count
+         (observer_id, patch_id, count_date, weather, start_time)
+       VALUES (?,?,?,?,?)",
+      params = list(
+        body$observer_id %||% observer,
+        body$patch_id %||% NA,
+        body$count_date %||% NA,
+        body$weather %||% NA,
+        body$start_time %||% NA
+      )
+    )
+    pid <- dbGetQuery(con, "SELECT last_insert_rowid() AS id")$id
+    ev <- log_change(con, "point_count", pid, "insert", observer)
+    if (!is.null(key) && nzchar(key)) {
+      dbExecute(
+        con,
+        "UPDATE write_log SET entity_id = ? WHERE idempotency_key = ?",
+        params = list(pid, key)
+      )
+    }
+    result <<-
+      gui_row(
+        dbGetQuery(
+          con,
+          "SELECT * FROM point_count WHERE point_count_id = ?",
+          params = list(pid)
+        )[1, ]
+      )
+  })
+  res$status <- 201
+  result
+}
+
+#* Edit a point count header.
+#* @patch /point_counts/<id>
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res, id) {
+  out <-
+    gui_patch_row(
+      req,
+      "point_count",
+      "point_count",
+      "point_count_id",
+      as.integer(id),
+      c("observer_id", "patch_id", "count_date", "weather", "start_time")
+    )
+  if (is.null(out)) return(err(res, 404, "point count not found"))
+  out
+}
+
+#* Delete a point count (its count rows cascade).
+#* @delete /point_counts/<id>
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res, id) {
+  out <-
+    gui_delete_row(
+      req,
+      "point_count",
+      "point_count",
+      "point_count_id",
+      as.integer(id)
+    )
+  if (is.null(out)) return(err(res, 404, "point count not found"))
+  out
+}
+
+#* Count rows (long: one per interval x species x detection x distance).
+#* @get /point_counts/<id>/intervals
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res, id) {
+  dbGetQuery(
+    con,
+    "SELECT * FROM count_interval WHERE point_count_id = ?
+       ORDER BY interval, species, detection, distance",
+    params = list(as.integer(id))
+  )
+}
+
+#* REPLACE this count's rows. Body: { rows: [ {interval, species, detection,
+#* distance, count}, ... ] }. One transaction: the GUI saves the whole grid at
+#* once (mirrors the sheet), so a partial write must be impossible.
+#* @post /point_counts/<id>/intervals
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res, id) {
+  body <- gui_body(req)
+  observer <- req$observer_id
+  key <- idem_key(req)
+  pc_id <- as.integer(id)
+
+  parent <-
+    dbGetQuery(
+      con,
+      "SELECT 1 FROM point_count WHERE point_count_id = ?",
+      params = list(pc_id)
+    )
+  if (nrow(parent) == 0) {
+    return(err(res, 404, "point count not found"))
+  }
+
+  rows <- body$rows
+  df <-
+    if (is.null(rows)) {
+      data.frame()
+    } else {
+      as.data.frame(rows, stringsAsFactors = FALSE)
+    }
+
+  # Validate against the CHECK constraints up front so the whole batch is
+  # rejected with a message, not half-inserted then 500.
+
+  if (nrow(df) > 0) {
+    ok_interval <-
+      !is.na(suppressWarnings(as.integer(df$interval))) &
+        as.integer(df$interval) %in% 1:3
+    ok_distance <-
+      df$distance %in% c("< 25 m", "25-50 m", "50-75 m", "75-100 m", "> 100 m")
+    ok_detection <- df$detection %in% c("A", "V", "B")
+    bad <- sum(!(ok_interval & ok_distance & ok_detection))
+    if (bad > 0) {
+      return(
+        err(
+          res,
+          400,
+          str_c(bad, " row(s) have an invalid interval/distance/detection")
+        )
+      )
+    }
+    known <-
+      dbGetQuery(con, "SELECT species_code FROM species_engine")$species_code
+    unknown <- setdiff(unique(df$species), known)
+    if (length(unknown) > 0) {
+      return(
+        err(
+          res,
+          400,
+          str_c(
+            "unknown species code(s): ",
+            str_flatten(unknown, collapse = ", ")
+          )
+        )
+      )
+    }
+  }
+
+  result <- NULL
+  with_txn(con, function() {
+    if (!record_idempotency(con, key, "count_interval", pc_id)) {
+      result <<- list(replayed = TRUE)
+      return(invisible(NULL))
+    }
+    dbExecute(
+      con,
+      "DELETE FROM count_interval WHERE point_count_id = ?",
+      params = list(pc_id)
+    )
+    if (nrow(df) > 0) {
+      for (i in seq_len(nrow(df))) {
+        dbExecute(
+          con,
+          "INSERT INTO count_interval
+             (point_count_id, interval, species, distance, detection, count)
+           VALUES (?,?,?,?,?,?)",
+          params = list(
+            pc_id,
+            as.integer(df$interval[[i]]),
+            df$species[[i]],
+            df$distance[[i]],
+            df$detection[[i]],
+            as.integer(df$count[[i]])
+          )
+        )
+      }
+    }
+    # change_event.action is CHECKed to insert/update/delete; a whole-grid
+    # replace is an update of the count's rows.
+
+    ev <- log_change(con, "count_interval", pc_id, "update", observer)
+    result <<- list(saved = nrow(df), event_id = ev)
+  })
+  result
+}
+
+# --- visits -----------------------------------------------------------------
+
+#* Visits. Filters: ?from, ?to (visit_date), ?patch_id.
+#* @get /visits
+#* @serializer unboxedJSON list(digits = 9)
+function(
+  req,
+  res,
+  from = "",
+  to = "",
+  patch_id = ""
+) {
+  w <-
+    gui_where(
+      list(
+        "visit_date >= ?" = from,
+        "visit_date <= ?" = to,
+        "patch_id = ?" = patch_id
+      )
+    )
+  db_read(
+    con,
+    str_c(
+      "SELECT * FROM visit",
+      w$sql,
+      " ORDER BY visit_date DESC, patch_id"
+    ),
+    w$params
+  )
+}
+
+#* Create a visit.
+#* @post /visits
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res) {
+  body <- gui_body(req)
+  observer <- req$observer_id
+  key <- idem_key(req)
+
+  result <- NULL
+  with_txn(con, function() {
+    if (!record_idempotency(con, key, "visit", NA)) {
+      result <<- list(replayed = TRUE)
+      return(invisible(NULL))
+    }
+    ensure_patch(con, body$patch_id %||% NA)
+    dbExecute(
+      con,
+      "INSERT INTO visit
+         (visit_date, patch_id, helper, activity, status, notes)
+       VALUES (?,?,?,?,?,?)",
+      params = list(
+        body$visit_date %||% NA,
+        body$patch_id %||% NA,
+        body$helper %||% NA,
+        body$activity %||% NA,
+        body$status %||% NA,
+        body$notes %||% NA
+      )
+    )
+    vid <- dbGetQuery(con, "SELECT last_insert_rowid() AS id")$id
+    ev <- log_change(con, "visit", vid, "insert", observer)
+    if (!is.null(key) && nzchar(key)) {
+      dbExecute(
+        con,
+        "UPDATE write_log SET entity_id = ? WHERE idempotency_key = ?",
+        params = list(vid, key)
+      )
+    }
+    result <<-
+      gui_row(
+        dbGetQuery(
+          con,
+          "SELECT * FROM visit WHERE visit_id = ?",
+          params = list(vid)
+        )[1, ]
+      )
+  })
+  res$status <- 201
+  result
+}
+
+#* Edit a visit.
+#* @patch /visits/<id>
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res, id) {
+  out <-
+    gui_patch_row(
+      req,
+      "visit",
+      "visit",
+      "visit_id",
+      as.integer(id),
+      c("visit_date", "patch_id", "helper", "activity", "status", "notes")
+    )
+  if (is.null(out)) return(err(res, 404, "visit not found"))
+  out
+}
+
+#* Delete a visit.
+#* @delete /visits/<id>
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res, id) {
+  out <-
+    gui_delete_row(
+      req,
+      "visit",
+      "visit",
+      "visit_id",
+      as.integer(id)
+    )
+  if (is.null(out)) return(err(res, 404, "visit not found"))
+  out
+}
+
+# --- predator cameras + maintenance ----------------------------------------
+
+#* Register a camera. camera_id is the human-typed primary key.
+#* @post /predator_cameras
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res) {
+  body <- gui_body(req)
+  observer <- req$observer_id
+  key <- idem_key(req)
+
+  camera_id <- body$camera_id
+  if (is.null(camera_id) || !nzchar(camera_id)) {
+    return(err(res, 400, "camera_id is required"))
+  }
+  taken <-
+    dbGetQuery(
+      con,
+      "SELECT 1 FROM predator_camera WHERE camera_id = ?",
+      params = list(camera_id)
+    )
+  if (nrow(taken) > 0) {
+    return(err(res, 409, str_c("camera_id already exists: ", camera_id)))
+  }
+
+  result <- NULL
+  with_txn(con, function() {
+    if (!record_idempotency(con, key, "predator_camera", camera_id)) {
+      result <<- list(replayed = TRUE, camera_id = camera_id)
+      return(invisible(NULL))
+    }
+    ensure_patch(con, body$patch_id %||% NA)
+    dbExecute(
+      con,
+      "INSERT INTO predator_camera (camera_id, patch_id, gps_point_id)
+       VALUES (?,?,?)",
+      params = list(
+        camera_id,
+        body$patch_id %||% NA,
+        body$gps_point_id %||% NA
+      )
+    )
+    ev <- log_change(con, "predator_camera", camera_id, "insert", observer)
+    result <<-
+      gui_row(
+        dbGetQuery(
+          con,
+          "SELECT * FROM predator_camera WHERE camera_id = ?",
+          params = list(camera_id)
+        )[1, ]
+      )
+  })
+  res$status <- 201
+  result
+}
+
+#* Edit a camera (patch / point). camera_id itself is immutable: the
+#* maintenance log references it.
+#* @patch /predator_cameras/<id>
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res, id) {
+  out <-
+    gui_patch_row(
+      req,
+      "predator_camera",
+      "predator_camera",
+      "camera_id",
+      id,
+      c("patch_id", "gps_point_id")
+    )
+  if (is.null(out)) return(err(res, 404, "camera not found"))
+  out
+}
+
+#* Delete a camera and its whole maintenance log (cascade).
+#* @delete /predator_cameras/<id>
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res, id) {
+  out <-
+    gui_delete_row(
+      req,
+      "predator_camera",
+      "predator_camera",
+      "camera_id",
+      id
+    )
+  if (is.null(out)) return(err(res, 404, "camera not found"))
+  out
+}
+
+#* One camera's maintenance log.
+#* @get /predator_cameras/<id>/maintenance
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res, id) {
+  dbGetQuery(
+    con,
+    "SELECT * FROM camera_maintenance WHERE camera_id = ?
+       ORDER BY event_date DESC",
+    params = list(id)
+  )
+}
+
+#* Add a maintenance event.
+#* @post /predator_cameras/<id>/maintenance
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res, id) {
+  body <- gui_body(req)
+  observer <- req$observer_id
+  key <- idem_key(req)
+
+  parent <-
+    dbGetQuery(
+      con,
+      "SELECT 1 FROM predator_camera WHERE camera_id = ?",
+      params = list(id)
+    )
+  if (nrow(parent) == 0) {
+    return(err(res, 404, "camera not found"))
+  }
+
+  result <- NULL
+  with_txn(con, function() {
+    if (!record_idempotency(con, key, "camera_maintenance", NA)) {
+      result <<- list(replayed = TRUE)
+      return(invisible(NULL))
+    }
+    dbExecute(
+      con,
+      "INSERT INTO camera_maintenance
+         (camera_id, event_date, install, replace_sd, replace_batteries, notes)
+       VALUES (?,?,?,?,?,?)",
+      params = list(
+        id,
+        body$event_date %||% NA,
+        as.integer(body$install %||% 0),
+        as.integer(body$replace_sd %||% 0),
+        as.integer(body$replace_batteries %||% 0),
+        body$notes %||% NA
+      )
+    )
+    mid <- dbGetQuery(con, "SELECT last_insert_rowid() AS id")$id
+    ev <- log_change(con, "camera_maintenance", mid, "insert", observer)
+    if (!is.null(key) && nzchar(key)) {
+      dbExecute(
+        con,
+        "UPDATE write_log SET entity_id = ? WHERE idempotency_key = ?",
+        params = list(mid, key)
+      )
+    }
+    result <<-
+      gui_row(
+        dbGetQuery(
+          con,
+          "SELECT * FROM camera_maintenance WHERE maintenance_id = ?",
+          params = list(mid)
+        )[1, ]
+      )
+  })
+  res$status <- 201
+  result
+}
+
+#* Edit a maintenance event.
+#* @patch /camera_maintenance/<id>
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res, id) {
+  out <-
+    gui_patch_row(
+      req,
+      "camera_maintenance",
+      "camera_maintenance",
+      "maintenance_id",
+      as.integer(id),
+      c("event_date", "install", "replace_sd", "replace_batteries", "notes")
+    )
+  if (is.null(out)) return(err(res, 404, "maintenance event not found"))
+  out
+}
+
+#* Delete a maintenance event.
+#* @delete /camera_maintenance/<id>
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res, id) {
+  out <-
+    gui_delete_row(
+      req,
+      "camera_maintenance",
+      "camera_maintenance",
+      "maintenance_id",
+      as.integer(id)
+    )
+  if (is.null(out)) return(err(res, 404, "maintenance event not found"))
+  out
+}
+
+# --- schedule days (row-level CRUD for the GUI's week view) -----------------
+
+# GET /schedule (above) stays as the field app's week feed; these routes give
+# the GUI the (date, patch_order) grain it edits. A Sheets push
+# (POST /schedule) still truncate-reloads the table -- GUI edits made after
+# the last push are replaced by it.
+
+#* Schedule rows. Filters: ?from, ?to (date), ?week.
+#* @get /schedule_days
+#* @serializer unboxedJSON list(digits = 9)
+function(
+  req,
+  res,
+  from = "",
+  to = "",
+  week = ""
+) {
+  w <-
+    gui_where(
+      list(
+        "date >= ?" = from,
+        "date <= ?" = to,
+        "week = ?" = week
+      )
+    )
+  db_read(
+    con,
+    str_c(
+      "SELECT * FROM schedule_day",
+      w$sql,
+      " ORDER BY date, patch_order"
+    ),
+    w$params
+  )
+}
+
+gui_schedule_editable <-
+  c(
+    "week", "date", "day", "helper", "arrive", "sunrise", "patch_order",
+    "patch_count", "boards", "search_patch_1", "search_patch_2",
+    "search_patch_3", "search_patch_4", "field", "notes",
+    "helper_patch_1", "tns_patch_1", "helper_patch_2", "tns_patch_2",
+    "helper_patch_3", "tns_patch_3", "helper_patch_4", "tns_patch_4",
+    "check_nests", "predator_cameras", "departure_time",
+    "scbi_departure_time", "point_count_time", "weather"
+  )
+
+#* Create one schedule row. Body: any schedule_day columns; date is required.
+#* day and week are derived from date when absent.
+#* @post /schedule_days
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res) {
+  body <- gui_body(req)
+  observer <- req$observer_id
+  key <- idem_key(req)
+
+  if (is.null(body$date) || !nzchar(body$date)) {
+    return(err(res, 400, "date (YYYY-MM-DD) is required"))
+  }
+
+  # Derive the weekday label; inherit week from any sibling row of that week's
+  # dates already present (the sampling-week numbering lives in the loader).
+
+  d <- as.Date(body$date)
+  if (is.null(body$day) || !nzchar(body$day %||% "")) {
+    body$day <- format(d, "%a")
+  }
+
+  fields <- intersect(names(body), gui_schedule_editable)
+
+  result <- NULL
+  with_txn(con, function() {
+    if (!record_idempotency(con, key, "schedule_day", NA)) {
+      result <<- list(replayed = TRUE)
+      return(invisible(NULL))
+    }
+    cols_sql <- str_flatten(fields, collapse = ", ")
+    ph <- str_flatten(rep("?", length(fields)), collapse = ",")
+    dbExecute(
+      con,
+      str_c(
+        "INSERT INTO schedule_day (", cols_sql, ") VALUES (", ph, ")"
+      ),
+      params = lapply(fields, function(.f) body[[.f]] %||% NA)
+    )
+    sid <- dbGetQuery(con, "SELECT last_insert_rowid() AS id")$id
+    ev <- log_change(con, "schedule_day", sid, "insert", observer)
+    if (!is.null(key) && nzchar(key)) {
+      dbExecute(
+        con,
+        "UPDATE write_log SET entity_id = ? WHERE idempotency_key = ?",
+        params = list(sid, key)
+      )
+    }
+    result <<-
+      gui_row(
+        dbGetQuery(
+          con,
+          "SELECT * FROM schedule_day WHERE schedule_day_id = ?",
+          params = list(sid)
+        )[1, ]
+      )
+  })
+  res$status <- 201
+  result
+}
+
+#* Edit one schedule row (the GUI fans a day-level edit across its rows).
+#* @patch /schedule_days/<id>
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res, id) {
+  out <-
+    gui_patch_row(
+      req,
+      "schedule_day",
+      "schedule_day",
+      "schedule_day_id",
+      as.integer(id),
+      gui_schedule_editable
+    )
+  if (is.null(out)) return(err(res, 404, "schedule row not found"))
+  out
+}
+
+#* Delete one schedule row.
+#* @delete /schedule_days/<id>
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res, id) {
+  out <-
+    gui_delete_row(
+      req,
+      "schedule_day",
+      "schedule_day",
+      "schedule_day_id",
+      as.integer(id)
+    )
+  if (is.null(out)) return(err(res, 404, "schedule row not found"))
+  out
 }
