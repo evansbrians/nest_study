@@ -550,15 +550,51 @@ function(el, x) {
   var filterPatch = "__all__";   // dropdown default
   var filterArtCand = false;     // "only artificial nest candidates" switch
 
-  // When the candidates-only switch is on, a nest marker shows only if the DB
-  // flagged it an artificial-nest candidate (v_map_point.artificial_candidate,
-  // carried on the marker row). Non-nest classes are never affected.
+  // "Artificial candidates" view (matches snedgen-gui/map.js): a nest shows ONLY
+  // if it is an AVAILABLE candidate -- flagged artificial_candidate, its fate
+  // concluded, not itself an NQ nest, not wearing an artificial icon, and not
+  // already converted (its number does not already exist as an NQ or as an
+  // artificial-icon nest). Non-nest classes are never affected.
+
+  var CONCLUDED_FATE = { "Success": true, "Failure": true, "Unknown": true };
+  var candConverted = {};   // nest number -> already converted to an NQ nest
+  var candConcluded = {};   // nest_id -> fate is concluded
+
+  function refreshCandidateContext() {
+    candConverted = {};
+    candConcluded = {};
+
+    (window.fieldMapMarkers || []).forEach(function (r) {
+      if (!r || String(r["class"]) !== "nest") return;
+      var nm = String(r.name || "");
+      var mq = /^NQ(\d+)/.exec(nm);
+      if (mq) candConverted[mq[1]] = true;
+      if (/artificial/.test(String(r.icon || ""))) {
+        var ma = /^N[A-Z]*?(\d+)/.exec(nm);
+        if (ma) candConverted[ma[1]] = true;
+      }
+    });
+
+    (window.fieldApiNests || []).forEach(function (n) {
+      if (n && n.nest_id != null) {
+        candConcluded[String(n.nest_id)] = !!CONCLUDED_FATE[String(n.nest_fate)];
+      }
+    });
+  }
 
   function candidateHidden(layer, gname) {
     if (!filterArtCand || gname !== "Nests") return false;
     var r = layer._row;
-    var flag = r && r.artificial_candidate;
-    return !(flag === 1 || flag === true || flag === "1");
+    if (!r) return true;
+    var nm = String(r.name || "");
+    var flag = r.artificial_candidate;
+    if (!(flag === 1 || flag === true || flag === "1")) return true;
+    if (!candConcluded[nm]) return true;
+    if (/^NQ/.test(nm)) return true;
+    if (/artificial/.test(String(r.icon || ""))) return true;
+    var m = /^N[A-Z]*?(\d+)/.exec(nm);
+    if (m && candConverted[m[1]]) return true;
+    return false;
   }
 
   // Which patches are active right now. null = no spatial subset. A missing or
@@ -602,6 +638,7 @@ function(el, x) {
 
   function applyFilter(opts) {
     var noFit = !!(opts && opts.noFit);
+    if (filterArtCand) refreshCandidateContext();
     var names = activePatchNames();
 
     if (names === null) {
