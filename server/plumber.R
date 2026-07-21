@@ -3631,10 +3631,10 @@ function(req, res, id) {
 
 # --- schedule days (row-level CRUD for the GUI's week view) -----------------
 
-# GET /schedule (above) stays as the field app's week feed; these routes give
-# the GUI the (date, patch_order) grain it edits. A Sheets push
-# (POST /schedule) still truncate-reloads the table -- GUI edits made after
-# the last push are replaced by it.
+# These routes give the GUI the (date, patch_order) grain it edits. The GET
+# reads v_schedule -- same live check_nests / predator_cameras / weather the
+# field app sees via GET /schedule -- while the id and editable base columns
+# pass through, so PATCH/POST/DELETE still act on schedule_day.
 
 #* Schedule rows. Filters: ?from, ?to (date), ?week.
 #* @get /schedule_days
@@ -3657,7 +3657,7 @@ function(
   db_read(
     con,
     str_c(
-      "SELECT * FROM schedule_day",
+      "SELECT * FROM v_schedule",
       w$sql,
       " ORDER BY date, patch_order"
     ),
