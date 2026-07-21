@@ -17,13 +17,23 @@ source(
 
 # target date -------------------------------------------------------------
 
-# On Sundays, define the week based on tomorrow's date:
-
-target_date <- today() + 1
-
-# During the week, define the week based on today's date:
-
-target_date <- today()
+target_date <-
+  
+  # On Sundays, define the week based on tomorrow's date:
+  
+  if (
+    wday(
+      today(),
+      week_start = 1
+    ) == 7
+  ) {
+    today() + 1
+  } else {
+    
+    # Otherwise, it's today:
+    
+    today()
+  }
 
 # Set the date as an environment variable:
 
@@ -36,12 +46,6 @@ Sys.setenv(
 source("scripts/utils/updater.R")
 
 autopush_updates()
-
-# download data points from garmin ----------------------------------------
-
-# This is just a fail safe in case you are still using the Garmin:
-
-source("scripts/spatial/convert_gpx_geojson.R")
 
 # printing ----------------------------------------------------------------
 
@@ -64,8 +68,6 @@ here("outputs/print-outs/schedule_pdf.pdf") %>%
   system()
 
 # Print datasheets:
-
-source("scripts/utils/functions/utility_functions.R")
 
 print_datasheets(
   # .datasheet = "coverboards",
