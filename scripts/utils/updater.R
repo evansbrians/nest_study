@@ -13,22 +13,6 @@ source("scripts/utils/functions/time_and_date_functions.R")
 source("scripts/utils/functions/utility_functions.R")
 source("scripts/utils/functions/db_functions.R")
 source("scripts/utils/functions/scheduling_functions.R")
-source("scripts/utils/functions/weather_functions.R")
-
-# The URL and API token used by the schedule push and DB pull:
-
-api_url <- "https://snednestudy.duckdns.org"
-api_token <- "a5d11ba12d29bdb83b0a5e4806fe111dbb740d6001499c2cdc171440cb05f357"
-
-# weather forecast --------------------------------------------------------
-
-# Refresh the forecast before the schedule push below, which reads it back in:
-
-read_rds("data/weather.rds") %>%
-  update_weather(
-    .coords_yx = get_nws_coords("data/spatial/patches.geojson"),
-    .outpath = "data/weather.rds"
-  )
 
 # refresh the local analysis DB from the VM -------------------------------
 
@@ -44,8 +28,8 @@ db_refreshed <-
 if (!db_refreshed) {
   stop(
     "refresh_local_db.sh failed, so the local DB is stale.\n",
-    "  Everything below (nests, spatial files, the schedule's check_nests) is\n",
-    "  derived from it, so this run would push a schedule built from old nests.\n",
+    "  The nests, spatial files, and printable schedule below all derive from\n",
+    "  it, so this run would build them from old data.\n",
     "  Fix the refresh and re-run. If the key is the problem, set NEST_SSH_KEY.",
     call. = FALSE
   )
@@ -75,26 +59,6 @@ write_rds(field_data, "data/field_data.rds")
 write_spatial_from_db(con)
 
 dbDisconnect(con)
-
-# push the schedule to the web API ----------------------------------------
-
-message("Pushing schedule to the web API...")
-
-schedule_push_status <-
-  system2(
-    "Rscript",
-    c(
-      "scripts/db/schedule_load.R",
-      "--api", api_url,
-      "--token", api_token
-    )
-  )
-
-if (schedule_push_status != 0) {
-  warning(
-    "schedule_load.R failed, the app is stuck on the previous schedule."
-  )
-}
 
 # render the printable PDF schedule ---------------------------------------
 
