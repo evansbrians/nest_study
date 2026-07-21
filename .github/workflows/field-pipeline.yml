@@ -1,120 +1,38 @@
-name: Daily field build
+name: Daily weather push
 
-# Automatically runs the no-input portion of the dashboard (scripts/utils/ci_build.R) and commits the products. Our existing static.yml then publishes them to Pages.
-
-# Triggers: every day at 03:59 UTC, on pushes to main (e.g. when Tara pushes
-# new Garmin tracks), and manually from the Actions tab. The `if` below skips
-# the bot's own commits so it never loops.
+# Fetch the NWS forecast and push per-date weather JSON to the API weather table.
+# The schedule itself is now DB views (check_nests, predator_cameras derived
+# live), so weather is the only recurring job -- and it needs no DB or SSH
+# access, just the public NWS API and the app API token.
 
 on:
   schedule:
     - cron: "59 3 * * *"
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
-  build:
-  
-    # Skip the bot's own push (prevents an infinite loop); schedule and manual
-    # runs always proceed.
-    
-    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[bot]') }}
+  weather:
     runs-on: ubuntu-latest
 
-    # Prebuilt geospatial image: R + sf/terra/GDAL/GEOS/PROJ + tidyverse already
-    # installed, so only the lighter extra packages install at run time.
-    
+    # rocker/geospatial ships R + sf/GDAL + tidyverse, so only a few light
+    # packages install at run time.
     container:
       image: rocker/geospatial:latest
 
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
-        with:
-        
-          # Use a Personal Access Token so the bot's push triggers static.yml
-          # (the Pages deploy). The default token would not.
-          
-          token: ${{ secrets.GH_PAT }}
 
       - name: Mark the workspace safe for git (container runs as root)
         run: git config --global --add safe.directory '*'
 
-      # Quarto + TinyTeX already ship in rocker/geospatial (built on rocker/verse),
-      # so there is no separate Quarto install step.
-
       - name: Install the extra R packages not already in the image
         run: |
           Rscript -e '
-            pkgs <- c("googlesheets4", "googledrive", "here", "glue",
-                      "leaflet", "htmlwidgets", "htmltools", "kableExtra",
-                      "rmapshaper", "base64enc", "jsonlite", "magick",
-                      "tmap", "maptiles", "xml2", "zip", "quarto", "withr",
-                      "httr", "janitor")
+            pkgs <- c("here", "glue", "jsonlite", "httr")
             need <- setdiff(pkgs, rownames(installed.packages()))
             if (length(need)) install.packages(need, repos = "https://packagemanager.posit.co/cran/__linux__/jammy/latest")
           '
 
-      - name: Write the service-account key from the repo secret
-        env:
-          GOOGLE_SHEETS_KEY_JSON: ${{ secrets.GOOGLE_SHEETS_KEY }}
-        run: |
-          printf '%s' "$GOOGLE_SHEETS_KEY_JSON" > "$RUNNER_TEMP/gs_key.json"
-          echo "GOOGLE_SHEETS_KEY=$RUNNER_TEMP/gs_key.json" >> "$GITHUB_ENV"
-
-      - name: Build the daily products
-        run: Rscript scripts/utils/ci_build.R
-
-      - name: Commit and push the regenerated products
-        run: |
-          git config user.name "nest-study-bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add -A
-          if git diff --quiet --cached; then
-            echo "No changes to commit."
-          else
-            git commit -m "Auto-build daily products [bot]"
-            git push
-          fi
-
-      # Publish the built app to a flat, history-free gh-pages branch. Each run
-      # REPLACES the branch (fresh orphan commit, force-pushed), so Pages only
-      # ever serves one small commit instead of checking out main's ~1 GB
-      # history. THIS is what stops big data updates from failing the Pages
-      # build. main keeps its own (heavier) history untouched; only the serve
-      # branch is kept lean.
-      #
-      # A root redirect is added so both the site root and the existing
-      # /outputs/nest_app/ URL resolve to the app (works whichever way Pages is
-      # pointed). After the first run, set Settings -> Pages -> Source =
-      # "Deploy from a branch" -> gh-pages / (root).
-
-      - name: Deploy the app to a flat gh-pages branch
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
-        run: |
-          set -euo pipefail
-          deploy="$RUNNER_TEMP/gh-pages"
-          rm -rf "$deploy"
-          mkdir -p "$deploy/outputs/nest_app"
-
-          # Copy the freshly built app, preserving its URL path.
-          cp -a outputs/nest_app/. "$deploy/outputs/nest_app/"
-
-          # Static-copy marker (skip Jekyll) + root redirect to the app.
-          touch "$deploy/.nojekyll"
-          printf '%s\n' \
-            '<!doctype html><meta http-equiv="refresh" content="0; url=outputs/nest_app/">' \
-            > "$deploy/index.html"
-
-          cd "$deploy"
-          git init -q
-          git checkout -q -b gh-pages
-          git config user.name "nest-study-bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add -A
-          git commit -q -m "Deploy site [bot]"
-          git push -f \
-            "https://x-access-token:${GH_PAT}@github.com/${GITHUB_REPOSITORY}.git" \
-            gh-pages
+      - name: Fetch the forecast and push it to the weather table
+        run: Rscript scripts/db/weather_push.R

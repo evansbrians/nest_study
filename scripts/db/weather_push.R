@@ -1,30 +1,28 @@
 #!/usr/bin/env Rscript
 
 # weather_push.R ------------------------------------------------------------
-# Fetch the NWS forecast and push per-date weather JSON to the API's `weather`
-# table. This is the ONLY recurring schedule job left: check_nests and
-# predator_cameras are now live DB views (server/v_schedule.sql), and weather is
-# the one schedule input that cannot be derived from the DB.
-#
-# It needs no DB pull and no SSH key -- it fetches the public NWS API and POSTs
-# to the public app API with the token -- so it runs anywhere with internet,
-# e.g. the daily GitHub Action, without the credentials the old updater needed.
-#
-#   Rscript scripts/db/weather_push.R
+
+# Push per-date weather JSON to the API weather table -- the only recurring
+# schedule job left, since check_nests and predator_cameras are now DB views. It
+# needs no DB or SSH access (fetches NWS, POSTs the token), so it runs in CI.
 
 suppressPackageStartupMessages({
-  library(tidyverse)
+  library(glue)
+  library(sf)
   library(httr)
+  library(tidyverse)
 })
 
 source("scripts/utils/functions/time_and_date_functions.R")
+source("scripts/utils/functions/utility_functions.R")
 source("scripts/utils/functions/weather_functions.R")
-source("scripts/db/schedule_weather.R")   # weather_json()
+source("scripts/db/schedule_weather.R")
 
 api_url <- "https://snednestudy.duckdns.org"
+
 api_token <- "a5d11ba12d29bdb83b0a5e4806fe111dbb740d6001499c2cdc171440cb05f357"
 
-# 1. Refresh the forecast from the NWS API (writes data/weather.rds).
+# refresh the forecast ------------------------------------------------------
 
 read_rds("data/weather.rds") %>%
   update_weather(
@@ -32,8 +30,7 @@ read_rds("data/weather.rds") %>%
     .outpath = "data/weather.rds"
   )
 
-# 2. Shape it into one JSON object per date -- the exact shape the schedule
-#    screen renders: { detailed, summary, hourly:[{time,forecast,temp,rain}] }.
+# build one JSON per date and push ------------------------------------------
 
 weather_rows <-
   read_rds("data/weather.rds") %>%
@@ -44,22 +41,36 @@ if (is.null(weather_rows) || nrow(weather_rows) == 0) {
   quit(status = 0)
 }
 
-# 3. POST to the weather table; the server upserts by date.
-
-resp <-
+response <-
   POST(
     str_c(api_url, "/weather"),
-    add_headers(Authorization = str_c("Bearer ", api_token)),
-    body = list(rows = weather_rows),
+    add_headers(
+      Authorization = str_c("Bearer ", api_token)
+    ),
+    body =
+      list(rows = weather_rows),
     encode = "json"
   )
 
-if (status_code(resp) >= 300) {
+if (status_code(response) >= 300) {
+  error_body <-
+    content(
+      response,
+      as = "text",
+      encoding = "UTF-8"
+    )
+
   stop(
-    "weather_push: POST /weather failed (HTTP ", status_code(resp), "): ",
-    content(resp, "text", encoding = "UTF-8"),
+    "weather_push: POST /weather failed (HTTP ",
+    status_code(response),
+    "): ",
+    error_body,
     call. = FALSE
   )
 }
 
-message("weather_push: pushed ", nrow(weather_rows), " day(s) of weather.")
+message(
+  "weather_push: pushed ",
+  nrow(weather_rows),
+  " day(s) of weather."
+)
