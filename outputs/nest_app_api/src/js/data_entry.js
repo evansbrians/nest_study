@@ -1789,53 +1789,27 @@
     relayPost({ action: "delete_row", sheet: sheet, row: rowNum }, onSuccess, onError);
   }
 
-  // Live read of a nest's discovery row + interval rows (each with its sheet
-  // row number) over the no-cors JSONP channel, mirroring fetchLiveNestIds.
+  // Read a nest's discovery + interval rows from GET /nests/:id, adapted to the
+  // { discovery:{data,row}, intervals:[{data,row}] } shape the edit forms
+  // expect. The interval "row" slot carries the surrogate check_id (not a sheet
+  // row) so the existing updateSheetRow/deleteSheetRow call sites are unchanged.
 
   function fetchNestDetail(nestId, cb) {
-    // API path: GET /nests/:id -> { nest, substrates, intervals, gps_point,
-    // photos }. Adapt to the JSONP callback's { discovery:{data,row},
-    // intervals:[{data,row}] } shape the edit forms expect. The interval "row"
-    // slot carries the surrogate check_id (not a sheet row) so the existing
-    // updateSheetRow/deleteSheetRow call sites reference it unchanged.
-    if (apiEnabled()) {
-      if (!NestApi.api.isOnline()) { cb(null); return; }
-      NestApi.api.getNest(nestId).then(function (detail) {
-        if (!detail || !detail.nest) { cb(null); return; }
-        var disc = detail.nest;
+    if (!apiEnabled() || !NestApi.api.isOnline()) { cb(null); return; }
+    NestApi.api.getNest(nestId).then(function (detail) {
+      if (!detail || !detail.nest) { cb(null); return; }
+      var disc = detail.nest;
 
-        // The response splits one nest across siblings; flatten substrates onto
-        // the record under its OWN name. This renames nothing -- the forms read
-        // the schema vocabulary, so there is nothing left to translate.
+      // The response splits one nest across siblings; flatten substrates onto
+      // the record under its OWN name.
 
-        disc.substrates = detail.substrates;
+      disc.substrates = detail.substrates;
 
-        var ivs = (detail.intervals || []).map(function (iv) {
-          return { data: iv, row: iv.check_id };
-        });
-        cb({ discovery: { data: disc, row: disc.nest_id }, intervals: ivs });
-      }).catch(function () { cb(null); });
-      return;
-    }
-    if (!WP_SYNC.relayUrl || WP_SYNC.relayUrl.indexOf("PASTE") === 0 || !navigator.onLine) {
-      cb(null); return;
-    }
-    var name = "__nestDetail_" + Date.now();
-    var s = document.createElement("script");
-    var done = false;
-    function settle() { if (s.parentNode) s.parentNode.removeChild(s); }
-    window[name] = function (data) {
-      if (done) return;
-      done = true;
-      settle();
-      try { cb(data); } finally { try { delete window[name]; } catch (e) { window[name] = undefined; } }
-    };
-    setTimeout(function () { if (!done) { done = true; settle(); cb(null); } }, 12000);
-    s.onerror = function () { if (!done) { done = true; settle(); cb(null); } };
-    s.src = WP_SYNC.relayUrl + "?action=nest_detail&secret=" + encodeURIComponent(WP_SYNC.secret) +
-      "&study=" + encodeURIComponent(WP_SYNC.study) +
-      "&nest_id=" + encodeURIComponent(nestId) + "&callback=" + name;
-    document.body.appendChild(s);
+      var ivs = (detail.intervals || []).map(function (iv) {
+        return { data: iv, row: iv.check_id };
+      });
+      cb({ discovery: { data: disc, row: disc.nest_id }, intervals: ivs });
+    }).catch(function () { cb(null); });
   }
 
   function sheetTruthy(v) {
