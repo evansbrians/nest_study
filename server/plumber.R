@@ -875,8 +875,9 @@ function(
 #* The VM has no googlesheets4 credentials, so prep_schedule_data() runs on a
 #* workstation (scripts/db/schedule_load.R --api ...) and posts the finished rows
 #* here. Body: { rows: [ {week,date,day,...}, ... ] } with schedule_day columns.
-#* Truncate-reloads schedule_day in one transaction so the app's GET /schedule
-#* serves the new data with no app re-render.
+#* Upserts on (date, patch_order): new rows are inserted in full (seeding a
+#* week), existing rows get ONLY the loader-owned derived columns refreshed
+#* (check_nests, predator_cameras, weather) so GUI edits are never clobbered.
 #* @post /schedule
 #* @serializer unboxedJSON list(digits = 9)
 function(req, res) {
@@ -935,14 +936,50 @@ function(req, res) {
     df[[.c]] <- as.character(df[[.c]])
   }
 
+  # Derived, loader-owned columns -- everything else on schedule_day is now
+  # GUI-owned (Tara maintains helper, times, search patches, tasks, notes and
+  # the field-day flag live in the GUI). So this is an UPSERT keyed on
+  # (date, patch_order): a row that does not exist yet is inserted in full
+  # (seeding a new/future week), but an existing row has ONLY these derived
+  # columns refreshed -- an updater run can never clobber a GUI edit again.
+
   loaded <- 0L
+  inserted <- 0L
+  updated <- 0L
   with_txn(con, function() {
-    dbExecute(con, "DELETE FROM schedule_day")
-    dbAppendTable(con, "schedule_day", df)
+    for (.i in seq_len(nrow(df))) {
+      one <- df[.i, , drop = FALSE]
+      hit <-
+        dbGetQuery(
+          con,
+          "SELECT schedule_day_id FROM schedule_day
+             WHERE date = ? AND patch_order = ?",
+          params = list(one$date, one$patch_order)
+        )
+      if (nrow(hit) == 0) {
+        dbAppendTable(con, "schedule_day", one)
+        inserted <<- inserted + 1L
+      } else {
+        dbExecute(
+          con,
+          "UPDATE schedule_day
+              SET check_nests = ?, predator_cameras = ?, weather = ?
+            WHERE schedule_day_id = ?",
+          params =
+            list(
+              one$check_nests,
+              one$predator_cameras,
+              one$weather,
+              hit$schedule_day_id[[1]]
+            )
+        )
+        updated <<- updated + 1L
+      }
+    }
     loaded <<- nrow(df)
   })
 
-  list(loaded = loaded)
+  list(loaded = loaded, inserted = inserted, updated = updated)
 }
 
 # ===========================================================================

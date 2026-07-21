@@ -263,6 +263,110 @@
     return r.field === true || String(r.field) === "TRUE";
   }
 
+  // ---- weather-day shift (read-only mirror of the GUI schedule editor) ------
+  //
+  // The field-day flags drive a plan->date alignment: when a day is a weather
+  // cancellation (field = FALSE) its plan bumps forward onto the next field day,
+  // spilling into Sunday. Only helper + weather + the receiving date's own times
+  // stay pinned to the calendar date; everything else travels with the plan.
+  // Same deterministic assignment as snedgen-gui/schedule.js (see assign.py).
+
+  var PINNED_FIELDS = [
+    "helper", "weather", "field", "arrive", "sunrise",
+    "departure_time", "scbi_departure_time", "point_count_time"
+  ];
+
+  function isoOf(d) {
+    var m = String(d.getMonth() + 1);
+    var day = String(d.getDate());
+
+    if (m.length < 2) m = "0" + m;
+    if (day.length < 2) day = "0" + day;
+    return d.getFullYear() + "-" + m + "-" + day;
+  }
+
+  function mondayIso(isoS) {
+    var d = new Date(isoS + "T00:00:00");
+    var dow = (d.getDay() + 6) % 7;
+
+    d.setDate(d.getDate() - dow);
+    return isoOf(d);
+  }
+
+  function addDaysIso(isoS, n) {
+    var d = new Date(isoS + "T00:00:00");
+
+    d.setDate(d.getDate() + n);
+    return isoOf(d);
+  }
+
+  // { displayDate -> homeDate whose plan shows there | null }. Past dates are
+  // frozen to their own plan; the rest place onto field-eligible dates from
+  // today forward, Sunday included.
+  function computeAssignment(dates, byDate, today) {
+    var plans = [];
+    var i;
+
+    for (i = 0; i < 6; i++) {
+      if (byDate[dates[i]] && byDate[dates[i]].length) plans.push(dates[i]);
+    }
+
+    var assign = {};
+    var remaining = [];
+
+    plans.forEach(function (hd) {
+      if (hd < today) assign[hd] = hd;
+      else remaining.push(hd);
+    });
+
+    var k = 0;
+
+    dates.forEach(function (d) {
+      if (d < today) {
+        if (!(d in assign)) assign[d] = null;
+        return;
+      }
+      var rs = byDate[d];
+
+      if (rs && rs.length && !isFieldDay(rs[0])) {
+        assign[d] = null;
+        return;
+      }
+      if (k < remaining.length) {
+        assign[d] = remaining[k];
+        k += 1;
+      } else {
+        assign[d] = null;
+      }
+    });
+    return assign;
+  }
+
+  // The rows shown on a display date: the assigned plan's rows, with the pinned
+  // fields overlaid from the display date's own row.
+  function displayRowsFor(displayDate, assign, byDate) {
+    var homeDate = assign[displayDate];
+
+    if (!homeDate) return [];
+
+    var planRows = byDate[homeDate] || [];
+    var pinnedSrc = (byDate[displayDate] && byDate[displayDate][0]) || null;
+
+    return planRows.map(function (pr) {
+      var out = {};
+      var key;
+
+      for (key in pr) {
+        if (Object.prototype.hasOwnProperty.call(pr, key)) out[key] = pr[key];
+      }
+      if (pinnedSrc) {
+        PINNED_FIELDS.forEach(function (k2) { out[k2] = pinnedSrc[k2]; });
+      }
+      out.date = displayDate;
+      return out;
+    });
+  }
+
   // Render precedence (replaces the old "richness score" guard, which could let
   // a cache render outrank and permanently block a live render at a week
   // transition -- schedule and map then showed different weeks). Rules: a LIVE
@@ -288,28 +392,39 @@
 
     buildSelfieLookup();
 
-    // Group by date (field days only, matching the R schedule), date-ordered.
+    // Group ALL rows by date (weather-cancelled days still hold their plan),
+    // then apply the weather-day shift: each display date shows the plan now
+    // assigned to it, or nothing if a cancellation moved its plan forward.
     var byDate = {};
-    var order = [];
     if (Array.isArray(rows)) {
       rows.forEach(function (r) {
-        if (!isFieldDay(r)) return;
         var d = r.date;
-        if (!byDate[d]) { byDate[d] = []; order.push(d); }
+        if (!byDate[d]) byDate[d] = [];
         byDate[d].push(r);
       });
     }
-    order.sort();
+
+    var allDates = Object.keys(byDate).sort();
+    if (!allDates.length) {
+      host.innerHTML = "<p>The schedule is currently unavailable.</p>";
+      return;
+    }
+
+    var weekMon = mondayIso(allDates[0]);
+    var week = [];
+    var wi;
+    for (wi = 0; wi < 7; wi++) week.push(addDaysIso(weekMon, wi));
+
+    var assign = computeAssignment(week, byDate, isoOf(new Date()));
+    var order = week.filter(function (d) { return assign[d]; });
 
     if (!order.length) {
-      host.innerHTML = (Array.isArray(rows) && rows.length)
-        ? "<p>No field days scheduled this week.</p>"
-        : "<p>The schedule is currently unavailable.</p>";
+      host.innerHTML = "<p>No field days scheduled this week.</p>";
       return;
     }
 
     var panels = order
-      .map(function (d) { return dayPanel(d, byDate[d]); })
+      .map(function (d) { return dayPanel(d, displayRowsFor(d, assign, byDate)); })
       .join("");
     host.innerHTML =
       '<div class="accordion-group" data-open-today="true">' + panels + "</div>";

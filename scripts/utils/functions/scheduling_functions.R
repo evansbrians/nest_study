@@ -8,7 +8,6 @@ get_modify_schedule <-
   function(
     .week = get_sampling_week(),
     .week_offset = 19,
-    .gsheet_id = "1Pt-PPSekVv4BIM7nhCHPw1cmnUWkfrbjWpGw79-ohiQ",
     .schedule_url = here::here("data/season_schedule.rds")
   ) {
     
@@ -39,90 +38,26 @@ get_modify_schedule <-
         .by = !board_id
       ) %>% 
       
-      # Nest everything but visit-level variables:
-      
-      nest(activities = !date:sunrise)
-    
-    # ... and ensure that everything is in date order
-    
-    # Get and process the the Google Sheets schedule for the week:
-    
-    g_sheet <-
-      file.path("https://docs.google.com/spreadsheets/d", .gsheet_id) %>% 
-      googlesheets4::read_sheet() %>% 
-      mutate(
-        date = as_date(date),
-        field = as.logical(field)
-      ) %>% 
-      filter(
-        get_sampling_week(date, .week_offset) == .week
-      )
-    
-    # Determine if there is a day cancelled for weather an pull it:
-    
-    weather_day <-
-      g_sheet %>% 
-      filter(
-        !field,
-        day != "Sun"
-      ) %>% 
-      pull(date)
-    
-    # Offset for a day cancelled due to weather, if necessary:
-    
-    schedule_augmented <-
-      schedule_start %>%
-      unnest(activities, keep_empty = TRUE)
+      # Seed the GUI-owned weekly layer with defaults. Tara maintains helper,
+      # field day, search-patch overrides, tasks, notes and departure/point-count
+      # times live in the GUI; the loader no longer reads a Google Sheet for
+      # them, and POST /schedule upserts only the derived columns, so these
+      # defaults apply only when a brand-new week is first seeded. The weather-day
+      # shift now runs client-side (snedgen-gui + nest_app_api), replacing the old
+      # R-side activity offset.
 
-    if (length(weather_day) > 0) {
-      schedule_augmented <-
-        schedule_start %>% 
-        
-        # Make sure the data are date-arranged: 
-        
-        arrange(date) %>% 
-        mutate(
-          activities =
-            case_when(
-              date > weather_day ~ lag(activities),
-              .default = activities
-            )
-        ) %>% 
-        unnest(activities, keep_empty = TRUE)
-    }
-    
-    # Add the information from the Google Sheet schedule:
-    
-    schedule_augmented %>%  
-      left_join(
-        g_sheet %>% 
-          select(!day) %>% 
-          rename(
-            sp_1 = search_patch_1,
-            sp_2 = search_patch_2
-          ),
-        by = "date"
-      ) %>% 
-      
-      # Replace schedule info with custom inputs from Google Sheets, if
-      # necessary:
-      
       mutate(
-        search_patch_1 = 
-          if_else(
-            is.na(sp_1),
-            search_patch_1,
-            sp_1
-          ),
-        search_patch_2 = 
-          if_else(
-            is.na(sp_2),
-            search_patch_2,
-            sp_2
-          ),
-        helper = replace_na(helper, "-"),
-        .keep = "unused"
-      ) %>% 
+        helper = "-",
+        field = TRUE,
+        notes = NA_character_,
+        helper_patch_1 = NA_character_,
+        tns_patch_1 = NA_character_,
+        helper_patch_2 = NA_character_,
+        tns_patch_2 = NA_character_,
+        departure_time = NA_character_,
+        scbi_departure_time = NA_character_,
+        point_count_time = NA_character_
+      ) %>%
       select(
         date:day,
         helper,
@@ -246,16 +181,34 @@ add_nests_to_schedule <-
 schedule_camera_maintenance <-
   function(
     .schedule,
-    .predator_cam_id = "1exlfw40PfefcOLRxf7WUyCi9TOJ3yydKbAXcJNmABfc",
-    .week = get_sampling_week()
+    .week = get_sampling_week(),
+    .db_path = Sys.getenv("NEST_DB_PATH", "nest_study.sqlite")
   ) {
-    
+
+    # Camera maintenance history now lives in the DB (camera_maintenance),
+    # refreshed from the VM before the schedule build. This replaces the old
+    # googlesheets4::read_sheet() of the predator-camera sheet.
+
+    con <-
+      DBI::dbConnect(
+        RSQLite::SQLite(),
+        .db_path
+      )
+
     trail_cams <-
-      file.path("https://docs.google.com/spreadsheets/d", .predator_cam_id) %>% 
-      googlesheets4::read_sheet() %>% 
-      mutate(
-        date = as_date(date),
-      ) %>% 
+      DBI::dbGetQuery(
+        con,
+        "SELECT camera_id, event_date, install, replace_sd, replace_batteries
+           FROM camera_maintenance"
+      ) %>%
+      as_tibble() %>%
+      transmute(
+        camera_id,
+        date = as_date(event_date),
+        install = as.logical(install),
+        replace_sd = as.logical(replace_sd),
+        replace_batteries = as.logical(replace_batteries)
+      ) %>%
       
       # Subset to the last time in which any maintenance activity occurred:
       
@@ -296,7 +249,9 @@ schedule_camera_maintenance <-
         .by = patch_count
       ) %>%
       select(!date)
-    
+
+    DBI::dbDisconnect(con)
+
     # Add camera maintenance:
     
     if (nrow(trail_cams) == 0) {
@@ -384,20 +339,17 @@ prep_schedule_data <-
     .target_date = get_target_date(),
     .week_offset = 19,
     .week = get_sampling_week(.target_date, .week_offset),
-    .gsheet_id = "1Pt-PPSekVv4BIM7nhCHPw1cmnUWkfrbjWpGw79-ohiQ",
     .schedule_url = here::here("data/season_schedule.rds"),
     .field_data = here::here("data/field_data.rds"),
     .nests =
       read_rds(.field_data) %>%
       pluck("nests"),
     .reference_date = .target_date,
-    .mark_tall_nests = TRUE, # FALSE for the PDF version
-    .predator_cam_id = "1exlfw40PfefcOLRxf7WUyCi9TOJ3yydKbAXcJNmABfc"
+    .mark_tall_nests = TRUE # FALSE for the PDF version
   ) {
       get_modify_schedule(
         .week = .week,
         .week_offset = .week_offset,
-        .gsheet_id = .gsheet_id,
         .schedule_url = .schedule_url
       ) %>%
       add_nests_to_schedule(
@@ -409,7 +361,6 @@ prep_schedule_data <-
         .mark_tall_nests = .mark_tall_nests
       ) %>%
       schedule_camera_maintenance(
-        .predator_cam_id = .predator_cam_id,
         .week = .week
       ) %>%
       make_pretty_schedule()
