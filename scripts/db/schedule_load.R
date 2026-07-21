@@ -1,11 +1,7 @@
 #!/usr/bin/env Rscript
 
 # schedule_load.R ----------------------------------------------------------
-# WORKSTATION job. Reads Tara's Google Sheet via prep_schedule_data() (the creds
-# live here, not on the VM), builds one schedule_day row per date/patch_order
-# with a per-day `weather` JSON, and pushes it to the API, which truncate-
-# reloads schedule_day.
-#
+
 # Pushes the current week PLUS the next --weeks weeks (default 3) so the app
 # advances to the new week on its own each Monday, with no timed weekly push.
 #

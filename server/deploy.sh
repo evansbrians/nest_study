@@ -76,6 +76,13 @@ if [ -f "$APP_DIR/v_map_point.sql" ]; then
   echo "installed v_map_point"
 fi
 
+# v_schedule (the DB-native schedule: check_nests + predator_cameras derived
+# live, weather joined) ships with the API too, so GET /schedule can read it.
+if [ -f "$APP_DIR/v_schedule.sql" ]; then
+  sudo -u nestapi sqlite3 "$APP_DIR/nest_study.sqlite" < "$APP_DIR/v_schedule.sql"
+  echo "installed v_schedule"
+fi
+
 sudo systemctl restart nest-api
 sleep 2
 systemctl is-active --quiet nest-api && echo "nest-api: active ($REV)" || {

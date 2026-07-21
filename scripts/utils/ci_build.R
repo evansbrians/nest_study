@@ -4,8 +4,7 @@
 # scripts/dashboard.R that do not require inputs:
 
 # - Rebuild the schedules
-# - Render the schedule app (though you can still modify) 
-# - Render the printable schedule (as above)
+# - Render the printable schedule
 # - The Google Earth file
 # - The field map apps
 # - The printable PNG maps
@@ -22,24 +21,11 @@ library(glue)
 library(here)
 library(tidyverse)
 
-# Authenticate to Google Sheets: This is modified from our original because
-# I used a GitHub secret to store the key.
-
-sa_key <- Sys.getenv("GOOGLE_SHEETS_KEY", "")
-
-if (nzchar(sa_key)) {
-  googlesheets4::gs4_auth(path = sa_key)
-} else {
-  googlesheets4::gs4_auth()
-}
-
 # download and pre-process field data -------------------------------------
 
 source("scripts/utils/updater.R")
 
-# render the schedule app + printable schedule ----------------------------
-
-quarto::quarto_render("outputs/schedule/index.qmd")
+# render the printable schedule -------------------------------------------
 
 tryCatch(
   quarto::quarto_render("outputs/print-outs/schedule_pdf.qmd"),

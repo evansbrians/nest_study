@@ -433,7 +433,7 @@ function() {
     nest_fate_codes = dbReadTable(con, "nest_fate_code"),
     point_classes = dbReadTable(con, "point_class"),
 
-    # Added for the data-entry GUI (see brian_sandbox/gui/PAGE_CONTRACT.md):
+    # Added for the data-entry GUI (see snedgen-gui/PAGE_CONTRACT.md):
     # the point-count species type-ahead, the coverboard species dropdown, and
     # the two count_interval CHECK vocabularies (mirrored here so no client
     # hardcodes them).
@@ -864,9 +864,13 @@ function(
     )
   }
 
+  # Serve v_schedule, not schedule_day: check_nests and predator_cameras are
+  # derived live there (and weather joined), so they are always current instead
+  # of as-fresh-as-the-last-push. Same column names, so the JSON is identical.
+
   db_read(
     con,
-    "SELECT * FROM schedule_day WHERE week = ? ORDER BY date, patch_order",
+    "SELECT * FROM v_schedule WHERE week = ? ORDER BY date, patch_order",
     list(target_week)
   )
 }
@@ -980,6 +984,49 @@ function(req, res) {
   })
 
   list(loaded = loaded, inserted = inserted, updated = updated)
+}
+
+#* Upsert per-date weather JSON. Fed by scripts/db/weather_push.R -- an off-box
+#* NWS fetch that needs no DB/SSH access, just this POST -- so it can run in the
+#* daily GitHub Action. Body: { rows: [ {date, weather}, ... ] }. v_schedule
+#* joins this table by date; weather is the only schedule input not derivable
+#* from the DB.
+#* @post /weather
+#* @serializer unboxedJSON list(digits = 9)
+function(req, res) {
+  body <-
+    req$body %||%
+    tryCatch(
+      jsonlite::fromJSON(req$postBody),
+      error = function(.e) list()
+    )
+
+  rows <- body$rows
+  if (is.null(rows)) {
+    return(err(res, 400, "rows (array of {date, weather}) is required"))
+  }
+
+  df <- as.data.frame(rows, stringsAsFactors = FALSE)
+  if (nrow(df) == 0 || is.null(df$date)) {
+    return(err(res, 400, "rows must contain date and weather"))
+  }
+  df$date <- as.character(df$date)
+  df$weather <-
+    if (is.null(df$weather)) NA_character_ else as.character(df$weather)
+
+  upserted <- 0L
+  with_txn(con, function() {
+    for (.i in seq_len(nrow(df))) {
+      dbExecute(
+        con,
+        "INSERT INTO weather (date, weather) VALUES (?, ?)
+           ON CONFLICT(date) DO UPDATE SET weather = excluded.weather",
+        params = list(df$date[[.i]], df$weather[[.i]])
+      )
+      upserted <<- upserted + 1L
+    }
+  })
+  list(upserted = upserted)
 }
 
 # ===========================================================================
@@ -2601,7 +2648,7 @@ function(req, res, class = NULL) {
 
 # ===========================================================================
 # GUI DATA-ENTRY ROUTES -- coverboards, point counts, visits, camera
-# maintenance, schedule days. Added for brian_sandbox/gui (its
+# maintenance, schedule days. Added for snedgen-gui (its
 # PAGE_CONTRACT.md defines this surface). Same auth filter, same txn +
 # change_event + idempotency conventions as the field-app routes above.
 #
@@ -2632,6 +2679,18 @@ for (.c in setdiff(gui_schedule_extra_cols, gui_existing_cols)) {
     str_c("ALTER TABLE schedule_day ADD COLUMN ", .c, " TEXT")
   )
 }
+
+# Per-date weather JSON, fed by scripts/db/weather_push.R (an off-box NWS fetch)
+# and joined into v_schedule. Weather is the one schedule input that cannot be
+# derived from the DB, so it lands in its own tiny table.
+
+dbExecute(
+  con,
+  "CREATE TABLE IF NOT EXISTS weather (
+     date     TEXT PRIMARY KEY,
+     weather  TEXT
+   )"
+)
 
 # Coverboard species vocabulary. /lookups unions this with the DISTINCT
 # species already recorded in coverboard_obs, so the dropdown works before
