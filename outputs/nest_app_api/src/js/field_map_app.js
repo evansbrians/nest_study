@@ -1,4 +1,32 @@
 
+  // Hard-override the phone's system font scaling. The CSS text-size-adjust:none
+  // rule handles most devices; where the OS still inflates text, measure the
+  // residual scale off a probe and counter it via the root font-size (the app
+  // sizes text in rem, so this restores the intended sizing). Runs once at boot.
+
+  (function () {
+    function applyFontScaleGuard() {
+      try {
+        var probe = document.createElement("div");
+        probe.style.cssText =
+          "position:absolute;left:-9999px;top:-9999px;width:auto;height:auto;" +
+          "margin:0;padding:0;border:0;font-size:100px;line-height:1;";
+        probe.textContent = "X";
+        document.body.appendChild(probe);
+        var scale = probe.getBoundingClientRect().height / 100;
+        document.body.removeChild(probe);
+        if (scale > 1.05) {
+          document.documentElement.style.fontSize = (100 / scale) + "%";
+        }
+      } catch (e) {}
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", applyFontScaleGuard);
+    } else {
+      applyFontScaleGuard();
+    }
+  })();
+
   var overlay = document.getElementById("fieldMenuOverlay");
   var menuBtn = document.getElementById("fieldMenuBtn");          // map view: open menu
   var mainMenuBtn = document.getElementById("fieldMainMenuBtn");  // sub-screen: go to main
@@ -563,10 +591,11 @@
     else apply(dataUrl, { annotated: false });
   }
 
-  // Save an image to the phone's photo library. Prefer the Web Share API with a
-  // File (lets the user drop it straight into Photos); fall back to an <a
-  // download>. Best-effort -- any failure is swallowed so it never interrupts
-  // the in-app save.
+  // Keep a local backup copy of the photo. The image already uploads to the
+  // API, so this is a silent <a download> only -- deliberately NOT the Web
+  // Share sheet, which forced the tech to close a save screen after every
+  // shot. Best-effort: any failure is swallowed so it never interrupts the
+  // in-app save.
 
   function fieldDownloadBlob(blob, filename) {
     var url = URL.createObjectURL(blob);
@@ -586,16 +615,6 @@
       var len = bin.length, bytes = new Uint8Array(len);
       for (var i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
       var blob = new Blob([bytes], { type: mime });
-
-      if (navigator.share && navigator.canShare) {
-        var file = new File([blob], filename, { type: mime });
-        if (navigator.canShare({ files: [file] })) {
-          navigator.share({ files: [file], title: filename }).catch(function () {
-            fieldDownloadBlob(blob, filename);
-          });
-          return;
-        }
-      }
       fieldDownloadBlob(blob, filename);
     } catch (e) {
       try {

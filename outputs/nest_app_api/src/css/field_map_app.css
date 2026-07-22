@@ -8,6 +8,13 @@ separately by map_styles.css. */
 This bit hides the Quarto chrome and strip every margin, padding and max-width
 so the map + bar own the whole viewport with no surrounding white space. */
 
+/* Ignore the phone's system text-scaling (e.g. Android "large text"): the app
+   is deliberately sized large already, so an OS multiplier on top overflows
+   and mis-places the layout. Paired with a JS residual-scale counter in
+   field_map_app.js. */
+
+html { -webkit-text-size-adjust: none; text-size-adjust: none; }
+
 .quarto-title-block { display: none !important; }
 
 html:has(.field-menu-bar),
