@@ -2647,15 +2647,10 @@ function(req, res, class = NULL) {
 }
 
 # ===========================================================================
-# GUI DATA-ENTRY ROUTES -- coverboards, point counts, visits, camera
-# maintenance, schedule days. Added for snedgen-gui (its
-# PAGE_CONTRACT.md defines this surface). Same auth filter, same txn +
-# change_event + idempotency conventions as the field-app routes above.
-#
-# NOTE nightly_load.R truncate-reloads point_count / count_interval /
-# coverboard_check / coverboard_obs / visit from the Sheets pipeline. Once
-# the GUI is the entry path for a table, STOP loading that table nightly or
-# GUI-entered rows are wiped at the next run.
+# GUI DATA-ENTRY ROUTES -- coverboards, point counts, camera maintenance,
+# schedule days. Added for snedgen-gui (its PAGE_CONTRACT.md defines this
+# surface). Same auth filter, same txn + change_event + idempotency conventions
+# as the field-app routes above.
 # ===========================================================================
 
 # --- additive migrations, applied at boot (redeploy-safe) -------------------
@@ -3318,121 +3313,6 @@ function(req, res, id) {
     result <<- list(saved = nrow(df), event_id = ev)
   })
   result
-}
-
-# --- visits -----------------------------------------------------------------
-
-#* Visits. Filters: ?from, ?to (visit_date), ?patch_id.
-#* @get /visits
-#* @serializer unboxedJSON list(digits = 9)
-function(
-  req,
-  res,
-  from = "",
-  to = "",
-  patch_id = ""
-) {
-  w <-
-    gui_where(
-      list(
-        "visit_date >= ?" = from,
-        "visit_date <= ?" = to,
-        "patch_id = ?" = patch_id
-      )
-    )
-  db_read(
-    con,
-    str_c(
-      "SELECT * FROM visit",
-      w$sql,
-      " ORDER BY visit_date DESC, patch_id"
-    ),
-    w$params
-  )
-}
-
-#* Create a visit.
-#* @post /visits
-#* @serializer unboxedJSON list(digits = 9)
-function(req, res) {
-  body <- gui_body(req)
-  observer <- req$observer_id
-  key <- idem_key(req)
-
-  result <- NULL
-  with_txn(con, function() {
-    if (!record_idempotency(con, key, "visit", NA)) {
-      result <<- list(replayed = TRUE)
-      return(invisible(NULL))
-    }
-    ensure_patch(con, body$patch_id %||% NA)
-    dbExecute(
-      con,
-      "INSERT INTO visit
-         (visit_date, patch_id, helper, activity, status, notes)
-       VALUES (?,?,?,?,?,?)",
-      params = list(
-        body$visit_date %||% NA,
-        body$patch_id %||% NA,
-        body$helper %||% NA,
-        body$activity %||% NA,
-        body$status %||% NA,
-        body$notes %||% NA
-      )
-    )
-    vid <- dbGetQuery(con, "SELECT last_insert_rowid() AS id")$id
-    ev <- log_change(con, "visit", vid, "insert", observer)
-    if (!is.null(key) && nzchar(key)) {
-      dbExecute(
-        con,
-        "UPDATE write_log SET entity_id = ? WHERE idempotency_key = ?",
-        params = list(vid, key)
-      )
-    }
-    result <<-
-      gui_row(
-        dbGetQuery(
-          con,
-          "SELECT * FROM visit WHERE visit_id = ?",
-          params = list(vid)
-        )[1, ]
-      )
-  })
-  res$status <- 201
-  result
-}
-
-#* Edit a visit.
-#* @patch /visits/<id>
-#* @serializer unboxedJSON list(digits = 9)
-function(req, res, id) {
-  out <-
-    gui_patch_row(
-      req,
-      "visit",
-      "visit",
-      "visit_id",
-      as.integer(id),
-      c("visit_date", "patch_id", "helper", "activity", "status", "notes")
-    )
-  if (is.null(out)) return(err(res, 404, "visit not found"))
-  out
-}
-
-#* Delete a visit.
-#* @delete /visits/<id>
-#* @serializer unboxedJSON list(digits = 9)
-function(req, res, id) {
-  out <-
-    gui_delete_row(
-      req,
-      "visit",
-      "visit",
-      "visit_id",
-      as.integer(id)
-    )
-  if (is.null(out)) return(err(res, 404, "visit not found"))
-  out
 }
 
 # --- predator cameras + maintenance ----------------------------------------
