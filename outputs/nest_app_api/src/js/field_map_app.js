@@ -2760,14 +2760,10 @@
     openIntervalData({ nestId: modifyNestId, mode: "add" });
   });
 
-  // Direct entry point to the add-interval flow for a nest (the map popup calls
-  // this for parity with the Modify sub-menu's "Add interval check"). Guarded so
-  // a missing id or an un-ready form never throws.
-  window.fieldAddInterval = function (nestId) {
-    if (!nestId) return;
-    if (typeof openIntervalData !== "function") return;
-    openIntervalData({ nestId: nestId, mode: "add" });
-  };
+  // fieldAddInterval (the map popup's "Add interval") is defined once, in
+  // page_navigation.js -- it opens the menu overlay first (ensureMenuOpen) so the
+  // interval screen actually shows. A second definition here used to shadow it
+  // WITHOUT that call, so the popup button silently did nothing; removed.
   var nmModInt = document.getElementById("nmModifyInterval");
   if (nmModInt) nmModInt.addEventListener("click", function () {
     modifyIntervalPick(modifyNestId);

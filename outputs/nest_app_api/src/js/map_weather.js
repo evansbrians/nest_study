@@ -139,7 +139,8 @@ function(el, x) {
       "</ul>" +
       '<div style="margin-top:4px;">' +
       '<button type="button" class="field-popup-btn" onclick="window.fieldNavigateNest(\'' + idJs + '\')">Navigate</button> ' +
-      '<button type="button" class="field-popup-btn" onclick="window.fieldAddInterval(\'' + idJs + '\')">Add interval</button>' +
+      '<button type="button" class="field-popup-btn" onclick="window.fieldAddInterval(\'' + idJs + '\')">Add interval</button> ' +
+      '<button type="button" class="field-popup-btn" onclick="window.fieldOpenNestInfo(\'' + idJs + '\')">Nest page</button>' +
       "</div></div>";
   }
 
