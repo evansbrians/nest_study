@@ -627,7 +627,96 @@
 
   // Full-screen nest-photo viewer. Built once on demand and reused; a Back
   // button in its bottom bar hides it, returning to the nest-info page that
-  // remains rendered underneath.
+  // remains rendered underneath. The image supports pinch-to-zoom, drag-to-pan
+  // once zoomed, and double-tap to toggle zoom -- added for low-vision users.
+
+  // Self-contained pinch/pan/double-tap zoom on the viewer image. Uses a CSS
+  // transform we drive from touch events, so it works even though the page's
+  // viewport meta disables normal browser zoom. Pan is clamped so the image
+  // can't be dragged off-screen. Returns reset(), called on each new photo.
+  function fieldWirePinchZoom(stage, im) {
+    var scale = 1, tx = 0, ty = 0;
+    var startDist = 0, startScale = 1, startMidX = 0, startMidY = 0;
+    var startTx = 0, startTy = 0, panX = 0, panY = 0;
+    var mode = null, lastTap = 0;
+    var MAX = 6;
+
+    function apply() {
+      var maxX = Math.max(0, (im.clientWidth * scale - stage.clientWidth) / 2) + 40;
+      var maxY = Math.max(0, (im.clientHeight * scale - stage.clientHeight) / 2) + 40;
+      tx = Math.max(-maxX, Math.min(maxX, tx));
+      ty = Math.max(-maxY, Math.min(maxY, ty));
+      im.style.transform =
+        "translate(" + tx + "px," + ty + "px) scale(" + scale + ")";
+    }
+    function reset() { scale = 1; tx = 0; ty = 0; apply(); }
+
+    function dist(t) {
+      return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    }
+
+    im.style.transformOrigin = "center center";
+    im.style.willChange = "transform";
+    stage.style.overflow = "hidden";
+    stage.style.touchAction = "none";
+    im.style.touchAction = "none";
+
+    stage.addEventListener("touchstart", function (e) {
+      if (e.touches.length === 2) {
+        mode = "pinch";
+        startDist = dist(e.touches);
+        startScale = scale;
+        startMidX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        startMidY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        startTx = tx; startTy = ty;
+        e.preventDefault();
+      } else if (e.touches.length === 1 && scale > 1) {
+        mode = "pan";
+        panX = e.touches[0].clientX; panY = e.touches[0].clientY;
+        startTx = tx; startTy = ty;
+        e.preventDefault();
+      } else {
+        mode = null;
+      }
+    }, { passive: false });
+
+    stage.addEventListener("touchmove", function (e) {
+      if (mode === "pinch" && e.touches.length === 2) {
+        scale = Math.min(MAX, Math.max(1, startScale * (dist(e.touches) / startDist)));
+        var mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        var my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        tx = startTx + (mx - startMidX);
+        ty = startTy + (my - startMidY);
+        apply();
+        e.preventDefault();
+      } else if (mode === "pan" && e.touches.length === 1) {
+        tx = startTx + (e.touches[0].clientX - panX);
+        ty = startTy + (e.touches[0].clientY - panY);
+        apply();
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    stage.addEventListener("touchend", function (e) {
+      if (e.touches.length === 1 && mode === "pinch") {
+        mode = "pan";
+        panX = e.touches[0].clientX; panY = e.touches[0].clientY;
+        startTx = tx; startTy = ty;
+        return;
+      }
+      if (e.touches.length === 0) {
+        mode = null;
+        if (scale <= 1.01) reset();
+        var now = Date.now();
+        if (now - lastTap < 300) {
+          if (scale > 1) reset(); else { scale = 2.5; apply(); }
+        }
+        lastTap = now;
+      }
+    }, { passive: false });
+
+    return { reset: reset };
+  }
 
   var fieldPhotoViewer = null;
   function fieldOpenPhotoViewer(src) {
@@ -641,12 +730,17 @@
       var stage = document.createElement("div");
       stage.style.cssText =
         "flex:1 1 auto;display:flex;align-items:center;justify-content:center;" +
-        "overflow:auto;min-height:0;padding:8px;";
+        "overflow:hidden;min-height:0;padding:8px;";
       var im = document.createElement("img");
       im.style.cssText = "max-width:100%;max-height:100%;object-fit:contain;display:block;";
       stage.appendChild(im);
       var bar = document.createElement("div");
-      bar.style.cssText = "flex:0 0 auto;display:flex;justify-content:center;padding:12px;";
+      bar.style.cssText =
+        "flex:0 0 auto;display:flex;align-items:center;justify-content:center;" +
+        "gap:16px;padding:12px;";
+      var hint = document.createElement("span");
+      hint.textContent = "Pinch or double-tap to zoom";
+      hint.style.cssText = "color:#bbb;font:600 0.9rem sans-serif;";
       var back = document.createElement("button");
       back.type = "button";
       back.textContent = "Back";
@@ -655,14 +749,17 @@
         "padding:14px 28px;border:none;border-radius:8px;font:600 1.05rem sans-serif;" +
         "color:#fff;background:#333;";
       back.addEventListener("click", function () { fieldPhotoViewer.style.display = "none"; });
+      bar.appendChild(hint);
       bar.appendChild(back);
       ov.appendChild(stage);
       ov.appendChild(bar);
       document.body.appendChild(ov);
       fieldPhotoViewer = ov;
       fieldPhotoViewer._img = im;
+      fieldPhotoViewer._zoom = fieldWirePinchZoom(stage, im);
     }
     fieldPhotoViewer._img.src = src;
+    if (fieldPhotoViewer._zoom) fieldPhotoViewer._zoom.reset();
     fieldPhotoViewer.style.display = "flex";
   }
 
