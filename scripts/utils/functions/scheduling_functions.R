@@ -69,10 +69,12 @@ get_modify_schedule <-
 
 get_current_nests <-
   function(
-    .field_data = here::here("data/field_data.rds"),
     .nests =
-      read_rds(.field_data) %>%
-      pluck("nests"),
+      {
+        .con <- connect_nest_db()
+        on.exit(dbDisconnect(.con), add = TRUE)
+        get_db_nests(.con)
+      },
     .reference_date = today()
   ) {
 
@@ -343,10 +345,6 @@ prep_schedule_data <-
     .week_offset = 19,
     .week = get_sampling_week(.target_date, .week_offset),
     .schedule_url = here::here("data/season_schedule.rds"),
-    .field_data = here::here("data/field_data.rds"),
-    .nests =
-      read_rds(.field_data) %>%
-      pluck("nests"),
     .reference_date = .target_date,
     .mark_tall_nests = TRUE # FALSE for the PDF version
   ) {
@@ -358,7 +356,6 @@ prep_schedule_data <-
       add_nests_to_schedule(
         .current_nests =
           get_current_nests(
-            .nests = .nests,
             .reference_date = .reference_date
           ),
         .mark_tall_nests = .mark_tall_nests
@@ -378,262 +375,6 @@ dash_blank <-
     } else {
       "-"
     } 
-  }
-
-# functions for the app version -------------------------------------------
-
-# The functions below are only used in the app version.
-
-## mobile-app schedule tables (htmltools) ---------------------------------
-
-# Home departure, arrival, sunrise and SCBI departure table:
-
-morning_times_table <-
-  function(.rows) {
-    if (!is_valid_frame(.rows)) return(NULL)
-    .rows <- slice(.rows, 1)
-    tags$table(
-      class = "schedule-table morning-table",
-      tags$thead(
-        tags$tr(
-          tags$th("Home departure"),
-          tags$th("Arrival"),
-          tags$th("Sunrise"),
-          tags$th("SCBI departure")
-        )
-      ),
-      tags$tbody(
-        tags$tr(
-          tags$td(
-            dash_blank(.rows$departure_time)
-          ),
-          tags$td(
-            dash_blank(.rows$arrive)
-          ),
-          tags$td(
-            dash_blank(.rows$sunrise)
-          ),
-          tags$td(
-            dash_blank(.rows$scbi_departure_time)
-          )
-        )
-      )
-    )
-  }
-
-# Point count times, coverboards, nests to check and predator cameras table:
-
-pred_counts_table <-
-  function(.rows) {
-    if (!is_valid_frame(.rows)) return(NULL)
-    .rows <- arrange(.rows, patch_order)
-    tags$table(
-      class = "schedule-table",
-      tags$thead(
-        tags$tr(
-          tags$th("Time"),
-          tags$th("Patch"),
-          tags$th("Boards"),
-          tags$th("Nests"),
-          tags$th("Cams")
-        )
-      ),
-      tags$tbody(
-        seq_len(
-          nrow(.rows)
-        ) %>%
-          map(
-            function(.i) {
-              tags$tr(
-                tags$td(.rows$point_count_time[[.i]]),
-                tags$td(
-                  pretty_patch(
-                    as.character(.rows$patch_count[[.i]])
-                  )
-                ),
-                tags$td(.rows$boards[[.i]]),
-                tags$td(.rows$check_nests[[.i]]),
-                tags$td(.rows$predator_cameras[[.i]])
-              )
-            }
-          )
-      )
-    )
-  }
-
-# Patch / Person / Activities table for a single day:
-
-searching_table <-
-  function(.patches, .helper, .tns, .help) {
-    has_helper <- dash_blank(.helper) != "-"
-    rows <-
-      seq_along(.patches) %>%
-      map(
-        function(.i) {
-          patch_cell <-
-            tags$td(
-              class = "sched-patch",
-              rowspan = if (has_helper) "2" else "1",
-              pretty_patch(
-                as.character(.patches[[.i]])
-              )
-            )
-          if (has_helper) {
-            tagList(
-              tags$tr(
-                patch_cell,
-                tags$td("TNS"),
-                tags$td(
-                  dash_blank(.tns[[.i]])
-                )
-              ),
-              tags$tr(
-                tags$td(
-                  dash_blank(.helper)
-                ),
-                tags$td(
-                  dash_blank(.help[[.i]])
-                )
-              )
-            )
-          } else {
-            tags$tr(
-              patch_cell,
-              tags$td("TNS"),
-              tags$td(
-                dash_blank(.tns[[.i]])
-              )
-            )
-          }
-        }
-      )
-    tags$table(
-      class = "schedule-table",
-      tags$thead(
-        tags$tr(
-          tags$th("Patch"),
-          tags$th("Person"),
-          tags$th("Activities")
-        )
-      ),
-      tags$tbody(rows)
-    )
-  }
-
-# Notes cell to a bulleted list:
-
-note_list <-
-  function(.notes) {
-    if (!is_valid_value(.notes)) return(NULL)
-    items <-
-      str_split(.notes, "\n")[[1]] %>%
-      str_trim() %>%
-      keep(~ .x != "") %>%
-      map(
-        ~ tags$li(.x)
-      )
-    tagList(
-      tags$p(
-        tags$strong("Notes:")
-      ),
-      tags$ul(
-        class = "schedule-notes",
-        items
-      )
-    )
-  }
-
-## weather ----------------------------------------------------------------
-
-# Weather summary and hourly forecast for a single day:
-
-weather_section <-
-  function(.daily, .hourly) {
-    tryCatch(
-      {
-        if (!is_valid_frame(.daily)) return(NULL)
-        .daily <- slice_tail(.daily, n = 1)
-        
-        hourly <-
-          if (!is_valid_frame(.hourly)) {
-            NULL
-          } else {
-            .hourly %>%
-              distinct(start_time, .keep_all = TRUE) %>%
-              arrange(start_time) %>%
-              filter(
-                hour(start_time) >= 4,
-                hour(start_time) <= 17
-              )
-          }
-        
-        hourly_block <-
-          if (is_valid_frame(hourly)) {
-            tags$div(
-              class = "accordion-group",
-              tags$button(
-                class = "accordion",
-                "Hourly forecast"
-              ),
-              tags$div(
-                class = "panel",
-                tags$table(
-                  class = "schedule-table",
-                  tags$thead(
-                    tags$tr(
-                      tags$th("Time"),
-                      tags$th("Forecast"),
-                      tags$th("Temp"),
-                      tags$th("Rain")
-                    )
-                  ),
-                  tags$tbody(
-                    seq_len(nrow(hourly)) %>%
-                      map(
-                        function(.i) {
-                          tags$tr(
-                            tags$td(
-                              make_pretty_time(hourly$start_time[[.i]])
-                            ),
-                            tags$td(
-                              as.character(hourly$description[[.i]])
-                            ),
-                            tags$td(
-                              str_c(hourly$temperature[[.i]], "\u00b0")
-                            ),
-                            tags$td(
-                              str_c(hourly$chance_of_precip[[.i]], "%")
-                            )
-                          )
-                        }
-                      )
-                  )
-                )
-              )
-            )
-          } else {
-            NULL
-          }
-        
-        tagList(
-          tags$p(
-            tags$strong("Weather: "),
-            as.character(.daily$detailed_description[[1]])
-          ),
-          tags$p(
-            class = "weather-summary",
-            str_c(
-              "High ",
-              .daily$high_temp[[1]],
-              "\u00b0F \u00b7 Chance of rain ",
-              .daily$chance_of_precip[[1]], "%"
-            )
-          ),
-          hourly_block
-        )
-      },
-      error = function(e) NULL
-    )
   }
 
 # functions for the pdf version -------------------------------------------

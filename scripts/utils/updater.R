@@ -41,17 +41,6 @@ if (!db_refreshed) {
 
 con <- connect_nest_db(here::here("data", "nest_study.sqlite"))
 
-## nests ------------------------------------------------------------------
-
-nests <- get_db_nests(con)
-
-# The field map app and the schedule (via get_current_nests) read
-# database-sourced nests from field_data.rds:
-
-field_data <- lst(nests)
-
-write_rds(field_data, "data/field_data.rds")
-
 ## gps points -------------------------------------------------------------
 
 # Rebuild data/spatial/<class>_locations.geojson from the gps_point table:
@@ -75,11 +64,11 @@ tryCatch(
   }
 )
 
-# Let's hold onto field data and clear the rest from the global environment:
+# Clear the rest from the global environment, keeping autopush_updates():
 
 ls() %>%
   keep(
-    ~ !str_detect(.x, "field_data|autopush")
+    ~ !str_detect(.x, "autopush")
   ) %>%
   walk(
     ~ rm(
