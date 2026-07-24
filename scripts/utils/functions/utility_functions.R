@@ -24,28 +24,6 @@ autopush_updates <-
     system("git push")
   }
 
-# Summary statistics for any dataset, variable, and grouping variable:
-
-get_summary_stats <-
-  function(
-    .data,
-    .var,
-    ...
-  ) {
-    .data %>% 
-      summarize(
-        n = n(),
-        min = min({{ .var }}, na.rm = TRUE),
-        max = max({{ .var }}, na.rm = TRUE),
-        range = max - min,
-        mean = mean({{ .var }}, na.rm = TRUE),
-        median = median({{ .var }}, na.rm = TRUE),
-        sd = sd({{ .var }}, na.rm = TRUE),
-        se = sd/sqrt(n),
-        ...
-      )
-  }
-
 # Because I don't like writing this all of the time:
 
 n_unique <-
@@ -53,30 +31,6 @@ n_unique <-
     length(
       unique(.x)
     )
-  }
-
-# Because I am often annoyed with the fact that filter doesn't allow you to 
-# drop columns:
-
-filter_me <- 
-  function(.data, ...) {
-    
-    filter_exprs <- rlang::enquos(...)
-    
-    cols_to_drop <- 
-      filter_exprs %>% 
-      map(
-        ~ rlang::quo_get_expr(.x) %>% 
-          all.vars()
-      ) %>% 
-      unlist() %>%
-      unique()
-    
-    .data %>% 
-      filter(...) %>% 
-      select(
-        !any_of(cols_to_drop)
-      )
   }
 
 # I don't like using `group_by`. This gets around that, the only difference is
@@ -127,57 +81,6 @@ is_valid_value <-
       length(.x) == 1 &&
       !is.na(.x) &&
       str_trim(.x) != ""
-  }
-
-# Simplify logical validity tests on a vector of values:
-
-is_valid_vector <-
-  function(.x) {
-    !is.null(.x) &&
-      length(.x) > 0 &&
-      any(
-        !is.na(.x) & 
-          str_trim(.x) != ""
-      )
-  }
-
-# Simplify logical validity tests on a data frame with a function:
-
-is_valid_frame <-
-  function(.x) {
-    is.data.frame(.x) &&
-      nrow(.x) > 0
-  }
-
-# Turn a blank or missing value into a dash:
-
-dash_blank <-
-  function(.x) {
-    if (is_valid_value(.x)) {
-      str_trim(.x)
-    } else {
-      "-"
-    } 
-  }
-
-## visualization ----------------------------------------------------------
-
-# Plot theme:
-
-my_plot_theme <-
-  function() {
-    theme_bw(base_size = 14) +
-      theme(
-        text = element_text(family = "Times"),
-        plot.title =
-          element_text(face = "bold"),
-        plot.subtitle =
-          element_text(color = "grey40"),
-        strip.text =
-          element_text(face = "bold"),
-        plot.margin = 
-          margin(10, 14, 10, 10, "pt")
-      )
   }
 
 # function to interactively crop images -----------------------------------

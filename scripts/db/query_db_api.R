@@ -24,8 +24,6 @@ auth <-
       "application/json"
   )
 
-
-
 # API endpoints -----------------------------------------------------------
 
 # This is a look at what you can query. Any of these can be thought of as tables

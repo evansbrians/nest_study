@@ -30,15 +30,6 @@ make_pretty_dates <-
     }
   }
 
-# character time to time --------------------------------------------------
-
-char_time_to_time <-
-  function(.time) {
-    hm(.time) %>% 
-      period_to_seconds() %>% 
-      hms::as_hms()
-  }
-
 # character or POSIXt to character time -----------------------------------
 
 make_pretty_time <-
