@@ -456,6 +456,10 @@ map_tracking
         <button type="button" id="nestDataSaveBtn" class="field-button">
           Save nest data
         </button>
+        <button type="button" id="ndReRecordGps" class="field-button"
+                style="display:none;">
+          Re-record GPS
+        </button>
         <button type="button" id="ndDeleteBtn"
                 class="field-button field-button--danger" style="display:none;">
           Delete nest data
@@ -646,10 +650,6 @@ map_tracking
         <button type="button" id="nmAddGps" class="field-button"
                 style="display:none;">
           Add GPS point
-        </button>
-        <button type="button" id="nmReRecordGps" class="field-button"
-                style="display:none;">
-          Re-record GPS
         </button>
         <button type="button" id="nmDeleteNest"
                 class="field-button field-button--danger" style="display:none;">

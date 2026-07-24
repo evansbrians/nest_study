@@ -145,7 +145,6 @@
     // Location: no point -> Add GPS; has a point -> Re-record + Modify waypoint.
 
     show("nmAddGps", !ctx.hasCoords);
-    show("nmReRecordGps", ctx.hasCoords);
     show("nmModifyWaypoint", ctx.hasCoords);
 
     // Discovery: a nest exists -> Modify; a bare point -> Add. Whole-nest

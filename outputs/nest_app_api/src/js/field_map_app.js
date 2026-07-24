@@ -2804,10 +2804,6 @@
   if (nmAddGps) nmAddGps.addEventListener("click", function () {
     startNewNestPoint(modifyNestId);
   });
-  var nmReRec = document.getElementById("nmReRecordGps");
-  if (nmReRec) nmReRec.addEventListener("click", function () {
-    if (window.fieldReRecordNestPoint) window.fieldReRecordNestPoint(modifyNestId);
-  });
 
   // ---- Delete a nest / its intervals / its GPS point (Modify nest menu) ----
   // Each enqueues a DELETE to the API (optimistic; the queue flushes + syncs),
@@ -2951,6 +2947,15 @@
   });
 
   // Delete buttons on the discovery + interval forms (edit mode only).
+
+  // Re-record GPS now lives on the discovery form (edit mode), moved off the
+  // Modify-nest menu. Re-records the point for the nest being edited.
+
+  var ndReRec = document.getElementById("ndReRecordGps");
+  if (ndReRec) ndReRec.addEventListener("click", function () {
+    if (!nestDataCtx || nestDataCtx.mode !== "edit") return;
+    if (window.fieldReRecordNestPoint) window.fieldReRecordNestPoint(nestDataCtx.nestId);
+  });
 
   var ndDeleteBtn = document.getElementById("ndDeleteBtn");
   if (ndDeleteBtn) ndDeleteBtn.addEventListener("click", function () {

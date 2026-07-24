@@ -2013,6 +2013,8 @@
     if (wp) wp.style.display = isEdit ? "none" : "";
     var del = ndEl("ndDeleteBtn");
     if (del) del.style.display = isEdit ? "" : "none";
+    var rerec = ndEl("ndReRecordGps");
+    if (rerec) rerec.style.display = isEdit ? "" : "none";
     var save = ndEl("nestDataSaveBtn");
     if (save) save.textContent = isEdit ? "Update nest data" : "Save nest data";
   }
