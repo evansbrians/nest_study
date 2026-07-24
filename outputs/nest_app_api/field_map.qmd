@@ -340,10 +340,6 @@ map_tracking
         <button type="button" id="addWaypointSaveBtn" class="field-button">
           Save waypoint
         </button>
-        <button type="button" class="field-button field-back-modify"
-                style="display:none;">
-          Back
-        </button>
         <button type="button" id="addWaypointCancelBtn"
                 class="field-button field-button--danger">
           Cancel
@@ -459,10 +455,6 @@ map_tracking
       <div class="field-waypoint-actions">
         <button type="button" id="nestDataSaveBtn" class="field-button">
           Save nest data
-        </button>
-        <button type="button" class="field-button field-back-modify"
-                style="display:none;">
-          Back
         </button>
         <button type="button" id="ndDeleteBtn"
                 class="field-button field-button--danger" style="display:none;">
@@ -606,10 +598,6 @@ map_tracking
         <button type="button" id="intervalSaveBtn" class="field-button">
           Save interval data
         </button>
-        <button type="button" class="field-button field-back-modify"
-                style="display:none;">
-          Back
-        </button>
         <button type="button" id="intervalDeleteBtn"
                 class="field-button field-button--danger" style="display:none;">
           Delete check
@@ -663,17 +651,13 @@ map_tracking
                 style="display:none;">
           Re-record GPS
         </button>
-        <button type="button" id="nmDeleteIntervals"
-                class="field-button field-button--danger">
-          Delete interval data
-        </button>
-        <button type="button" id="nmDeleteDiscovery"
-                class="field-button field-button--danger">
-          Delete discovery data
+        <button type="button" id="nmDeleteNest"
+                class="field-button field-button--danger" style="display:none;">
+          Delete nest
         </button>
         <button type="button" id="nmDeleteGps"
                 class="field-button field-button--danger" style="display:none;">
-          Delete GPS point
+          Delete waypoint
         </button>
         <button type="button" id="nmCancelBtn"
                 class="field-button field-button--danger">

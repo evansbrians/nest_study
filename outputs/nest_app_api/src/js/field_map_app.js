@@ -1545,9 +1545,10 @@
   if (addCancelBtn) addCancelBtn.addEventListener("click", function () {
     resetAddForm();
     addStatus("");
-    // Leaving the screen stops averaging via syncAveraging
+    // Leaving the screen stops averaging via syncAveraging. finishSubForm returns
+    // to the Modify-nest menu when opened from there, else out to the map.
 
-    showScreen("main");
+    finishSubForm();
   });
 
   // nest discovery data ---------------------------------------------------
@@ -1680,7 +1681,7 @@
   var ndCancelBtn = ndEl("nestDataCancelBtn");
   if (ndCancelBtn) ndCancelBtn.addEventListener("click", function () {
     if (window.fieldClearNestDraft) window.fieldClearNestDraft();
-    closeMenu();
+    finishSubForm();
   });
 
   // Auto-save the in-progress discovery form to storage as fields change, so an
@@ -1721,7 +1722,7 @@
   var ivCancelBtn = ivEl("intervalCancelBtn");
   if (ivCancelBtn) ivCancelBtn.addEventListener("click", function () {
     if (window.fieldClearIntervalDraft) window.fieldClearIntervalDraft();
-    closeMenu();
+    finishSubForm();
   });
 
   // Auto-save the in-progress interval check to storage as fields change, so an
@@ -2887,36 +2888,40 @@
     closeMenu();
   }
 
-  var nmDelInt = document.getElementById("nmDeleteIntervals");
-  if (nmDelInt) nmDelInt.addEventListener("click", function () {
-    if (!modifyNestId) return;
-    fieldConfirm(
-      "Delete ALL interval checks for " + modifyNestId +
-        "? The nest and its point stay.",
-      function () {
-        enqueueDelete(
-          "deleteNestIntervals",
-          "/nests/" + encodeURIComponent(modifyNestId) + "/intervals",
-          modifyNestId
-        );
-        afterDelete("Interval data deleted for " + modifyNestId + ".");
-      }
-    );
-  });
+  // Delete nest: one action for the whole nest. Normally deletes its GPS point,
+  // which cascades away the discovery + interval data too. If the point is shared
+  // with a twin nest it can't be removed, so we delete only this nest's data
+  // (discovery + intervals) and keep the shared point.
 
-  var nmDelDisc = document.getElementById("nmDeleteDiscovery");
-  if (nmDelDisc) nmDelDisc.addEventListener("click", function () {
+  var nmDelNest = document.getElementById("nmDeleteNest");
+  if (nmDelNest) nmDelNest.addEventListener("click", function () {
     if (!modifyNestId) return;
+    var ctx = modifyContext(modifyNestId);
+    if (ctx.pointId && !ctx.shared) {
+      fieldConfirm(
+        "Delete nest " + modifyNestId + " entirely — its waypoint, discovery " +
+          "data, and interval checks? This cannot be undone.",
+        function () {
+          enqueueDelete(
+            "deletePoint",
+            "/gps_points/" + encodeURIComponent(ctx.pointId),
+            ctx.pointId
+          );
+          afterDelete("Nest " + modifyNestId + " deleted.");
+        }
+      );
+      return;
+    }
     fieldConfirm(
-      "Delete " + modifyNestId + "'s discovery data (and its interval checks)? " +
-        "The GPS point stays.",
+      "Delete " + modifyNestId + "'s discovery and interval data? Its GPS point " +
+        "is shared with another nest, so the point is kept. This cannot be undone.",
       function () {
         enqueueDelete(
           "deleteNest",
           "/nests/" + encodeURIComponent(modifyNestId),
           modifyNestId
         );
-        afterDelete("Discovery data deleted for " + modifyNestId + ".");
+        afterDelete("Nest " + modifyNestId + " deleted (shared point kept).");
       }
     );
   });

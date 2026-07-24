@@ -148,32 +148,35 @@
     show("nmReRecordGps", ctx.hasCoords);
     show("nmModifyWaypoint", ctx.hasCoords);
 
-    // Discovery: a nest exists -> Modify + Delete; a bare point -> Add.
+    // Discovery: a nest exists -> Modify; a bare point -> Add. Whole-nest
+    // deletion is the single "Delete nest" button below, not a discovery-only one.
 
     show("nmModifyDiscovery", ctx.isNest);
-    show("nmDeleteDiscovery", ctx.isNest);
     show("nmAddNestDiscovery", ctx.hasCoords && !ctx.isNest);
 
     // Interval data lives UNDER a nest (interval_check.nest_id FK), so Add/Modify
-    // interval only make sense once discovery exists. Modify + Delete need a
-    // recorded check.
+    // interval only make sense once discovery exists.
 
     show("nmAddInterval", ctx.isNest);
     show("nmModifyInterval", ctx.hasIntervals);
-    show("nmDeleteIntervals", ctx.hasIntervals);
 
     // Reassigning to an artificial nest acts on an existing nest.
 
     show("nmMakeArtificial", ctx.isNest);
 
-    // Delete the point itself -- needs a point and sole ownership (a point shared
-    // by an N + NQ twin is refused; the server enforces this too). Label reflects
-    // whether it carries a nest.
+    // Delete nest: one button that removes the waypoint + discovery + interval
+    // data (handler cascades via the point; a shared point is kept, only its nest
+    // data goes).
+
+    show("nmDeleteNest", ctx.isNest && ctx.hasCoords);
+
+    // Delete waypoint: only for a bare point with no nest -- a nest's point is
+    // removed via Delete nest instead.
 
     var delGps = document.getElementById("nmDeleteGps");
     if (delGps) {
-      delGps.textContent = ctx.isNest ? "Delete GPS point" : "Delete waypoint";
-      delGps.style.display = (ctx.hasCoords && !ctx.shared) ? "" : "none";
+      delGps.textContent = "Delete waypoint";
+      delGps.style.display = (ctx.hasCoords && !ctx.isNest && !ctx.shared) ? "" : "none";
     }
 
     showScreen("nestmodify");
