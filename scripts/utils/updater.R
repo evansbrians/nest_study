@@ -39,7 +39,7 @@ if (!db_refreshed) {
 
 # Connect to the db:
 
-con <- connect_nest_db("nest_study.sqlite")
+con <- connect_nest_db(here::here("data", "nest_study.sqlite"))
 
 ## nests ------------------------------------------------------------------
 

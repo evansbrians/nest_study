@@ -182,7 +182,10 @@ schedule_camera_maintenance <-
   function(
     .schedule,
     .week = get_sampling_week(),
-    .db_path = Sys.getenv("NEST_DB_PATH", "nest_study.sqlite")
+    .db_path =
+      Sys.getenv(
+        "NEST_DB_PATH",
+        here::here("data", "nest_study.sqlite"))
   ) {
 
     # Camera maintenance history now lives in the DB (camera_maintenance),

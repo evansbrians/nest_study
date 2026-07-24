@@ -6,10 +6,10 @@
 
 connect_nest_db <-
   function(
-    .db_path = 
+    .db_path =
       Sys.getenv(
-        "NEST_DB_PATH", 
-        unset = "nest_study.sqlite")
+        "NEST_DB_PATH",
+        unset = here::here("data", "nest_study.sqlite"))
   ) {
     con <-
       dbConnect(

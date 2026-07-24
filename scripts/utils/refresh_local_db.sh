@@ -14,7 +14,7 @@ set -euo pipefail
 # everyone else their key was missing from a sandbox path they'd never heard of.
 
 KEY="${1:-${NEST_SSH_KEY:-}}"
-LOCAL_DB="${2:-nest_study.sqlite}"
+LOCAL_DB="${2:-data/nest_study.sqlite}"
 VM="${NEST_VM:-ubuntu@snednestudy.duckdns.org}"
 
 if [ -z "$KEY" ]; then
