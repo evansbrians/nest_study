@@ -69,18 +69,18 @@ sudo cp -a /tmp/nest-api-deploy/. "$APP_DIR/"
 sudo chown -R nestapi:nestapi "$APP_DIR"
 rm -rf /tmp/nest-api-deploy
 
-# The view ships with the API: a route can select columns that only the new view
-# has, so install it in the same breath rather than as a step someone forgets.
-if [ -f "$APP_DIR/v_map_point.sql" ]; then
-  sudo -u nestapi sqlite3 "$APP_DIR/nest_study.sqlite" < "$APP_DIR/v_map_point.sql"
-  echo "installed v_map_point"
-fi
-
-# v_schedule (the DB-native schedule: check_nests + predator_cameras derived
-# live, weather joined) ships with the API too, so GET /schedule can read it.
+# The views ship with the API: a route can select columns that only the new view
+# has, so install them in the same breath rather than as a step someone forgets.
+# ORDER MATTERS: v_map_point now reads v_schedule (trailcam scheduling), so
+# v_schedule must exist first.
 if [ -f "$APP_DIR/v_schedule.sql" ]; then
   sudo -u nestapi sqlite3 "$APP_DIR/nest_study.sqlite" < "$APP_DIR/v_schedule.sql"
   echo "installed v_schedule"
+fi
+
+if [ -f "$APP_DIR/v_map_point.sql" ]; then
+  sudo -u nestapi sqlite3 "$APP_DIR/nest_study.sqlite" < "$APP_DIR/v_map_point.sql"
+  echo "installed v_map_point"
 fi
 
 sudo systemctl restart nest-api

@@ -39,9 +39,7 @@ target AS (
 -- comma-separated TEXT, so they get split below.
 day_rows AS (
   SELECT TRIM(COALESCE(s.patch_count, ''))      AS patch,
-         COALESCE(s.boards, '')                 AS boards,
-         COALESCE(s.check_nests, '')            AS check_nests,
-         COALESCE(s.predator_cameras, '')       AS cams
+         COALESCE(s.boards, '')                 AS boards
   FROM schedule_day s
   JOIN target t ON s.date = t.d
   WHERE UPPER(COALESCE(s.field, '')) = 'TRUE'
@@ -64,35 +62,27 @@ sched_board AS (
   WHERE tok NOT IN ('', '-') AND patch NOT IN ('', '-')
 ),
 
-cam_split(patch, rest, tok) AS (
-  SELECT patch, cams || ',', '' FROM day_rows
-  UNION ALL
-  SELECT patch,
-         SUBSTR(rest, INSTR(rest, ',') + 1),
-         TRIM(SUBSTR(rest, 1, INSTR(rest, ',') - 1))
-  FROM cam_split WHERE rest <> ''
-),
--- predator_camera.camera_id due today ("<patch>_trailcam_<n>")
+-- trailcam camera_ids due today ("<patch>_trailcam_<n>"), read from v_schedule
+-- -- the live schedule, where each camera's 21-day due date decides which one a
+-- visit services. Parsing the stored schedule_day.predator_cameras here made it
+-- go stale as maintenance events shifted those due dates.
 sched_cam AS (
-  SELECT DISTINCT patch || '_trailcam_' || tok AS camera_id
-  FROM cam_split
-  WHERE tok NOT IN ('', '-') AND patch NOT IN ('', '-')
+  SELECT DISTINCT vs.patch_count || '_trailcam_' || vs.predator_cameras AS camera_id
+  FROM v_schedule vs
+  JOIN target t ON vs.date = t.d
+  WHERE vs.predator_cameras IS NOT NULL
+    AND vs.predator_cameras <> ''
+    AND UPPER(COALESCE(vs.field, '')) = 'TRUE'
 ),
 
-nest_split(rest, tok) AS (
-  SELECT check_nests || ',', '' FROM day_rows
-  UNION ALL
-  SELECT SUBSTR(rest, INSTR(rest, ',') + 1),
-         TRIM(SUBSTR(rest, 1, INSTR(rest, ',') - 1))
-  FROM nest_split WHERE rest <> ''
-),
--- nest_id due today. Segments may carry trailing text, so take the leading token.
+-- nest_ids due today, derived LIVE exactly like v_schedule's check_nests: a
+-- current nest is due today when its patch is one of today's scheduled patches.
+-- Parsing the stored schedule_day.check_nests text here made this go stale --
+-- newly found nests (e.g. N139) stayed faded until the schedule was re-pushed.
 sched_nest AS (
-  SELECT DISTINCT
-    CASE WHEN INSTR(tok, ' ') > 0 THEN SUBSTR(tok, 1, INSTR(tok, ' ') - 1)
-         ELSE tok END AS nest_id
-  FROM nest_split
-  WHERE tok NOT IN ('', '-')
+  SELECT DISTINCT v.nest_id
+  FROM v_current_nest v
+  WHERE v.patch_id IN (SELECT patch FROM day_rows WHERE patch NOT IN ('', '-'))
 ),
 
 -- ---- nest display state ---------------------------------------------------
