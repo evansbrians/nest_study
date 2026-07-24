@@ -1,6 +1,7 @@
 
 # setup -------------------------------------------------------------------
 
+library(cli)
 library(httr)
 library(jsonlite)
 library(tidyverse)
@@ -30,30 +31,109 @@ query_api <-
     .auth = auth,
     .tibbular = TRUE
   ) {
-    
+
     # Define path:
-    
-    str_glue("{.base_url}/{.query}") %>% 
-      
+
+    str_glue("{.base_url}/{.query}") %>%
+
       # Submit query:
-      
+
       GET(config = .auth) %>%
-      
+
       # Retrieve query response (as raw json):
-      
+
       content(
         as = "text",
         encoding = "UTF-8"
       ) %>%
-      
+
       # Convert from json to a list:
-      
-      fromJSON(flatten = TRUE) %>% 
+
+      fromJSON(flatten = TRUE) %>%
       {
         if(.tibbular) {
           as_tibble(.)
         } else .
       }
+  }
+
+# GET a photo and write to file:
+
+download_photo <-
+  function(
+    .id,
+    .path = here::here("data", "concealment_photos"),
+    .base_url = base_url,
+    .auth = auth
+  ) {
+
+    # Submit query:
+
+    response <-
+      GET(
+        str_glue("{.base_url}/photos/{.id}"),
+        config = .auth
+      )
+
+    # Confirm success:
+
+    if (status_code(response) != 200) {
+      cli_abort("Photo {.id} request failed: HTTP {status_code(response)}")
+    }
+
+    # Derive the file extension from content-type:
+
+    extension <-
+      headers(response)$`content-type` %>%
+      recode(
+        "image/jpeg" = "jpg",
+        "image/png" = "png",
+        "image/gif" = "gif",
+        .default = "bin"
+      )
+
+    # Look up nest_id/taken_at/bearing for this one photo:
+
+    name <-
+      query_api(
+        .query = str_glue("photos?photo_id={.id}"),
+        .base_url = .base_url,
+        .auth = .auth
+      ) %>%
+
+      # Define name elements:
+
+      mutate(
+
+        # Bearing (if available) as a 3-digit number:
+
+        bearing =
+          bearing %>%
+          round() %>%
+          str_pad(width = 3, pad = "0"),
+
+        # Date of photo:
+
+        date =
+          str_extract(taken_at, "[0-9]{4}-[0-9]{2}-[0-9]{2}"),
+
+        # Name the file kind_nest_id_date (plus bearing, if not NA):
+
+        name =
+          if_else(
+            is.na(bearing),
+            str_glue("{kind}_{nest_id}_{date}.{extension}"),
+            str_glue("{kind}_{nest_id}_{date}_{bearing}.{extension}")
+          )
+      ) %>%
+      pull(name)
+
+    # Write the image bytes to disk:
+
+    writeBin(
+      content(response, as = "raw"),
+      file.path(.path, name)
+    )
   }
 
 # API endpoints -----------------------------------------------------------
@@ -62,20 +142,20 @@ query_api <-
 # (or lists of tables) in the database:
 
 endpoints <-
-  
+
   # Query the api:
-  
+
   query_api(
     .query = "openapi.json",
     .tibbular = FALSE
-  ) %>% 
-  
+  ) %>%
+
   # Subset:
-  
-  pluck("paths") %>% 
-  
+
+  pluck("paths") %>%
+
   # Return variable of interest:
-  
+
   names() %>%
   as_tibble_col("endpoints")
 
@@ -88,7 +168,7 @@ query_api("map_points")
 
 # You can query that table:
 
-query_api("map_points?class=coverboard") %>% 
+query_api("map_points?class=coverboard") %>%
   filter(status == "Scheduled today")
 
 # query nests -------------------------------------------------------------
@@ -109,7 +189,7 @@ query_api("nests/N103", .tibbular = FALSE)
 
 # You can extract a list item with purrr:
 
-query_api("nests/N103", .tibbular = FALSE) %>% 
+query_api("nests/N103", .tibbular = FALSE) %>%
   pluck("intervals")
 
 # Or extract using the query itself (here a tibble, so we can use my `tibbular =
@@ -134,14 +214,14 @@ query_api("gps_points")
 
 # ... but we can wrangle out the awkwardness:
 
-query_api("gps_points", .tibbular = FALSE) %>% 
-  
+query_api("gps_points", .tibbular = FALSE) %>%
+
   # The information is in the "features" list:
-  
-  pluck("features") %>% 
-  as_tibble() %>% 
-  janitor::clean_names() %>% 
-  
+
+  pluck("features") %>%
+  as_tibble() %>%
+  janitor::clean_names() %>%
+
   # Geometry is a list of 2-value vectors:
 
   mutate(
@@ -149,10 +229,10 @@ query_api("gps_points", .tibbular = FALSE) %>%
     lat = map_dbl(geometry_coordinates, 2),
     .keep = "unused",
     .after = geometry_type
-  ) %>% 
-  
+  ) %>%
+
   # No one likes unnecessarily long names:
-  
+
   rename_with(
     ~ str_remove(.x, "^properties\\."),
     starts_with("properties.")
@@ -172,5 +252,23 @@ query_api("schedule?week=9")
 
 # ... but of course:
 
-query_api("schedule") %>% 
+query_api("schedule") %>%
   filter(week == 9)
+
+# query photos --------------------------------------------------------------
+
+# Photo metadata is a normal table, same as nests/gps_points:
+
+query_api("photos")
+
+# Filter to one nest's photos:
+
+query_api("photos?nest_id=N103")
+
+# The image bytes themselves need download_photo() -- query_api() only
+# handles JSON:
+
+query_api("photos?nest_id=N103") %>%
+  pull(photo_id) %>%
+  first() %>%
+  download_photo()
