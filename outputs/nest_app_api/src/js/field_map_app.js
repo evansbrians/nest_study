@@ -4464,89 +4464,85 @@
   // Nest-concealment photos are captured in the standalone Concealment Camera
   // app (native iOS), which locks focus at ~1 m and stamps the compass bearing
   // -- neither of which the in-app web camera can do (iOS Safari/WKWebView does
-  // not expose focus lock to JS). This screen just picks the nest and hands off
-  // to that app via its custom URL scheme; the native app owns capture, bearing,
-  // and (separately) upload.
+  // not expose focus lock to JS). Nest selection lives there too (live GPS
+  // nearest-nest, a manual override that releases once the tech walks to a
+  // different nest, and a tie-break that favors an artificial/NQ nest over the
+  // natural nest it sits on). So the main-menu tile hands off straight to the
+  // app -- no intermediate screen, no confirmation message on success -- the
+  // native app owns nest choice, capture, bearing, and (separately) upload
+  // from there. The only message this screen ever shows is the warning below,
+  // and only when the hand-off itself appears to have failed.
 
   (function () {
-    var nestBtn = document.getElementById("concealNestBtn");
-    var launchBtn = document.getElementById("concealLaunchBtn");
-    var statusEl = document.getElementById("concealStatus");
-    if (!launchBtn) return;
+    var tile = document.getElementById("concealLaunchTile");
+    if (!tile) return;
 
     // The custom URL scheme the Concealment Camera app registers (see its
-    // project.yml / Info.plist CFBundleURLTypes).
+    // project.yml / Info.plist CFBundleURLTypes). Android techs currently
+    // launch a separate camera app with its own hand-off, not yet wired up
+    // here -- there's no Android device to verify a scheme against -- so this
+    // only launches the iOS app for now.
     var CONCEAL_APP_URL = "concealcam://capture";
 
-    var selectedNest = null;
-
-    function status(m) { if (statusEl) statusEl.textContent = m || ""; }
-
-    function distM(a, b, c, d) {
-      var m = (a + c) / 2 * Math.PI / 180;
-      var dy = (c - a) * 110540, dx = (d - b) * 111320 * Math.cos(m);
-      return Math.sqrt(dx * dx + dy * dy);
-    }
-
-    function nestsWithin(meters) {
-      var here = window.fieldLatLng;
-      var pts = window.fieldNavPoints || [];
-      if (!here) return null;
-      return pts.filter(function (p) { return p.type === "Nest"; })
-        .map(function (p) { return { p: p, d: distM(here.lat, here.lng, p.lat, p.lng) }; })
-        .filter(function (x) { return x.d <= meters; })
-        .sort(function (x, y) { return x.d - y.d; });
-    }
-
-    function openNestPicker() {
-      var within = nestsWithin(25);
-      var overlay = document.createElement("div");
-      overlay.className = "field-patch-overlay";
-      var inner = document.createElement("div");
-      inner.className = "field-patch-overlay-inner";
-      var title = document.createElement("div");
-      title.className = "field-patch-overlay-title";
-      title.textContent = (within === null) ? "Waiting for GPS…"
-        : (!within.length) ? "No nests within 25 m" : "Nests within 25 m";
-      inner.appendChild(title);
-      (within || []).forEach(function (x) {
-        var row = document.createElement("button");
-        row.type = "button";
-        row.className = "field-patch-overlay-row";
-        row.textContent = x.p.name + "  (" + Math.round(x.d) + " m)";
-        row.addEventListener("click", function () {
-          selectedNest = x.p;
-          if (nestBtn) nestBtn.textContent = x.p.name;
-          if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
-          status("");
+    // Tap-to-dismiss warning for when the hand-off below doesn't seem to have
+    // worked (see the visibility check in the click handler) -- e.g. the app
+    // isn't installed on this phone. Built lazily, same pattern as
+    // showUploadModal/fieldConfirm elsewhere in this file.
+    function showNotFoundWarning() {
+      var overlay = document.getElementById("concealNotFoundModal");
+      if (!overlay) {
+        overlay = document.createElement("div");
+        overlay.id = "concealNotFoundModal";
+        overlay.className = "field-upload-modal-overlay";
+        var box = document.createElement("div");
+        box.className = "field-upload-modal";
+        var icon = document.createElement("div");
+        icon.className = "field-upload-modal-check";
+        icon.innerHTML = "&#9888;";
+        var text = document.createElement("div");
+        text.className = "field-upload-modal-text";
+        text.textContent = "Couldn't open the Concealment Camera app. Make sure it's installed.";
+        var hint = document.createElement("div");
+        hint.className = "field-upload-modal-hint";
+        hint.textContent = "Tap anywhere to dismiss";
+        box.appendChild(icon);
+        box.appendChild(text);
+        box.appendChild(hint);
+        overlay.appendChild(box);
+        overlay.addEventListener("click", function () {
+          overlay.classList.remove("is-visible");
         });
-        inner.appendChild(row);
-      });
-      overlay.appendChild(inner);
-      overlay.addEventListener("click", function (e) {
-        if (e.target === overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
-      });
-      document.body.appendChild(overlay);
+        document.body.appendChild(overlay);
+      }
+      overlay.classList.add("is-visible");
     }
-    if (nestBtn) nestBtn.addEventListener("click", openNestPicker);
 
-    // Hand off to the native Concealment Camera app, passing the chosen nest id
-    // as the label so its filename / EXIF carry it. If the app isn't installed
-    // the deep link simply does nothing, so nudge the tech after a moment.
-    launchBtn.addEventListener("click", function () {
-      if (!selectedNest) { status("Choose a nest first."); return; }
-      status("Opening Concealment Camera…");
-      var url = CONCEAL_APP_URL + "?label=" + encodeURIComponent(selectedNest.name);
-      // Hand the API token across too so the camera app never needs its own
-      // Settings/token entry -- it stores what we pass and uploads with it. Uses
-      // the same per-user token this app already holds (revocable server-side).
+    tile.addEventListener("click", function () {
+      var url = CONCEAL_APP_URL;
       var token = (window.NestApi && window.NestApi.settings &&
                    typeof window.NestApi.settings.getToken === "function")
         ? window.NestApi.settings.getToken() : "";
-      if (token) url += "&token=" + encodeURIComponent(token);
+      if (token) url += "?token=" + encodeURIComponent(token);
+
+      // Detect whether the OS actually switched away to handle the link. If
+      // the app is installed, the page loses visibility/focus almost
+      // immediately; if the scheme is unregistered, nothing happens and the
+      // page just sits here, so warn after a beat. This check is generic
+      // page-lifecycle behavior, not iOS-specific, so it keeps working
+      // whenever the Android hand-off above gets wired up too.
+      var left = false;
+      function markLeft() { left = true; }
+      document.addEventListener("visibilitychange", markLeft);
+      window.addEventListener("pagehide", markLeft);
+      window.addEventListener("blur", markLeft);
+
       window.location.href = url;
+
       setTimeout(function () {
-        status("If nothing opened, install / enable the Concealment Camera app.");
+        document.removeEventListener("visibilitychange", markLeft);
+        window.removeEventListener("pagehide", markLeft);
+        window.removeEventListener("blur", markLeft);
+        if (!left) showNotFoundWarning();
       }, 1500);
     });
   })();

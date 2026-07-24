@@ -1201,6 +1201,14 @@ input[type="file"].field-input {
   padding: 28px 24px;
 }
 
+/* Concealment Camera "not found" warning -- reuses the upload modal's shell
+   in the danger color rather than the success green. Tap-anywhere dismiss,
+   same as the upload modal. */
+
+#concealNotFoundModal .field-upload-modal {
+  background: var(--danger);
+}
+
 .field-confirm-modal-buttons {
   display: flex;
   gap: 12px;

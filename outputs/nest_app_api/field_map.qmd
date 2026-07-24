@@ -190,7 +190,14 @@ map_tracking
           <span class="field-tile-label">Schedule</span>
         </div>
         <div class="field-tile-cell">
-          <button type="button" class="field-tile" data-screen="concealment">
+          <!-- Concealment photos are captured in the standalone Concealment
+               Camera app (native iOS): it locks focus at ~1 m and stamps the
+               compass bearing, neither of which the web camera can do, and it
+               now also owns nest selection (live GPS nearest-nest, manual
+               override, artificial-nest tie-break). So this tile hands off to
+               it directly via its deep link -- no intermediate screen -- see
+               the concealLaunchTile handler in field_map_app.js. -->
+          <button type="button" class="field-tile" id="concealLaunchTile">
             <img class="field-tile-icon" src="icons/my_camera.png" alt="">
           </button>
           <span class="field-tile-label">Concealment photos</span>
@@ -202,32 +209,6 @@ map_tracking
           <span class="field-tile-label">Species info</span>
         </div>
       </div>
-    </div>
-```
-:::
-
-::: {.field-screen data-name="concealment"}
-```{=html}
-    <div class="field-menu-panel">
-      <div class="field-menu-title">Concealment photos</div>
-
-      <label class="field-field-label">Nest (within 25 m)</label>
-      <button type="button" id="concealNestBtn" class="field-input field-patch-picker-btn">Choose a nest</button>
-
-      <!-- Concealment photos are taken in the standalone Concealment Camera app
-           (native iOS): it locks focus at ~1 m and stamps the compass bearing,
-           neither of which the web camera can do. Choose the nest here, then
-           hand off to that app via its deep link. -->
-      <p class="conceal-hint">
-        Concealment photos use the Concealment Camera app (focus locked at
-        ~1&nbsp;m + compass bearing). Choose the nest, then open the camera.
-      </p>
-
-      <button type="button" id="concealLaunchBtn" class="field-button conceal-capture">
-        Open Concealment Camera
-      </button>
-
-      <div id="concealStatus" class="conceal-status"></div>
     </div>
 ```
 :::
