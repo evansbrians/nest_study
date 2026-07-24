@@ -1,5 +1,4 @@
 
-
 # utility functions -------------------------------------------------------
 
 # Open a connection to the nest_study database:
@@ -18,6 +17,120 @@ connect_nest_db <-
       )
     dbExecute(con, "PRAGMA foreign_keys = ON;")
     con
+  }
+
+# functions for reading data from the api ---------------------------------
+
+query_api <-
+  function(
+    .query,
+    .base_url = base_url,
+    .auth = auth,
+    .tibbular = TRUE
+  ) {
+    
+    # Define path:
+    
+    str_glue("{.base_url}/{.query}") %>%
+      
+      # Submit query:
+      
+      GET(config = .auth) %>%
+      
+      # Retrieve query response (as raw json):
+      
+      content(
+        as = "text",
+        encoding = "UTF-8"
+      ) %>%
+      
+      # Convert from json to a list:
+      
+      fromJSON(flatten = TRUE) %>%
+      {
+        if(.tibbular) {
+          as_tibble(.)
+        } else .
+      }
+  }
+
+# GET a photo and write to file:
+
+download_photo <-
+  function(
+    .id,
+    .path = "data/photos/concealment_photos",
+    .base_url = base_url,
+    .auth = auth
+  ) {
+    
+    # Submit query:
+    
+    response <-
+      GET(
+        str_glue("{.base_url}/photos/{.id}"),
+        config = .auth
+      )
+    
+    # Confirm success:
+    
+    if (status_code(response) != 200) {
+      cli_abort("Photo {.id} request failed: HTTP {status_code(response)}")
+    }
+    
+    # Derive the file extension from content-type:
+    
+    extension <-
+      headers(response)$`content-type` %>%
+      recode_values(
+        "image/jpeg" ~ "jpg",
+        "image/png" ~ "png",
+        "image/gif" ~ "gif",
+        default = "bin"
+      )
+    
+    # Look up nest_id/taken_at/bearing for this one photo:
+    
+    name <-
+      query_api(
+        .query = str_glue("photos?photo_id={.id}"),
+        .base_url = .base_url,
+        .auth = .auth
+      ) %>%
+      
+      # Define name elements:
+      
+      mutate(
+        
+        # Bearing (if available) as a 3-digit number:
+        
+        bearing =
+          bearing %>%
+          round() %>%
+          str_pad(width = 3, pad = "0"),
+        
+        # Date of photo:
+        
+        date =
+          str_extract(taken_at, "[0-9]{4}-[0-9]{2}-[0-9]{2}"),
+        
+        # Name the file kind_nest_id_date (plus bearing, if not NA):
+        
+        name =
+          if_else(
+            is.na(bearing),
+            str_glue("{kind}_{nest_id}_{date}.{extension}"),
+            str_glue("{kind}_{nest_id}_{date}_{bearing}.{extension}")
+          )
+      ) %>%
+      pull(name)
+    
+    # Write the image bytes to disk:
+    
+    writeBin(
+      content(response, as = "raw"),
+      file.path(.path, name)
+    )
   }
 
 # nest queries ------------------------------------------------------------
@@ -177,8 +290,8 @@ get_db_nests <-
 # Re-derive the per-class spatial files (data/spatial/<class>_locations.geojson)
 # from the gps_point table -- points now come from the app/DB, not Google Drive.
 # The workstation map, Google Earth, and print-out scripts read one geojson per
-# point class keyed by `name`; a class that has lost all its points still gets an
-# empty file so those downstream reads never error:
+# point class keyed by `name`; a class that has lost all its points still gets
+# an empty file so those downstream reads never error:
 
 write_spatial_from_db <-
   function(.con = con, .dir = here::here("data/spatial")) {
