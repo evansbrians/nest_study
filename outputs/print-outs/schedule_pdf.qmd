@@ -28,11 +28,15 @@ execute:
 library(kableExtra)
 library(glue)
 library(here)
+library(DBI)
+library(RSQLite)
+library(dbplyr)
 library(tidyverse)
 
 c(
   "time_and_date_functions.R",
   "utility_functions.R",
+  "db_functions.R",
   "scheduling_functions.R"
 ) %>% 
   walk(

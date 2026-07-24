@@ -8,12 +8,21 @@ library(leaflet)
 library(sf)
 library(htmlwidgets)
 library(htmltools)
+library(DBI)
+library(RSQLite)
+library(dbplyr)
 library(tidyverse)
 
 # Basic functions file:
 
 source(
   here("scripts/utils/functions/utility_functions.R")
+)
+
+# Database connection and query functions:
+
+source(
+  here("scripts/utils/functions/db_functions.R")
 )
 
 # Functions for the app:
@@ -125,10 +134,11 @@ list.files(
 # Nest data:
 
 nests_start <-
-  read_rds(
-    here("data/field_data.rds")
-  ) %>%
-  pluck("nests") %>% 
+  {
+    .con <- connect_nest_db()
+    on.exit(dbDisconnect(.con), add = TRUE)
+    get_db_nests(.con)
+  } %>%
   unnest(interval_data)
 
 # Current nests render at full opacity on the map; old nests are faded:

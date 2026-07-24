@@ -3,6 +3,7 @@
 library(tidyverse)
 
 source(here::here("scripts/utils/functions/time_and_date_functions.R"))
+source(here::here("scripts/utils/functions/db_functions.R"))
 source(here::here("scripts/utils/functions/scheduling_functions.R"))
 
 # The map is driven by the same prep_schedule_data() output as the schedule
