@@ -81,6 +81,37 @@
     }));
   }
 
+  // Reconcile the persistent nests cache against the authoritative server set:
+  // delete any cached nest the server no longer returns, so a nest deleted on
+  // the server (or from another device) stops resurfacing here on the next boot
+  // or offline load. cachePut alone was upsert-only, so deletions never
+  // propagated and a removed nest lingered in IndexedDB until a reinstall.
+  // Nests still referenced by a pending offline op (an unsynced create/edit,
+  // keyed by the queue op's tempId) are preserved, so reconciling never drops
+  // local work that has not reached the server yet.
+  function reconcileNests(serverNests) {
+    if (!store || !Array.isArray(serverNests)) return Promise.resolve();
+    var keep = Object.create(null);
+    serverNests.forEach(function (n) {
+      if (n && n.nest_id) keep[n.nest_id] = true;
+    });
+    return store.getAll("queue").catch(function () { return []; })
+      .then(function (ops) {
+        (ops || []).forEach(function (op) {
+          if (op && op.tempId) keep[op.tempId] = true;
+        });
+        return store.getAll("nests");
+      })
+      .then(function (cached) {
+        return Promise.all((cached || []).map(function (n) {
+          return (n && n.nest_id && !keep[n.nest_id])
+            ? store.del("nests", n.nest_id).catch(function () {})
+            : null;
+        }));
+      })
+      .catch(function () {});
+  }
+
   // ---- Live "today" filter (rebuild fieldToday from the schedule) --------
 
   // The map's today-filter reads window.fieldToday.patches, rebuilt from the
@@ -336,6 +367,7 @@
         gotAnything = true;
         window.fieldApiNests = nests;
         cachePut("nests", nests);
+        reconcileNests(nests);
         // The schedule renders independently (cache-first) and may have painted
         // BEFORE nests arrived, so its selfie-stick giraffes -- which come from
         // fieldApiNests -- were missing. Re-render now that nests are here.
@@ -544,7 +576,7 @@
 
     Promise.all(jobs).then(function (res) {
       var nests = res[0], gps = res[1], tracks = res[2], cams = res[3], sched = res[4];
-      if (Array.isArray(nests)) { window.fieldApiNests = nests; cachePut("nests", nests); }
+      if (Array.isArray(nests)) { window.fieldApiNests = nests; cachePut("nests", nests); reconcileNests(nests); }
       if (gps && gps.features) {
         if (store) store.setMeta("gpsPointsFC", gps).catch(function () {});
         if (typeof window.fieldMergeApiWaypoints === "function") {
