@@ -26,12 +26,21 @@ query_api <-
     .query,
     .base_url = base_url,
     .auth = auth,
+    .flatten = TRUE,
     .tibbular = TRUE
   ) {
     
-    # Define path:
+    # Treat .query as a complete url when .base_url is NULL, otherwise append
+    # it to .base_url:
     
-    str_glue("{.base_url}/{.query}") %>%
+    url <-
+      if (is.null(.base_url)) {
+        .query
+      } else {
+        str_glue("{.base_url}/{.query}")
+      }
+    
+    url %>%
       
       # Submit query:
       
@@ -46,7 +55,7 @@ query_api <-
       
       # Convert from json to a list:
       
-      fromJSON(flatten = TRUE) %>%
+      fromJSON(flatten = .flatten) %>%
       {
         if(.tibbular) {
           as_tibble(.)

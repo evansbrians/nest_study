@@ -56,19 +56,6 @@ summarize_me <-
       )
   }
 
-# Query an api:
-
-query_api <- 
-  function(.url) {
-    .url %>% 
-      GET() %>% 
-      content(
-        as = "text",
-        encoding = "UTF-8"
-      ) %>% 
-      jsonlite::fromJSON(simplifyVector = TRUE)
-  }
-
 ## logical validity tests -------------------------------------------------
 
 # These simplify our various logical tests (e.g., within `if ()`).

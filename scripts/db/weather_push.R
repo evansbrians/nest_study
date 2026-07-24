@@ -15,6 +15,7 @@ suppressPackageStartupMessages({
 
 source("scripts/utils/functions/time_and_date_functions.R")
 source("scripts/utils/functions/utility_functions.R")
+source("scripts/utils/functions/db_functions.R")
 source("scripts/utils/functions/weather_functions.R")
 source("scripts/db/schedule_weather.R")
 

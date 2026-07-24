@@ -21,7 +21,12 @@ get_nws_urls <-
       "https://api.weather.gov/points/",
       .coords_yx
     ) %>%
-      query_api() %>%
+      query_api(
+        .base_url = NULL,
+        .auth = list(),
+        .flatten = FALSE,
+        .tibbular = FALSE
+      ) %>%
       pluck("properties") %>%
       keep_at(
         c("forecast", "forecastHourly")
@@ -45,7 +50,12 @@ get_forecast <-
 
     forecast <-
       .url %>%
-      query_api() %>%
+      query_api(
+        .base_url = NULL,
+        .auth = list(),
+        .flatten = FALSE,
+        .tibbular = FALSE
+      ) %>%
       pluck("properties", "periods") %>%
       as_tibble() %>%
       janitor::clean_names() %>%
