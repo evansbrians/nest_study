@@ -1,23 +1,9 @@
 #!/usr/bin/env Rscript
 
-# init_db.R -----------------------------------------------------------------
-# Creates (or re-initializes) nest_study.sqlite by applying ../schema.sql then
-# ../seed.sql, and sets the pragmas the API relies on (foreign_keys, WAL).
-#
-# Idempotency note:
-#   schema.sql uses plain CREATE TABLE (no IF NOT EXISTS), so running this
-#   against a database that already has the schema will ERROR on the first
-#   CREATE. That is intentional -- it stops you clobbering a live DB by
-#   accident. To rebuild from scratch, delete the file first:
-#
-#     rm -f nest_study.sqlite nest_study.sqlite-wal nest_study.sqlite-shm
-#     Rscript init_db.R
-#
-#   The seed inserts are plain INSERTs too; re-seeding an already-seeded DB
-#   would hit PRIMARY KEY collisions. So: fresh file in, fully seeded DB out.
-#
-# Usage:
-#   Rscript init_db.R [db_path]           # default: ./nest_study.sqlite
+# init_db.R ----------------------------------------------------------------
+
+# Builds nest_study.sqlite from ../schema.sql + ../seed.sql. Refuses to run
+# against an already-built DB -- delete the file first to rebuild from scratch.
 
 suppressPackageStartupMessages({
   library(DBI)
@@ -71,10 +57,8 @@ message("  seed:   ", seed_path)
 
 # run a whole .sql file, statement by statement ----------------------------
 
-# SQLite's DBI driver runs one statement per dbExecute(), so we split on
-# semicolons. Line comments are stripped FIRST, so a ';' inside a comment (e.g.
-# an example value) is never mistaken for a statement terminator. schema.sql /
-# seed.sql have no ';' or '--' inside string literals, so this is safe.
+# dbExecute() runs one statement at a time, so split on `;` after stripping
+# comments first (schema.sql / seed.sql have no `;` or `--` in string literals).
 
 run_sql_file <-
   function(.con, .path) {

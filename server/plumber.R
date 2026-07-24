@@ -17,9 +17,7 @@ suppressPackageStartupMessages({
   library(stringr)
 })
 
-# ---------------------------------------------------------------------------
-# Configuration + shared helpers
-# ---------------------------------------------------------------------------
+# Configuration + shared helpers ---------------------------------------------
 
 # DB path + photo dir are overridable via env vars (systemd sets them).
 
@@ -34,9 +32,8 @@ if (!dir.exists(photo_dir)) {
   )
 }
 
-# One connection per request would be cleanest, but SQLite + a single R
-# process is fine sharing one connection because plumber serializes requests
-# (R is single-threaded). We open it once and enforce the pragmas.
+# One shared connection is fine: plumber serializes requests since R is
+# single-threaded. Opened once here; pragmas enforced in db_connect().
 
 db_connect <-
   function() {
@@ -48,10 +45,8 @@ db_connect <-
 
 con <- db_connect()
 
-# Recorded GPS tracks (walked paths), shared across devices. Points are stored
-# as a JSON array (each {lat,lng,t,acc}); tracks are whole-object reads/writes so
-# a normalized point table isn't worth it. Auto-created so a redeploy provisions
-# it without a migration. No FKs (a track's patch is a soft label).
+# Recorded GPS tracks: whole-object reads/writes, points as a JSON array, so
+# no normalized point table. Auto-created here so a redeploy needs no migration.
 
 dbExecute(
   con,
@@ -68,9 +63,8 @@ dbExecute(
    );"
 )
 
-# Ensure the current IACUC pick-list species exist so a nest create's
-# species_code FK resolves (additive; historical codes like AMGO/PRAW/SOSP are
-# kept). Auto-applied on redeploy -- mirrors seed.sql.
+# Ensures the current IACUC species exist so nest.species_code FK resolves
+# (additive; older codes like AMGO/PRAW/SOSP are kept). Mirrors seed.sql.
 
 dbExecute(
   con,
@@ -136,10 +130,8 @@ db_read <-
     }
   }
 
-# Run a code block inside a DB transaction. The block is passed as a function so
-# an early return() inside it exits the FUNCTION (letting the transaction
-# commit), not the request handler. A bare return() inside dbWithTransaction({})
-# does a non-local exit that skips dbCommit and leaves the transaction open.
+# .f must be a function, not a bare block: a return() inside dbWithTransaction({})
+# is a non-local exit that skips dbCommit and leaves the transaction open.
 
 with_txn <-
   function(.con, .f) {
@@ -235,10 +227,8 @@ b64_to_raw <-
     jsonlite::base64_dec(.b64)
   }
 
-# Resolve a substrate value (a substrate_id OR a human label) to its
-# substrate_id. Tolerant so the app can send whatever the picker holds and the
-# DB substrate table stays the single source of truth. Unrecognized free text
-# (a plant not in the list) falls back to 'unknown' rather than FK-failing.
+# Resolves a substrate_id OR a human label to its substrate_id. Unrecognized
+# free text falls back to "unknown" rather than FK-failing.
 
 resolve_substrate <-
   function(.con, .value) {
@@ -266,11 +256,8 @@ resolve_substrate <-
     "unknown"
   }
 
-# Ensure a patch row exists, creating it on first use. The app's patch list is a
-# controlled dropdown, but the DB patch table was derived only from Tara's real
-# nests -- so the test sites (Long Branch / Snedgen Park) and any brand-new patch
-# aren't there yet and would trip the nest.patch_id foreign key. Returns the
-# patch_id, or NULL for a blank / "patch-none" sentinel.
+# Ensures a patch row exists (creates it on first use, e.g. test sites not in
+# the seeded table), so nest.patch_id never FK-fails. NULL for a blank sentinel.
 
 ensure_patch <-
   function(.con, .patch_id) {
@@ -305,11 +292,10 @@ ensure_patch <-
     .patch_id
   }
 
-# ---------------------------------------------------------------------------
-# CORS filter -- runs BEFORE auth so the browser's cross-origin preflight
-# (OPTIONS) is answered without a token. The API is token-gated, so allowing
-# any origin is safe (a real request still needs a valid bearer token).
-# ---------------------------------------------------------------------------
+# CORS filter -- before auth, answers OPTIONS preflight -----------------
+
+# Runs before auth so the browser's preflight doesn't need a token. Any
+# origin is safe here since a real request still needs a valid bearer token.
 
 #* @filter cors
 function(req, res) {
@@ -342,9 +328,7 @@ function(req, res) {
   plumber::forward()
 }
 
-# ---------------------------------------------------------------------------
-# Auth filter -- runs before every route.
-# ---------------------------------------------------------------------------
+# Auth filter -- runs before every route ---------------------------------
 
 #* @filter auth
 function(req, res) {
@@ -362,10 +346,8 @@ function(req, res) {
     return(plumber::forward())
   }
 
-  # Look the header up by name. req$HEADERS is a named character vector, so a
-  # direct [["authorization"]] THROWS "subscript out of bounds" when the header
-  # is absent (e.g. an unauthenticated request) -- match by lowercased name
-  # instead so a missing header yields a clean 401, not a 500.
+  # req$HEADERS[["authorization"]] throws "subscript out of bounds" when the
+  # header is absent -- match by lowercased name instead for a clean 401.
 
   hn <- names(req$HEADERS)
   i <- which(str_to_lower(hn) == "authorization")
@@ -402,9 +384,7 @@ function(req, res) {
   plumber::forward()
 }
 
-# ---------------------------------------------------------------------------
-# Health
-# ---------------------------------------------------------------------------
+# Health ------------------------------------------------------------------
 
 #* @get /healthz
 #* @serializer unboxedJSON list(digits = 9)
@@ -412,9 +392,7 @@ function() {
   list(ok = TRUE, time = now_utc())
 }
 
-# ===========================================================================
-# READS
-# ===========================================================================
+# READS -------------------------------------------------------------------
 
 #* All controlled vocabularies in one payload (app caches for dropdowns).
 #* @get /lookups
@@ -433,10 +411,8 @@ function() {
     nest_fate_codes = dbReadTable(con, "nest_fate_code"),
     point_classes = dbReadTable(con, "point_class"),
 
-    # Added for the data-entry GUI (see snedgen-gui/PAGE_CONTRACT.md):
-    # the point-count species type-ahead, the coverboard species dropdown, and
-    # the two count_interval CHECK vocabularies (mirrored here so no client
-    # hardcodes them).
+    # For the data-entry GUI (PAGE_CONTRACT.md): species type-ahead, coverboard
+    # dropdown, and count_interval CHECK vocab -- mirrored so no client hardcodes them.
 
     species_engine = dbReadTable(con, "species_engine"),
     coverboard_species = db_read(
@@ -516,9 +492,8 @@ function(
     )
   }
 
-  # All nests, enriched for the map: latest-check + max egg/young counts (for the
-  # brood-status icon), plus concluded / is_current flags (for fade). Mirrors
-  # what make_field_map.R computes so the JS overlay can pick icon + opacity.
+  # All nests, enriched for the map (latest check, max egg/young, concluded /
+  # is_current flags) -- mirrors what make_field_map.R computes for the JS overlay.
 
   q <-
     "SELECT n.*,
@@ -666,10 +641,8 @@ function(
   res,
   class = ""
 ) {
-  # Do NOT read the nav_photo blobs here: base64-ing a photo for every point made
-  # this response many MB and slow on cell (it gated the whole app boot). Ship a
-  # `has_nav_photo` flag instead; the map lazy-fetches the bytes per point via
-  # GET /gps_points/<id>/photo only when a popup that needs one is opened.
+  # Do NOT read nav_photo blobs here -- base64-ing every point made this response
+  # many MB. Ship a has_nav_photo flag; the map lazy-fetches bytes per popup.
   q <- "SELECT point_id, point_name, point_class, patch_id, latitude, longitude,
                elevation, horizontal_accuracy, bearing, n_samples, note, color,
                (nav_photo IS NOT NULL) AS has_nav_photo, nav_photo_name, datetime
@@ -881,10 +854,8 @@ function(
   date = "",
   week = ""
 ) {
-  # Resolve the sampling week: explicit ?week=, else the week that owns ?date=,
-  # else the week that owns TODAY (the loader now materializes several weeks
-  # ahead, so "newest week" would be a future week -- the sensible default is the
-  # CURRENT week), falling back to the newest week only if today has no row.
+  # Resolve the sampling week: explicit ?week=, else the week owning ?date=,
+  # else the week owning TODAY, falling back to the newest week if today has none.
 
   target_week <- NA_integer_
   if (nzchar(week)) {
@@ -922,9 +893,8 @@ function(
     )
   }
 
-  # Serve v_schedule, not schedule_day: check_nests and predator_cameras are
-  # derived live there (and weather joined), so they are always current instead
-  # of as-fresh-as-the-last-push. Same column names, so the JSON is identical.
+  # Serve v_schedule, not schedule_day: its derived columns (check_nests,
+  # predator_cameras, weather) are always current, not as-fresh-as-last-push.
 
   db_read(
     con,
@@ -998,12 +968,8 @@ function(req, res) {
     df[[.c]] <- as.character(df[[.c]])
   }
 
-  # Derived, loader-owned columns -- everything else on schedule_day is now
-  # GUI-owned (Tara maintains helper, times, search patches, tasks, notes and
-  # the field-day flag live in the GUI). So this is an UPSERT keyed on
-  # (date, patch_order): a row that does not exist yet is inserted in full
-  # (seeding a new/future week), but an existing row has ONLY these derived
-  # columns refreshed -- an updater run can never clobber a GUI edit again.
+  # UPSERT keyed on (date, patch_order): a new row is inserted in full, but an
+  # existing row only refreshes these loader-owned columns -- never clobbers a GUI edit.
 
   loaded <- 0L
   inserted <- 0L
@@ -1087,9 +1053,7 @@ function(req, res) {
   list(upserted = upserted)
 }
 
-# ===========================================================================
-# LIVE PUSH -- long-poll (see README for the SSE-vs-long-poll decision).
-# ===========================================================================
+# LIVE PUSH -- long-poll (see README for the SSE-vs-long-poll decision) ---
 
 #* Long-poll for new change_events since <since>. Blocks briefly (up to
 #* ~25s) waiting for new rows, then returns whatever it has (possibly empty).
@@ -1184,9 +1148,7 @@ function(
   )
 }
 
-# ===========================================================================
-# WRITES  (each wrapped in a transaction)
-# ===========================================================================
+# WRITES -- each wrapped in a transaction ----------------------------------
 
 # --- server-side nest-id allocation ----------------------------------------
 # Mirrors the app's nextNestNumber: lowest free number (gap) within a prefix
@@ -1194,9 +1156,8 @@ function(
 
 next_nest_id <-
   function(.con, .prefix) {
-    # Escape the prefix for the LIKE and pull existing numbers for this exact
-    # prefix. We match nest_id = <prefix><digits> only (not longer prefixes:
-    # 'N' must not swallow 'NQ042'), so filter in R with a precise regex.
+    # Match nest_id = <prefix><digits> only (not longer prefixes: "N" must not
+    # swallow "NQ042"), so filter in R with a precise regex rather than LIKE.
 
     rows <- dbGetQuery(.con, "SELECT nest_id FROM nest")
     rx <-
@@ -1299,10 +1260,8 @@ function(req, res) {
       return(invisible(NULL))
     }
 
-    # Resolve the patch once (create the test-site / new patch if needed) so the
-    # nest.patch_id foreign key can't fail inside the allocation retry loop --
-    # where any error is treated as an id collision and masked as "could not
-    # allocate a free nest_id".
+    # Resolve the patch once, up front: inside the retry loop below, any error
+    # is treated as an id collision, which would mask a real FK failure.
 
     resolved_patch <- ensure_patch(con, body$patch_id %||% NA)
 
@@ -1341,10 +1300,8 @@ function(req, res) {
         )
       }
 
-    # The nest_id IS the waypoint's name (client-suggested), so honor it directly
-    # -- the point_name and nest_id must stay identical. If that id is already
-    # taken it's a real conflict (idempotent replays are handled above), so 409.
-    # Only when the client sends no id do we fall back to server allocation.
+    # nest_id IS the waypoint's name, so honor a client-suggested id directly; a
+    # taken id is a real 409 (replays are handled above), not a server allocation.
 
     client_nest_id <- body$nest_id %||% NA
     inserted_id <- NULL
@@ -1515,13 +1472,8 @@ function(
       )
     }
 
-    # Substrate replacement -- presence-gated. Only touch nest_substrate when the
-    # body actually carries a "substrates" key: a PATCH that never mentions
-    # substrates (e.g. a scalar-only edit) must leave them alone, but a PATCH that
-    # includes the key -- even an empty array (user cleared them all) -- REPLACES
-    # the set. Delete-then-reinsert mirrors how a multi-select edit form works.
-    # Each statement stays atomic (no interleaved open result sets) per the
-    # RSQLite gotcha handled elsewhere in this file.
+    # Presence-gated: only touch nest_substrate when the body carries a
+    # "substrates" key at all -- an empty array still REPLACES the set.
 
     if ("substrates" %in% names(body)) {
       dbExecute(
@@ -2072,10 +2024,8 @@ function(req, res) {
       )
       TRUE
     }, error = function(.e) {
-      # A same-named point already exists under a different id (a retry, or a
-      # re-created point) -> the (point_name, point_class) UNIQUE constraint.
-      # Replay the existing row instead of 500-ing so point/artificial-nest
-      # creation is reliable. Any other error is real -> re-raise.
+      # A (point_name, point_class) UNIQUE hit means a retry or re-created point
+      # -- replay the existing row instead of 500-ing. Any other error re-raises.
       if (grepl("UNIQUE constraint failed: gps_point.point_name",
                 conditionMessage(.e), fixed = TRUE)) FALSE else stop(.e)
     })
@@ -2281,9 +2231,8 @@ function(
 
     inserted_id <- NULL
     for (attempt in seq_len(25)) {
-      # Honor a client-requested NQ id (e.g. N057 -> NQ057) on the first attempt
-      # when it's well-formed; on a collision the tryCatch falls through and the
-      # next attempt auto-allocates the next free NQ number.
+      # Honor a well-formed client-requested NQ id on the first attempt; a
+      # collision falls through to auto-allocating the next free NQ number.
       nid <-
         if (attempt == 1 &&
             !is.null(body$nest_id) &&
@@ -2661,10 +2610,7 @@ function(req, res) {
   result
 }
 
-# ---------------------------------------------------------------------------
-# `%||%` -- coalesce helper (NULL / empty -> default). Kept at file end so it
-# is defined when routes run.
-# ---------------------------------------------------------------------------
+# `%||%` -- coalesce helper (NULL/empty -> default) -----------------------
 
 `%||%` <-
   function(.x, .y) {
@@ -2673,16 +2619,8 @@ function(req, res) {
     if (is.character(.x) && length(.x) == 1 && !nzchar(.x)) return(.y)
     .x
   }
-# /map_points route -- append to /opt/nest-api/server/plumber.R, then restart.
-#
-#   sudo cp /opt/nest-api/server/plumber.R /opt/nest-api/server/plumber.R.bak-$(date +%F)
-#   sudo tee -a /opt/nest-api/server/plumber.R < map_points_route.R > /dev/null
-#   sudo systemctl restart nest-api
-#
-# Uses the same global `con` the other routes use, and sits behind the same auth
-# filter, so it needs no special handling. Backed by the v_map_point view: the DB
-# decides how every marker renders (icon / opacity / size / status), instead of
-# the client re-deriving it. Install v_map_point.sql first.
+# Backed by the v_map_point view: the DB decides how every marker renders
+# (icon / opacity / size / status), not the client. Install v_map_point.sql first.
 
 #* One row per map marker, carrying everything needed to draw it:
 #* idx, name, class, lat, lng, ref_id, status, icon, opacity, size.
@@ -2704,18 +2642,15 @@ function(req, res, class = NULL) {
   }
 }
 
-# ===========================================================================
-# GUI DATA-ENTRY ROUTES -- coverboards, point counts, camera maintenance,
-# schedule days. Added for snedgen-gui (its PAGE_CONTRACT.md defines this
-# surface). Same auth filter, same txn + change_event + idempotency conventions
-# as the field-app routes above.
-# ===========================================================================
+# GUI DATA-ENTRY ROUTES -- coverboards, point counts, camera maintenance ---
+
+# For snedgen-gui (PAGE_CONTRACT.md); same auth/txn/change_event/idempotency
+# conventions as the field-app routes above.
 
 # --- additive migrations, applied at boot (redeploy-safe) -------------------
 
 # The GUI's Edit-day popup writes up to four search patches; the sheet-era
-# schedule_day stops at two. Guarded by PRAGMA table_info so this is a no-op
-# once applied.
+# schedule_day stops at two. PRAGMA table_info guards make this a redeploy no-op.
 
 gui_schedule_extra_cols <-
   c(
@@ -2733,9 +2668,8 @@ for (.c in setdiff(gui_schedule_extra_cols, gui_existing_cols)) {
   )
 }
 
-# Per-date weather JSON, fed by scripts/db/weather_push.R (an off-box NWS fetch)
-# and joined into v_schedule. Weather is the one schedule input that cannot be
-# derived from the DB, so it lands in its own tiny table.
+# Per-date weather JSON, fed by scripts/db/weather_push.R and joined into
+# v_schedule -- the one schedule input that can't be derived from the DB.
 
 dbExecute(
   con,
@@ -2745,9 +2679,8 @@ dbExecute(
    )"
 )
 
-# Coverboard species vocabulary. /lookups unions this with the DISTINCT
-# species already recorded in coverboard_obs, so the dropdown works before
-# anyone curates the table.
+# Coverboard species vocabulary. /lookups unions this with DISTINCT species
+# already in coverboard_obs, so the dropdown works before anyone curates it.
 
 dbExecute(
   con,
@@ -3569,10 +3502,8 @@ function(req, res, id) {
 
 # --- schedule days (row-level CRUD for the GUI's week view) -----------------
 
-# These routes give the GUI the (date, patch_order) grain it edits. The GET
-# reads v_schedule -- same live check_nests / predator_cameras / weather the
-# field app sees via GET /schedule -- while the id and editable base columns
-# pass through, so PATCH/POST/DELETE still act on schedule_day.
+# GET reads v_schedule (same live check_nests / predator_cameras / weather as
+# GET /schedule); PATCH/POST/DELETE still act on schedule_day directly.
 
 #* Schedule rows. Filters: ?from, ?to (date), ?week.
 #* @get /schedule_days

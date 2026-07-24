@@ -1,16 +1,9 @@
 #!/usr/bin/env Rscript
 
-# entrypoint.R --------------------------------------------------------------
-# Boots the plumber API defined in plumber.R and serves it on a local port.
-# Caddy reverse-proxies HTTPS -> this port (see Caddyfile).
-#
-# Env vars (systemd sets these; see nest-api.service):
-#   NEST_DB_PATH     path to nest_study.sqlite   (default: ./nest_study.sqlite)
-#   NEST_PHOTO_DIR   disk dir for photo files    (default: ./photos)
-#   NEST_API_HOST    bind host                   (default: 127.0.0.1)
-#   NEST_API_PORT    bind port                   (default: 8000)
-#
-# Bind to 127.0.0.1 so only Caddy (same host) can reach plumber directly.
+# entrypoint.R -----------------------------------------------------------
+
+# Boots plumber.R on NEST_API_HOST:NEST_API_PORT (systemd sets these; see
+# nest-api.service); Caddy proxies HTTPS to it.
 
 suppressPackageStartupMessages({
   library(plumber)

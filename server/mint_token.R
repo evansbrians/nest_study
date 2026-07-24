@@ -1,22 +1,9 @@
 #!/usr/bin/env Rscript
 
-# mint_token.R --------------------------------------------------------------
-# Create (or revoke) a per-user API bearer token.
-#
-# The DB stores only the SHA-256 HASH of the token; the plaintext token is
-# printed ONCE here -- copy it into the device now, it cannot be recovered.
-#
-# Mint:
-#   Rscript mint_token.R mint <observer_id> "<label>"
-#     e.g. Rscript mint_token.R mint BSE "Brian iPhone"
-#   (creates the observer row if it does not exist)
-#
-# Revoke (lost/retired device):
-#   Rscript mint_token.R revoke <token_hash>
-#   (list hashes with:  Rscript mint_token.R list )
-#
-# List:
-#   Rscript mint_token.R list
+# mint_token.R ---------------------------------------------------------------
+
+# Create/revoke/list per-user API bearer tokens (see server/README.md for
+# usage). Only the SHA-256 hash is stored -- the plaintext prints once.
 
 suppressPackageStartupMessages({
   library(DBI)
