@@ -84,14 +84,30 @@ if [ -f "$APP_DIR/v_schedule.sql" ]; then
 fi
 
 sudo systemctl restart nest-api
-sleep 2
-systemctl is-active --quiet nest-api && echo "nest-api: active ($REV)" || {
+
+# Wait for the PORT, not just "active": systemd marks the unit started well
+# before plumber actually binds -- observed 4-6s on this box -- so a fixed
+# short sleep here was racing the real startup and failing the smoke test
+# below even on a perfectly good deploy.
+ready=""
+for i in $(seq 1 20); do
+  code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/lookups 2>/dev/null || echo 000)
+  if [ "$code" = "200" ] || [ "$code" = "401" ]; then
+    ready="1"
+    break
+  fi
+  sleep 1
+done
+
+if systemctl is-active --quiet nest-api && [ -n "$ready" ]; then
+  echo "nest-api: active ($REV)"
+else
   echo "nest-api FAILED to start -- restoring the previous plumber.R" >&2
   LAST=$(ls -t "$APP_DIR"/plumber.R.bak-* 2>/dev/null | head -1)
   [ -n "$LAST" ] && sudo cp -a "$LAST" "$APP_DIR/plumber.R" && sudo systemctl restart nest-api
   journalctl -u nest-api -n 20 --no-pager >&2
   exit 1
-}
+fi
 REMOTE
 
 # 3. Smoke-test: the API must actually answer, not merely be "active".

@@ -760,7 +760,8 @@ function() {
 }
 
 #* All photos (concealment/original/etc). Filters: ?nest_id, ?point_id,
-#* ?kind, ?since (delta). Metadata only -- use GET /photos/<id> for bytes.
+#* ?kind, ?photo_id, ?since (delta). Metadata only -- use GET /photos/<id>
+#* for bytes.
 #* @get /photos
 #* @serializer unboxedJSON list(digits = 9)
 function(
@@ -769,6 +770,7 @@ function(
   nest_id = "",
   point_id = "",
   kind = "",
+  photo_id = "",
   since = ""
 ) {
   if (nzchar(since)) {
@@ -800,6 +802,10 @@ function(
   if (nzchar(kind)) {
     conds <- c(conds, "kind = ?")
     params <- c(params, kind)
+  }
+  if (nzchar(photo_id)) {
+    conds <- c(conds, "photo_id = ?")
+    params <- c(params, as.integer(photo_id))
   }
 
   q <- "SELECT * FROM photo"
