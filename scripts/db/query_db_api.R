@@ -62,7 +62,7 @@ query_api <-
 download_photo <-
   function(
     .id,
-    .path = here::here("data", "concealment_photos"),
+    .path = "data/photos/concealment_photos",
     .base_url = base_url,
     .auth = auth
   ) {
@@ -85,11 +85,11 @@ download_photo <-
 
     extension <-
       headers(response)$`content-type` %>%
-      recode(
-        "image/jpeg" = "jpg",
-        "image/png" = "png",
-        "image/gif" = "gif",
-        .default = "bin"
+      recode_values(
+        "image/jpeg" ~ "jpg",
+        "image/png" ~ "png",
+        "image/gif" ~ "gif",
+        default = "bin"
       )
 
     # Look up nest_id/taken_at/bearing for this one photo:
