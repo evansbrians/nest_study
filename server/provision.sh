@@ -99,8 +99,8 @@ systemctl daemon-reload
 systemctl enable --now nest-api.service
 
 # No nightly timer: the batch loads (scripts/db/nightly_load.R and
-# schedule_load.R) run on a workstation, which is where field_data.rds and the
-# Sheets creds live. schedule_load.R pushes its results to this API.
+# schedule_load.R) run on a workstation, which is where the Sheets creds
+# live. schedule_load.R pushes its results to this API.
 
 echo "== provision: configuring Caddy =="
 sed -e "s/nest\.example\.org/${DOMAIN}/g" \

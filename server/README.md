@@ -211,9 +211,9 @@ The batch tables (`point_count`, `coverboard_*`, `visit`) and the materialized
 `schedule_day` are loaded by `scripts/db/nightly_load.R` and
 `scripts/db/schedule_load.R`, run from a workstation by `scripts/utils/updater.R`.
 
-They live there because their inputs do: `data/field_data.rds` is built on a
-workstation and the Google Sheets creds never touch the VM. `schedule_load.R`
-pushes its rows here via `POST /schedule`; there is no server-side timer.
+They live there because their inputs do: the Google Sheets creds never touch
+the VM. `schedule_load.R` pushes its rows here via `POST /schedule`; there is
+no server-side timer.
 
 ## What was validated vs. not
 
