@@ -759,6 +759,58 @@ function() {
   )
 }
 
+#* All photos (concealment/original/etc). Filters: ?nest_id, ?point_id,
+#* ?kind, ?since (delta). Metadata only -- use GET /photos/<id> for bytes.
+#* @get /photos
+#* @serializer unboxedJSON list(digits = 9)
+function(
+  req,
+  res,
+  nest_id = "",
+  point_id = "",
+  kind = "",
+  since = ""
+) {
+  if (nzchar(since)) {
+    return(
+      db_read(
+        con,
+        "SELECT * FROM photo
+           WHERE photo_id IN (
+             SELECT entity_id FROM change_event
+               WHERE entity = 'photo' AND event_id > ?
+           )
+          ORDER BY photo_id",
+        list(as.integer(since))
+      )
+    )
+  }
+
+  conds <- c()
+  params <- list()
+
+  if (nzchar(nest_id)) {
+    conds <- c(conds, "nest_id = ?")
+    params <- c(params, nest_id)
+  }
+  if (nzchar(point_id)) {
+    conds <- c(conds, "point_id = ?")
+    params <- c(params, point_id)
+  }
+  if (nzchar(kind)) {
+    conds <- c(conds, "kind = ?")
+    params <- c(params, kind)
+  }
+
+  q <- "SELECT * FROM photo"
+  if (length(conds) > 0) {
+    q <- str_c(q, "WHERE", str_c(conds, collapse = " AND "), sep = " ")
+  }
+  q <- str_c(q, "ORDER BY photo_id", sep = " ")
+
+  db_read(con, q, params)
+}
+
 #* A disk-stored photo (raw bytes). Nav thumbnails come inline with points.
 #* @get /photos/<id>
 function(
