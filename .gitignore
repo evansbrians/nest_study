@@ -59,6 +59,10 @@ rsconnect/
 brian_sandbox/
 tara_sandbox/
 
+# fuse files from db migration:
+
+.fuse*
+
 # Service account
 
 .secrets/
