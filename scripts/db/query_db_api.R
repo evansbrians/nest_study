@@ -6,9 +6,11 @@ library(httr)
 library(jsonlite)
 library(tidyverse)
 
+source("scripts/utils/functions/db_functions.R")
+
 base_url <- "https://snednestudy.duckdns.org"
 
-# Define your API password:
+# Define API password:
 
 token <- "a5d11ba12d29bdb83b0a5e4806fe111dbb740d6001499c2cdc171440cb05f357"
 
@@ -22,119 +24,7 @@ auth <-
       "application/json"
   )
 
-# functions ---------------------------------------------------------------
 
-query_api <-
-  function(
-    .query,
-    .base_url = base_url,
-    .auth = auth,
-    .tibbular = TRUE
-  ) {
-
-    # Define path:
-
-    str_glue("{.base_url}/{.query}") %>%
-
-      # Submit query:
-
-      GET(config = .auth) %>%
-
-      # Retrieve query response (as raw json):
-
-      content(
-        as = "text",
-        encoding = "UTF-8"
-      ) %>%
-
-      # Convert from json to a list:
-
-      fromJSON(flatten = TRUE) %>%
-      {
-        if(.tibbular) {
-          as_tibble(.)
-        } else .
-      }
-  }
-
-# GET a photo and write to file:
-
-download_photo <-
-  function(
-    .id,
-    .path = "data/photos/concealment_photos",
-    .base_url = base_url,
-    .auth = auth
-  ) {
-
-    # Submit query:
-
-    response <-
-      GET(
-        str_glue("{.base_url}/photos/{.id}"),
-        config = .auth
-      )
-
-    # Confirm success:
-
-    if (status_code(response) != 200) {
-      cli_abort("Photo {.id} request failed: HTTP {status_code(response)}")
-    }
-
-    # Derive the file extension from content-type:
-
-    extension <-
-      headers(response)$`content-type` %>%
-      recode_values(
-        "image/jpeg" ~ "jpg",
-        "image/png" ~ "png",
-        "image/gif" ~ "gif",
-        default = "bin"
-      )
-
-    # Look up nest_id/taken_at/bearing for this one photo:
-
-    name <-
-      query_api(
-        .query = str_glue("photos?photo_id={.id}"),
-        .base_url = .base_url,
-        .auth = .auth
-      ) %>%
-
-      # Define name elements:
-
-      mutate(
-
-        # Bearing (if available) as a 3-digit number:
-
-        bearing =
-          bearing %>%
-          round() %>%
-          str_pad(width = 3, pad = "0"),
-
-        # Date of photo:
-
-        date =
-          str_extract(taken_at, "[0-9]{4}-[0-9]{2}-[0-9]{2}"),
-
-        # Name the file kind_nest_id_date (plus bearing, if not NA):
-
-        name =
-          if_else(
-            is.na(bearing),
-            str_glue("{kind}_{nest_id}_{date}.{extension}"),
-            str_glue("{kind}_{nest_id}_{date}_{bearing}.{extension}")
-          )
-      ) %>%
-      pull(name)
-
-    # Write the image bytes to disk:
-
-    writeBin(
-      content(response, as = "raw"),
-      file.path(.path, name)
-    )
-  }
 
 # API endpoints -----------------------------------------------------------
 
