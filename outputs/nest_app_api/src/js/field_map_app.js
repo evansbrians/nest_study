@@ -605,8 +605,22 @@
     setTimeout(function () { try { URL.revokeObjectURL(url); } catch (e) {} }, 4000);
   }
 
+  // iOS / iPadOS can't write to the photo library from a web app without a
+  // system prompt (a Share sheet or download dialog) -- that prompt IS the
+  // popup Tara sees. Android's <a download> is silent, so a backup there is
+  // free; iOS has no silent path, and the photo is already on the server, so
+  // we skip the local copy on iOS rather than pop a dialog after every shot.
+  function fieldIsIOS() {
+    var ua = navigator.userAgent || "";
+    var plat = navigator.platform || "";
+    return /iP(hone|od|ad)/.test(plat) ||
+      /iPad|iPhone|iPod/.test(ua) ||
+      (/Mac/.test(plat) && navigator.maxTouchPoints > 1);   // iPadOS 13+ poses as Mac
+  }
+
   function fieldSaveImageToPhone(dataUrl, name) {
     if (!dataUrl) return;
+    if (fieldIsIOS()) return;
     var filename = name || ("nest-" + Date.now() + ".jpg");
     try {
       var parts = String(dataUrl).split(",");
