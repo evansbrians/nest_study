@@ -492,13 +492,20 @@ function(el, x) {
     }
   }
   
-  // Convert a device-orientatin event into a true-north heading ... note:
-  // - iOS: event.webkitCompassHeading is clockwise heading from true true-north
-  // - Android: event.alpha is degrees counter-clockwise from north
+  // Site magnetic declination (NOAA, Front Royal VA, ~2026): true = magnetic +
+  // declination. West declination is negative. Update annually (~0.1 deg/yr) or
+  // if the study moves. A constant is fine across a single study area.
+  var FIELD_MAG_DECLINATION = -10.07;
+
+  // Convert a device-orientation event into a TRUE-north heading. Both sources
+  // below are referenced to MAGNETIC north:
+  //   - iOS: event.webkitCompassHeading (clockwise from magnetic north)
+  //   - Android: event.alpha (counter-clockwise from magnetic north)
+  // so we add the site declination to match the iPhone Compass and our maps.
 
   function handleOrientation(event, forceAbsolute) {
     var heading;
-  
+
     if (typeof event.webkitCompassHeading === "number") {
       heading = event.webkitCompassHeading;
     } else if (
@@ -509,10 +516,12 @@ function(el, x) {
     } else {
       return;
     }
-  
+
+    heading = (heading + FIELD_MAG_DECLINATION + 360) % 360;   // magnetic -> true
+
     var correctedHeading =
       (heading - getScreenAngle() + 360) % 360;
-  
+
     setHeading(correctedHeading);
   }
   
