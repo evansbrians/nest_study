@@ -73,7 +73,10 @@ var _apiNestPhotoCache = {};
 // device, dropping a "no photo" miss cached before the photo synced. Memory
 // only: the IndexedDB cache is per-nest and additive, so it is kept.
 window.NestApiData = window.NestApiData || {};
-window.NestApiData.clearNestPhotoCache = function () { _apiNestPhotoCache = {}; };
+window.NestApiData.clearNestPhotoCache = function () {
+  _apiNestPhotoCache = {};
+  _apiNestDetailJob = {};
+};
 
 function apiCredsOnline() {
   return !!(window.NestApi && NestApi.settings && NestApi.settings.hasCreds() &&
@@ -153,8 +156,14 @@ function apiSetSlotPhoto(slot, uri) {
   slot.setAttribute("data-loaded", "1");
   var im = new Image();
   im.onload = function () {
-    im.style.maxWidth = "180px";
-    im.style.maxHeight = "180px";
+    // Stacked full width: block + a fixed width so two photos line up and the
+    // popup sizes predictably (Leaflet sizes the popup from its content).
+    im.style.display = "block";
+    im.style.width = "200px";
+    im.style.maxWidth = "100%";
+    im.style.maxHeight = "200px";
+    im.style.objectFit = "contain";
+    im.style.marginBottom = "4px";
     im.style.borderRadius = "4px";
     // Tap the popup photo to open it full-screen (like the nest page).
     im.style.cursor = "zoom-in";
@@ -167,62 +176,129 @@ function apiSetSlotPhoto(slot, uri) {
   im.src = uri;
 }
 
-// Resolve a nest's best photo as a data URI (Promise -> dataURI | false).
-// Order: memory, IndexedDB, then network (nav_photo, else the `photo` table).
-// Persists any hit. false == the nest has no photo anywhere.
-function apiResolveNestPhoto(nestId) {
+// A nest has two photos: "location" (the find-it shot) and "inside" (the nest
+// cup). They cache under separate keys so one can never mask the other; the
+// location key stays the bare nest_id, keeping caches written before the inside
+// photo existed valid.
+function apiPhotoCacheKey(nestId, which) {
+  return (which === "inside") ? nestId + "|inside" : nestId;
+}
+
+// Backfilled location rows are kind 'discovery', the app uploads 'original'.
+// Never fall through to a concealment frame or the inside-nest photo -- those
+// show the cup, not how to find it, and photos[0] would happily pick one.
+function apiPickLocationPhoto(photos) {
+  var notLocation = ["concealment", "inside_nest"];
+  return photos.filter(function (p) { return p && p.kind === "discovery"; })[0] ||
+    photos.filter(function (p) { return p && p.kind === "original"; })[0] ||
+    photos.filter(function (p) {
+      return p && notLocation.indexOf(p.kind) < 0;
+    })[0] || null;
+}
+
+// photo_id is a server autoincrement, so the largest inside_nest row is newest.
+function apiPickInsidePhoto(photos) {
+  var best = null;
+  photos.forEach(function (p) {
+    if (!p || p.kind !== "inside_nest") return;
+    if (!best || Number(p.photo_id) > Number(best.photo_id)) best = p;
+  });
+  return best;
+}
+
+// Commit one resolved photo to memory + IndexedDB. false == known to have none.
+function apiStoreResolved(nestId, which, uri) {
+  var key = apiPhotoCacheKey(nestId, which);
+  if (uri) {
+    _apiNestPhotoCache[key] = uri;
+    apiPersistPhoto(key, uri);
+  } else {
+    _apiNestPhotoCache[key] = false;
+  }
+}
+
+// ONE GET /nests/<id> resolves BOTH photos -- fetching it once per kind is the
+// obvious shape and the wasteful one. De-duped, because a popup asks for both
+// at the same moment. Only photos that exist cost a bytes fetch.
+var _apiNestDetailJob = {};
+
+function apiLoadBothNestPhotos(nestId) {
+  if (_apiNestDetailJob[nestId]) return _apiNestDetailJob[nestId];
+  var job = NestApi.api.getNest(nestId).then(function (detail) {
+    var photos = (detail && detail.photos) || [];
+    var navUri = asDataUri(detail && detail.gps_point && detail.gps_point.nav_photo);
+    var locRow = navUri ? null : apiPickLocationPhoto(photos);
+    var insRow = apiPickInsidePhoto(photos);
+    return Promise.all([
+      navUri ? Promise.resolve(navUri)
+        : (locRow && locRow.photo_id != null
+            ? apiFetchPhotoDataUrl(locRow.photo_id) : Promise.resolve(null)),
+      (insRow && insRow.photo_id != null)
+        ? apiFetchPhotoDataUrl(insRow.photo_id) : Promise.resolve(null)
+    ]);
+  }).then(function (pair) {
+    var out = { location: pair[0] || false, inside: pair[1] || false };
+    apiStoreResolved(nestId, "location", out.location);
+    apiStoreResolved(nestId, "inside", out.inside);
+    delete _apiNestDetailJob[nestId];
+    return out;
+  }).catch(function () {
+    delete _apiNestDetailJob[nestId];
+    return { location: false, inside: false };
+  });
+  _apiNestDetailJob[nestId] = job;
+  return job;
+}
+
+// Resolve ONE of a nest's photos as a data URI (Promise -> dataURI | false).
+// Order: memory, IndexedDB, then the network. false == no photo of that kind.
+function apiResolveNestPhotoOfKind(nestId, which) {
   if (!nestId) return Promise.resolve(false);
   nestId = String(nestId);
-  var mem = _apiNestPhotoCache[nestId];
+  var key = apiPhotoCacheKey(nestId, which);
+  var mem = _apiNestPhotoCache[key];
   if (typeof mem === "string") return Promise.resolve(mem);
   if (mem === false) return Promise.resolve(false);
   if (mem && typeof mem.then === "function") return mem;   // in-flight
   var job = apiLoadPhotoIdb().then(function (idb) {
-    var cached = idb && idb[nestId];
+    var cached = idb && idb[key];
     if (typeof cached === "string" && cached) {
-      _apiNestPhotoCache[nestId] = cached;
+      _apiNestPhotoCache[key] = cached;
       return cached;
     }
-    if (!apiCredsOnline()) { _apiNestPhotoCache[nestId] = undefined; return false; }
-    return NestApi.api.getNest(nestId).then(function (detail) {
-      var navUri = asDataUri(detail && detail.gps_point && detail.gps_point.nav_photo);
-      if (navUri) return navUri;
-      // The nest page + map popup want the LOCATION shot. Backfilled rows are
-      // kind 'discovery', the app uploads 'original'. Never fall through to a
-      // concealment frame or the inside-nest photo -- those show the cup, not
-      // how to find it, and photos[0] would happily pick one.
-      var photos = (detail && detail.photos) || [];
-      var notLocation = ["concealment", "inside_nest"];
-      var pick =
-        photos.filter(function (p) { return p && p.kind === "discovery"; })[0] ||
-        photos.filter(function (p) { return p && p.kind === "original"; })[0] ||
-        photos.filter(function (p) {
-          return p && notLocation.indexOf(p.kind) < 0;
-        })[0];
-      if (!pick || pick.photo_id == null) return null;
-      return apiFetchPhotoDataUrl(pick.photo_id);
-    }).then(function (uri) {
-      if (uri) {
-        _apiNestPhotoCache[nestId] = uri;
-        apiPersistPhoto(nestId, uri);
-        return uri;
-      }
-      _apiNestPhotoCache[nestId] = false;   // known: no photo anywhere
-      return false;
+    if (!apiCredsOnline()) { _apiNestPhotoCache[key] = undefined; return false; }
+    return apiLoadBothNestPhotos(nestId).then(function (both) {
+      return both[which] || false;
     });
   }).catch(function () {
-    _apiNestPhotoCache[nestId] = undefined;   // allow a retry
+    _apiNestPhotoCache[key] = undefined;   // allow a retry
     return false;
   });
-  _apiNestPhotoCache[nestId] = job;
+  _apiNestPhotoCache[key] = job;
   return job;
+}
+
+function apiResolveNestPhoto(nestId) {
+  return apiResolveNestPhotoOfKind(nestId, "location");
+}
+
+function apiResolveNestInsidePhoto(nestId) {
+  return apiResolveNestPhotoOfKind(nestId, "inside");
+}
+
+// Seed a photo the app just captured so the popup and nest page show it at
+// once. Also the offline answer: re-reading from the server would hand back the
+// picture that was just replaced, or nothing at all.
+function apiSetNestPhoto(nestId, which, dataUrl) {
+  if (!nestId || !dataUrl) return;
+  apiStoreResolved(String(nestId), which, dataUrl);
 }
 
 // Fill a popup's photo slot from the cache (instant when prefetched), else a
 // lazy fetch -- either way the image is only shown once decoded (apiSetSlotPhoto).
-function apiLazyLoadNestPhoto(nestId, slot) {
+function apiLazyLoadNestPhoto(nestId, slot, which) {
   if (!nestId || !slot) return;
-  apiResolveNestPhoto(nestId).then(function (uri) {
+  apiResolveNestPhotoOfKind(nestId, which || "location").then(function (uri) {
     if (uri) apiSetSlotPhoto(slot, uri);
   });
 }
@@ -274,21 +350,11 @@ window.NestApiData.lazyLoadNestPhoto = apiLazyLoadNestPhoto;
 // one read only nav_photo, so photo-table nests (NQ060) showed only in popups.
 window.NestApiData.resolveNestPhoto = apiResolveNestPhoto;
 
-// Drop a nest's cached location photo (memory + IndexedDB) so the next resolve
-// re-fetches. Called when the tech replaces that photo -- without it the popup
-// and nest page keep showing the picture that was just replaced.
-function apiForgetNestPhoto(nestId) {
-  if (!nestId) return;
-  nestId = String(nestId);
-  delete _apiNestPhotoCache[nestId];
-  if (_apiNestPhotoIdb && Object.prototype.hasOwnProperty.call(_apiNestPhotoIdb, nestId)) {
-    delete _apiNestPhotoIdb[nestId];
-    if (apiStoreOk()) {
-      NestApi.store.setMeta(IDB_PHOTO_KEY, _apiNestPhotoIdb).catch(function () {});
-    }
-  }
-}
-window.NestApiData.forgetNestPhoto = apiForgetNestPhoto;
+// The inside-nest photo, same contract. Both go through one detail fetch.
+window.NestApiData.resolveNestInsidePhoto = apiResolveNestInsidePhoto;
+
+// Seed a just-captured photo into the caches (nestId, "location"|"inside", uri).
+window.NestApiData.setNestPhoto = apiSetNestPhoto;
 
 window.fieldNavigateNest = function (nestId) {
   var idx = apiPointCoordIndex();

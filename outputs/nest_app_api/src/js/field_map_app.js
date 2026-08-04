@@ -2139,15 +2139,18 @@
   }
 
   // Put a photo (already a valid data URI) into the nest-info photo slot.
-  function niSetInfoPhoto(ph, photo) {
-    if (!ph || !photo) return;
-    ph.innerHTML = "";
+  // Fill ONE of the nest page's photo slots. The wrapper unhides only once
+  // something has actually landed in it, so a nest with neither photo shows no
+  // empty gap.
+  function niSetInfoPhoto(ph, slot, photo) {
+    if (!ph || !slot || !photo) return;
+    slot.innerHTML = "";
     var im = document.createElement("img");
     im.src = photo;
     im.className = "nest-info-photo-img";
     im.style.cursor = "zoom-in";
     im.addEventListener("click", function () { fieldOpenPhotoViewer(photo); });
-    ph.appendChild(im);
+    slot.appendChild(im);
     ph.style.display = "";
   }
 
@@ -2157,11 +2160,15 @@
   // to look at nav_photo alone, so a nest whose photo lives in the photo table
   // (e.g. NQ060) appeared in its popup but not on its page -- two resolvers, two
   // answers. One resolver, one answer.
-  function niLazyInfoPhoto(nestId, ph) {
-    if (!window.NestApiData ||
-        typeof window.NestApiData.resolveNestPhoto !== "function") return;
-    window.NestApiData.resolveNestPhoto(nestId).then(function (uri) {
-      if (uri) niSetInfoPhoto(ph, uri);
+  function niLazyInfoPhoto(nestId, ph, slot, which) {
+    var api = window.NestApiData;
+    var resolve = (which === "inside")
+      ? (api && api.resolveNestInsidePhoto)
+      : (api && api.resolveNestPhoto);
+    if (typeof resolve !== "function") return;
+    resolve(nestId).then(function (uri) {
+      // The tech may have moved to another nest while this was in flight.
+      if (uri && niCurrentNest === nestId) niSetInfoPhoto(ph, slot, uri);
     }).catch(function () {});
   }
 
@@ -2181,14 +2188,23 @@
     if (ph) {
       ph.innerHTML = "";
       ph.style.display = "none";
+
+      // Two slots created up front, location above nest, so the order can never
+      // depend on which fetch happens to finish first.
+
+      var locSlot = document.createElement("div");
+      var insSlot = document.createElement("div");
+      ph.appendChild(locSlot);
+      ph.appendChild(insSlot);
       var photo = wpPhotoDataUri(niFindPhoto(nestId));
       if (photo) {
-        niSetInfoPhoto(ph, photo);
+        niSetInfoPhoto(ph, locSlot, photo);
       } else {
         // The /gps_points list no longer inlines photos; fetch this nest's
         // GPS-point photo lazily so the info page still shows it.
-        niLazyInfoPhoto(nestId, ph);
+        niLazyInfoPhoto(nestId, ph, locSlot, "location");
       }
+      niLazyInfoPhoto(nestId, ph, insSlot, "inside");
     }
 
     var s = document.getElementById("niSummary");

@@ -586,6 +586,7 @@
           if (nestPhoto) replaceLocationPhoto(editNestId, editPointId, nestPhoto);
           if (insideNestPhoto) {
             uploadNestPhoto(editNestId, insideNestPhoto, "inside_nest", null);
+            seedNestPhotoCache(editNestId, "inside", insideNestPhoto);
           }
           showUploadModal("Nest data updated for " + rec.nest_id + ".");
           window.fieldFinishSubForm();
@@ -619,6 +620,7 @@
         // waypoint's nav thumbnail. Uses the nest id (temp id remapped on flush).
         if (photo) {
           uploadNestPhoto(nestDataCtx ? nestDataCtx.nestId : null, photo, "original", null);
+          seedNestPhotoCache(nestDataCtx ? nestDataCtx.nestId : null, "location", photo);
         }
 
         // The inside-nest photo is the nest's alone -- it never rides along on
@@ -627,6 +629,8 @@
         if (insideNestPhoto) {
           uploadNestPhoto(
             nestDataCtx ? nestDataCtx.nestId : null, insideNestPhoto, "inside_nest", null);
+          seedNestPhotoCache(
+            nestDataCtx ? nestDataCtx.nestId : null, "inside", insideNestPhoto);
         }
 
         if (pointId) {
@@ -1845,10 +1849,20 @@
     NestApi.queue.enqueue(op).then(function () { done(); flushSoon(); }).catch(done);
   }
 
+  // Push a just-captured photo straight into the popup / nest-page cache. Not
+  // cosmetic: without it the tech keeps seeing the old picture until the upload
+  // flushes and the cache turns over -- and offline, indefinitely.
+  function seedNestPhotoCache(nestId, which, dataUrl) {
+    if (!nestId || !dataUrl) return;
+    if (window.NestApiData && typeof window.NestApiData.setNestPhoto === "function") {
+      window.NestApiData.setNestPhoto(nestId, which, dataUrl);
+    }
+  }
+
   // Replace a nest's LOCATION photo everywhere it is held. The photo table row
   // alone is not enough: apiResolveNestPhoto prefers gps_point.nav_photo, the
-  // nest page reads the local waypoint first, and both the in-memory and
-  // IndexedDB caches would keep serving the picture just replaced.
+  // nest page reads the local waypoint first, and the memory + IndexedDB caches
+  // would keep serving the picture just replaced.
   function replaceLocationPhoto(nestId, pointId, dataUrl) {
     if (!nestId || !dataUrl) return;
     var name = navPhotoNameFor(nestId);
@@ -1862,9 +1876,7 @@
       });
       if (wp) refreshWaypointMarker(wp);
     }
-    if (window.NestApiData && window.NestApiData.forgetNestPhoto) {
-      window.NestApiData.forgetNestPhoto(nestId);
-    }
+    seedNestPhotoCache(nestId, "location", dataUrl);
   }
 
   // All backend writes go to the REST API. (The legacy Apps Script relay branch

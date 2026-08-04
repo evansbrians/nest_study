@@ -123,6 +123,8 @@ function(el, x) {
     var idJs = String(r.ref_id || r.name).replace(/'/g, "\\'");
     return '<div style="font-family:Times;min-width:190px;">' +
       '<div class="api-nest-photo-slot" data-nest="' + esc(r.ref_id) +
+      '" style="margin:0;"></div>' +
+      '<div class="api-nest-inside-photo-slot" data-nest="' + esc(r.ref_id) +
       '" style="margin:0 0 6px;"></div>' +
       "<h3 style=\"margin:0 0 4px;\"><strong>" + esc(r.ref_id) +
       "</strong>. Species: " + dash(r.species) + "</h3>" +
@@ -195,11 +197,12 @@ function(el, x) {
       if (String(r["class"]) === "nest" && r.ref_id) {
         marker.on("popupopen", function (ev) {
           var el = ev.popup && ev.popup.getElement && ev.popup.getElement();
-          var slot = el && el.querySelector(".api-nest-photo-slot");
-          if (slot && window.NestApiData &&
-              typeof window.NestApiData.lazyLoadNestPhoto === "function") {
-            window.NestApiData.lazyLoadNestPhoto(r.ref_id, slot);
-          }
+          if (!el || !window.NestApiData ||
+              typeof window.NestApiData.lazyLoadNestPhoto !== "function") return;
+          var slot = el.querySelector(".api-nest-photo-slot");
+          if (slot) window.NestApiData.lazyLoadNestPhoto(r.ref_id, slot, "location");
+          var inside = el.querySelector(".api-nest-inside-photo-slot");
+          if (inside) window.NestApiData.lazyLoadNestPhoto(r.ref_id, inside, "inside");
         });
       }
 
