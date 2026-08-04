@@ -1674,7 +1674,7 @@
           }
           if (meta && meta.annotated) fieldSaveImageToPhone(annotated, nestPhotoName || null);
           if (window.fieldSaveNestDraft) window.fieldSaveNestDraft();
-          if (status) status.textContent = "Photo attached.";
+          if (status) status.textContent = "Location photo attached.";
         });
       });
     });
@@ -1698,7 +1698,7 @@
       if (preview) preview.innerHTML = "";
       var status = ndEl("nestDataStatus");
       if (!file) { insideNestPhoto = null; return; }
-      if (status) status.textContent = "Processing inside-nest photo...";
+      if (status) status.textContent = "Processing nest photo...";
       compressImage(file, 1024, 0.55, function (dataUrl) {
         if (!dataUrl) {
           insideNestPhoto = null;
@@ -1713,10 +1713,24 @@
           preview.appendChild(im);
         }
         if (window.fieldSaveNestDraft) window.fieldSaveNestDraft();
-        if (status) status.textContent = "Inside-nest photo attached.";
+        if (status) status.textContent = "Nest photo attached.";
       });
     });
   }
+
+  // Each photo button opens its hidden file input. The button tap is the real
+  // user gesture before the OS camera opens, so flush the draft here too.
+  function wireNestPhotoButton(btnId, inputId) {
+    var btn = ndEl(btnId);
+    var input = ndEl(inputId);
+    if (!btn || !input) return;
+    btn.addEventListener("click", function () {
+      if (window.fieldFlushNestDraft) window.fieldFlushNestDraft();
+      input.click();
+    });
+  }
+  wireNestPhotoButton("ndPhotoBtn", "ndPhoto");
+  wireNestPhotoButton("ndInsidePhotoBtn", "ndInsidePhoto");
 
   buildNestChoices();
   wireNestPicker("ndPatchBtn", "ndPatchId", "Choose a patch", "Patch", false, null);

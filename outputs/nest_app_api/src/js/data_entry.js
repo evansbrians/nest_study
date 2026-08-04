@@ -575,15 +575,15 @@
 
     if (nestDataCtx && nestDataCtx.mode === "edit") {
       var editNestId = nestDataCtx.nestId;
+      var editPointId = nestDataCtx.editPointId || null;
       updateSheetRow("nest_level", nestDataCtx.sheetRow, rec,
         function () {
 
-          // A newly-picked photo replaces the nest's picture. nestPhoto is set
-          // only when the user chooses one (the existing photo is lazy-loaded,
-          // not prefilled here), so this uploads exactly when they picked a new
-          // one -- the same POST /photos the add path uses.
+          // Both photos are set ONLY when the tech picks a new one this
+          // session (neither is prefilled), so each of these fires exactly when
+          // they chose a replacement.
 
-          if (nestPhoto) uploadNestPhoto(editNestId, nestPhoto, "original", null);
+          if (nestPhoto) replaceLocationPhoto(editNestId, editPointId, nestPhoto);
           if (insideNestPhoto) {
             uploadNestPhoto(editNestId, insideNestPhoto, "inside_nest", null);
           }
@@ -1807,6 +1807,12 @@
     NestApi.queue.enqueue(op).then(function () { done(); flushSoon(); }).catch(done);
   }
 
+  // <nest id>_<ISO 8601, colons swapped>.jpg -- the add flow's nav-photo naming.
+  function navPhotoNameFor(nestId) {
+    return String(nestId).replace(/[^\w-]+/g, "_") + "_" +
+      isoClean(new Date()).replace(/:/g, "-") + ".jpg";
+  }
+
   // Upload a nest photo and link it to its nest. POST /photos wants the raw
   // base64 (no data-URL prefix) plus kind + nest_id; the app captures a data
   // URL (compressImage), so strip the prefix here. Enqueued AFTER the nest
@@ -1837,6 +1843,28 @@
     // modify screen reads it to say whether an inside-nest photo exists.
     delete _nestDetailCache[nestId];
     NestApi.queue.enqueue(op).then(function () { done(); flushSoon(); }).catch(done);
+  }
+
+  // Replace a nest's LOCATION photo everywhere it is held. The photo table row
+  // alone is not enough: apiResolveNestPhoto prefers gps_point.nav_photo, the
+  // nest page reads the local waypoint first, and both the in-memory and
+  // IndexedDB caches would keep serving the picture just replaced.
+  function replaceLocationPhoto(nestId, pointId, dataUrl) {
+    if (!nestId || !dataUrl) return;
+    var name = navPhotoNameFor(nestId);
+    uploadNestPhoto(nestId, dataUrl, "original", null);
+    if (pointId) {
+      patchGpsPoint(pointId, { nav_photo: dataUrl, nav_photo_name: name }, null);
+      // Only nests recorded on THIS phone have a local waypoint; null is normal.
+      var wp = updateWaypoint(pointId, function (w) {
+        w.photo = dataUrl;
+        w.photo_name = name;
+      });
+      if (wp) refreshWaypointMarker(wp);
+    }
+    if (window.NestApiData && window.NestApiData.forgetNestPhoto) {
+      window.NestApiData.forgetNestPhoto(nestId);
+    }
   }
 
   // All backend writes go to the REST API. (The legacy Apps Script relay branch
@@ -1979,6 +2007,9 @@
         if (nestDataCtx && nestDataCtx.nestId === nestId && nestDataCtx.mode === "edit") {
           fillNestForm(detail.discovery.data);
           setInsideNestHint(detail.photos);
+          if (detail.discovery.data && detail.discovery.data.gps_point_id) {
+            nestDataCtx.editPointId = detail.discovery.data.gps_point_id;
+          }
         }
       });
     }
@@ -2255,7 +2286,15 @@
   }
 
   function openNestDataEdit(nestId, data, row) {
-    nestDataCtx = { nestId: nestId, mode: "edit", sheetRow: row, date: (data && data.discovery_date) || null };
+    nestDataCtx = {
+      nestId: nestId,
+      mode: "edit",
+      sheetRow: row,
+      date: (data && data.discovery_date) || null,
+      // Kept under its OWN key, not pointId: collectNestRecord() reads pointId
+      // and would start sending gps_point_id on every discovery PATCH.
+      editPointId: (data && data.gps_point_id) || null
+    };
     // Edit mode never drafts -- clear the key so the screen's input listeners
     // don't persist edits as an add-draft.
     _ndDraftKey = null;

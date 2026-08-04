@@ -274,6 +274,22 @@ window.NestApiData.lazyLoadNestPhoto = apiLazyLoadNestPhoto;
 // one read only nav_photo, so photo-table nests (NQ060) showed only in popups.
 window.NestApiData.resolveNestPhoto = apiResolveNestPhoto;
 
+// Drop a nest's cached location photo (memory + IndexedDB) so the next resolve
+// re-fetches. Called when the tech replaces that photo -- without it the popup
+// and nest page keep showing the picture that was just replaced.
+function apiForgetNestPhoto(nestId) {
+  if (!nestId) return;
+  nestId = String(nestId);
+  delete _apiNestPhotoCache[nestId];
+  if (_apiNestPhotoIdb && Object.prototype.hasOwnProperty.call(_apiNestPhotoIdb, nestId)) {
+    delete _apiNestPhotoIdb[nestId];
+    if (apiStoreOk()) {
+      NestApi.store.setMeta(IDB_PHOTO_KEY, _apiNestPhotoIdb).catch(function () {});
+    }
+  }
+}
+window.NestApiData.forgetNestPhoto = apiForgetNestPhoto;
+
 window.fieldNavigateNest = function (nestId) {
   var idx = apiPointCoordIndex();
   var nest = (window.fieldApiNests || []).filter(function (n) {

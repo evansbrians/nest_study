@@ -437,28 +437,35 @@ map_tracking
                   placeholder="Describe how to find this nest"></textarea>
       </label>
 
-      <!-- Note + Photo belong to the waypoint (add flow); hidden when editing an
-           existing nest's discovery row. -->
+      <!-- The Note belongs to the WAYPOINT, so it stays add-flow only and is
+           hidden when editing an existing nest's discovery row. -->
       <div id="ndWaypointFields">
         <label class="field-field-label">Note
           <textarea id="ndNote" class="field-input" rows="3"
                     placeholder="Other notes"></textarea>
         </label>
-
-        <label class="field-field-label">Photo
-          <!-- No `capture` attribute: the OS offers Take Photo *or* Choose File. -->
-          <input type="file" id="ndPhoto" class="field-input" accept="image/*">
-        </label>
-        <div id="ndPhotoPreview" class="field-photo-preview"></div>
       </div>
 
-      <!-- Inside-nest photo (the nest cup itself) belongs to the NEST, not to
-           the waypoint, so it sits OUTSIDE #ndWaypointFields and stays visible
-           when modifying an existing nest as well as when adding one. -->
-      <label class="field-field-label">Inside nest photo
-        <!-- No `capture` attribute: the OS offers Take Photo *or* Choose File. -->
-        <input type="file" id="ndInsidePhoto" class="field-input" accept="image/*">
-      </label>
+      <!-- Both photos belong to the NEST, so they sit OUTSIDE #ndWaypointFields
+           and show when modifying an existing nest as well as when adding one.
+           The file inputs are hidden and driven by the buttons: a bare file
+           input renders as the OS's own small "Choose File" chrome, which reads
+           as nothing at all on a phone. No `capture` attribute, so the OS still
+           offers Take Photo *or* Choose File. -->
+      <div>
+        <button type="button" id="ndPhotoBtn" class="field-button">
+          Add/replace nest location photo
+        </button>
+      </div>
+      <input type="file" id="ndPhoto" accept="image/*" style="display:none;">
+      <div id="ndPhotoPreview" class="field-photo-preview"></div>
+
+      <div>
+        <button type="button" id="ndInsidePhotoBtn" class="field-button">
+          Add/replace nest photo
+        </button>
+      </div>
+      <input type="file" id="ndInsidePhoto" accept="image/*" style="display:none;">
       <div id="ndInsidePhotoPreview" class="field-photo-preview"></div>
       <div id="ndInsidePhotoExisting" class="field-status" style="display:none;"></div>
 

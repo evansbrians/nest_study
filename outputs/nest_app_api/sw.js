@@ -23,7 +23,7 @@
  */
 "use strict";
 
-var SW_VERSION = "v12";
+var SW_VERSION = "v13";
 var CACHE = "nestapp-shell-" + SW_VERSION;
 
 // With embed-resources: false the app is split across files. Precache the
