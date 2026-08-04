@@ -187,23 +187,29 @@ function apiPhotoCacheKey(nestId, which) {
 // Backfilled location rows are kind 'discovery', the app uploads 'original'.
 // Never fall through to a concealment frame or the inside-nest photo -- those
 // show the cup, not how to find it, and photos[0] would happily pick one.
+// Newest row of a kind: photo_id is a server autoincrement, so the largest
+// wins. Replacing a photo ADDS a row rather than updating one, so taking the
+// first match would pin the display to the oldest copy.
+function apiNewestOfKind(photos, kind) {
+  var best = null;
+  photos.forEach(function (p) {
+    if (!p || p.kind !== kind) return;
+    if (!best || Number(p.photo_id) > Number(best.photo_id)) best = p;
+  });
+  return best;
+}
+
 function apiPickLocationPhoto(photos) {
   var notLocation = ["concealment", "inside_nest"];
-  return photos.filter(function (p) { return p && p.kind === "discovery"; })[0] ||
-    photos.filter(function (p) { return p && p.kind === "original"; })[0] ||
+  return apiNewestOfKind(photos, "discovery") ||
+    apiNewestOfKind(photos, "original") ||
     photos.filter(function (p) {
       return p && notLocation.indexOf(p.kind) < 0;
     })[0] || null;
 }
 
-// photo_id is a server autoincrement, so the largest inside_nest row is newest.
 function apiPickInsidePhoto(photos) {
-  var best = null;
-  photos.forEach(function (p) {
-    if (!p || p.kind !== "inside_nest") return;
-    if (!best || Number(p.photo_id) > Number(best.photo_id)) best = p;
-  });
-  return best;
+  return apiNewestOfKind(photos, "inside_nest");
 }
 
 // Commit one resolved photo to memory + IndexedDB. false == known to have none.
