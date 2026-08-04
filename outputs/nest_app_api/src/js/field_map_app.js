@@ -1597,6 +1597,10 @@
   var nestPhoto = null;
   var nestPhotoName = null;
 
+  // Set only when the tech picks a NEW inside-nest photo this session; a null
+  // here means "leave whatever the nest already has alone".
+  var insideNestPhoto = null;
+
 
 
   // Large, near-full-screen option picker (reuses the patch-overlay styling).
@@ -1672,6 +1676,44 @@
           if (window.fieldSaveNestDraft) window.fieldSaveNestDraft();
           if (status) status.textContent = "Photo attached.";
         });
+      });
+    });
+  }
+
+  // Inside-nest photo: a second, nest-scoped picture of the nest cup itself.
+  // Compressed like the discovery photo, but no circle-the-nest annotation
+  // (there is nothing to point at) and no copy to the phone's library.
+  var ndInsidePhoto = ndEl("ndInsidePhoto");
+  if (ndInsidePhoto) {
+    // Same camera-eviction guard as the discovery photo: flush the draft
+    // synchronously before the OS picker can background (and reload) the PWA.
+    ["pointerdown", "click"].forEach(function (evt) {
+      ndInsidePhoto.addEventListener(evt, function () {
+        if (window.fieldFlushNestDraft) window.fieldFlushNestDraft();
+      });
+    });
+    ndInsidePhoto.addEventListener("change", function () {
+      var file = ndInsidePhoto.files && ndInsidePhoto.files[0];
+      var preview = ndEl("ndInsidePhotoPreview");
+      if (preview) preview.innerHTML = "";
+      var status = ndEl("nestDataStatus");
+      if (!file) { insideNestPhoto = null; return; }
+      if (status) status.textContent = "Processing inside-nest photo...";
+      compressImage(file, 1024, 0.55, function (dataUrl) {
+        if (!dataUrl) {
+          insideNestPhoto = null;
+          if (status) status.textContent = "Couldn't read that photo.";
+          return;
+        }
+        insideNestPhoto = dataUrl;
+        if (preview) {
+          var im = document.createElement("img");
+          im.src = dataUrl;
+          im.className = "field-photo-thumb";
+          preview.appendChild(im);
+        }
+        if (window.fieldSaveNestDraft) window.fieldSaveNestDraft();
+        if (status) status.textContent = "Inside-nest photo attached.";
       });
     });
   }

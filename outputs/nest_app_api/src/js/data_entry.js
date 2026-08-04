@@ -303,6 +303,10 @@
     if (ndEl("ndPhotoPreview")) ndEl("ndPhotoPreview").innerHTML = "";
     nestPhoto = null;
     nestPhotoName = null;
+    if (ndEl("ndInsidePhoto")) ndEl("ndInsidePhoto").value = "";
+    if (ndEl("ndInsidePhotoPreview")) ndEl("ndInsidePhotoPreview").innerHTML = "";
+    insideNestPhoto = null;
+    setInsideNestHint(null);
     syncNestOther();
     pickerLabel(ndEl("ndSpecies"), ndEl("ndSpeciesBtn"), "Choose species", false);
     pickerLabel(ndEl("ndSubstrate"), ndEl("ndSubstrateBtn"), "Choose substrate", true);
@@ -310,6 +314,36 @@
     pickerLabel(ndEl("ndCameraOrControl"), ndEl("ndCameraOrControlBtn"), "Control", false);
     var st = ndEl("nestDataStatus");
     if (st) st.textContent = "";
+  }
+
+  // The inside-nest photo is one-per-nest and replaceable: the newest
+  // kind='inside_nest' row wins. Rather than pull the bytes down (GET
+  // /photos/<id> serves the full-size file, and field signal is thin), the
+  // modify screen just says one is already on record and when it was taken.
+  // Pass null to hide the line.
+  function newestInsideNestPhoto(photos) {
+    var best = null;
+    (photos || []).forEach(function (p) {
+      if (!p || p.kind !== "inside_nest") return;
+      // photo_id is a server-assigned autoincrement, so the largest is newest.
+      if (!best || Number(p.photo_id) > Number(best.photo_id)) best = p;
+    });
+    return best;
+  }
+
+  function setInsideNestHint(photos) {
+    var el = ndEl("ndInsidePhotoExisting");
+    if (!el) return;
+    var pick = newestInsideNestPhoto(photos);
+    if (!pick) {
+      el.style.display = "none";
+      el.textContent = "";
+      return;
+    }
+    var when = pick.taken_at ? String(pick.taken_at).slice(0, 10) : null;
+    el.textContent = "An inside-nest photo is already on record" +
+      (when ? " (" + when + ")" : "") + ". Choosing one replaces it.";
+    el.style.display = "";
   }
 
   // --- discovery draft persistence ---------------------------------------
@@ -349,7 +383,8 @@
       location: ndEl("ndLocationDescription") ? ndEl("ndLocationDescription").value : "",
       note: ndEl("ndNote") ? ndEl("ndNote").value : "",
       photo: nestPhoto || null,
-      photoName: nestPhotoName || null
+      photoName: nestPhotoName || null,
+      insidePhoto: insideNestPhoto || null
     };
   }
 
@@ -357,7 +392,7 @@
     if (!d) return false;
     return !!(d.species || d.speciesOther || d.stage || d.height ||
       (d.substrate && d.substrate.length) || d.substrateOther ||
-      d.location || d.note || d.photo || d.selfie || d.artcand ||
+      d.location || d.note || d.photo || d.insidePhoto || d.selfie || d.artcand ||
       (d.camctl && d.camctl !== "Control") || d.camdate);
   }
 
@@ -430,6 +465,16 @@
         var im = document.createElement("img");
         im.src = d.photo; im.className = "field-photo-thumb";
         preview.appendChild(im);
+      }
+    }
+    if (d.insidePhoto) {
+      insideNestPhoto = d.insidePhoto;
+      var insidePreview = ndEl("ndInsidePhotoPreview");
+      if (insidePreview) {
+        insidePreview.innerHTML = "";
+        var insideIm = document.createElement("img");
+        insideIm.src = d.insidePhoto; insideIm.className = "field-photo-thumb";
+        insidePreview.appendChild(insideIm);
       }
     }
     // Re-sync the picker button labels + conditional "Other" rows so the visible
@@ -538,7 +583,10 @@
           // not prefilled here), so this uploads exactly when they picked a new
           // one -- the same POST /photos the add path uses.
 
-          if (nestPhoto) uploadNestPhoto(editNestId, nestPhoto, null);
+          if (nestPhoto) uploadNestPhoto(editNestId, nestPhoto, "original", null);
+          if (insideNestPhoto) {
+            uploadNestPhoto(editNestId, insideNestPhoto, "inside_nest", null);
+          }
           showUploadModal("Nest data updated for " + rec.nest_id + ".");
           window.fieldFinishSubForm();
         },
@@ -569,7 +617,17 @@
         // Also link the discovery photo to the NEST itself (POST /photos, kind
         // 'original') so it lives on the nest page + map popup, not just on the
         // waypoint's nav thumbnail. Uses the nest id (temp id remapped on flush).
-        if (photo) uploadNestPhoto(nestDataCtx ? nestDataCtx.nestId : null, photo, null);
+        if (photo) {
+          uploadNestPhoto(nestDataCtx ? nestDataCtx.nestId : null, photo, "original", null);
+        }
+
+        // The inside-nest photo is the nest's alone -- it never rides along on
+        // the waypoint the way the discovery photo does.
+
+        if (insideNestPhoto) {
+          uploadNestPhoto(
+            nestDataCtx ? nestDataCtx.nestId : null, insideNestPhoto, "inside_nest", null);
+        }
 
         if (pointId) {
           var updated = updateWaypoint(pointId, function (w) {
@@ -1749,13 +1807,15 @@
     NestApi.queue.enqueue(op).then(function () { done(); flushSoon(); }).catch(done);
   }
 
-  // Upload a discovery photo and link it to its nest. POST /photos wants the
-  // raw base64 (no data-URL prefix) plus kind + nest_id; the app captures a data
+  // Upload a nest photo and link it to its nest. POST /photos wants the raw
+  // base64 (no data-URL prefix) plus kind + nest_id; the app captures a data
   // URL (compressImage), so strip the prefix here. Enqueued AFTER the nest
   // create so it sits later in FIFO order: the queue's temp-id remap rewrites
   // body.nest_id from the temp id to the server id once the create flushes.
   // API path only + offline-safe (like every other write here).
-  function uploadNestPhoto(nestId, dataUrl, onDone) {
+  // photoKind is the photo table's `kind`: 'original' for the discovery/location
+  // shot, 'inside_nest' for the picture of the nest cup.
+  function uploadNestPhoto(nestId, dataUrl, photoKind, onDone) {
     function done() { if (onDone) onDone(); }
     if (!apiEnabled() || !nestId || !dataUrl) { done(); return; }
     var comma = String(dataUrl).indexOf(",");
@@ -1765,9 +1825,17 @@
     var op = {
       kind: "uploadPhoto", tempId: nestId,
       endpoint: "/photos", method: "POST",
-      body: { image: b64, kind: "original", nest_id: nestId, ext: "jpg" },
+      body: {
+        image: b64,
+        kind: photoKind || "original",
+        nest_id: nestId,
+        ext: "jpg"
+      },
       idemKey: idem
     };
+    // The cached GET /nests/<id> detail now has a stale photo list, and the
+    // modify screen reads it to say whether an inside-nest photo exists.
+    delete _nestDetailCache[nestId];
     NestApi.queue.enqueue(op).then(function () { done(); flushSoon(); }).catch(done);
   }
 
@@ -1808,7 +1876,11 @@
       var ivs = (detail.intervals || []).map(function (iv) {
         return { data: iv, row: iv.check_id };
       });
-      cb({ discovery: { data: disc, row: disc.nest_id }, intervals: ivs });
+      cb({
+        discovery: { data: disc, row: disc.nest_id },
+        intervals: ivs,
+        photos: detail.photos || []
+      });
     }).catch(function () { cb(null); });
   }
 
@@ -1906,6 +1978,7 @@
         // Only re-fill if the user is still on this nest's discovery form.
         if (nestDataCtx && nestDataCtx.nestId === nestId && nestDataCtx.mode === "edit") {
           fillNestForm(detail.discovery.data);
+          setInsideNestHint(detail.photos);
         }
       });
     }
@@ -2196,6 +2269,9 @@
     toggleNestEditChrome(true);
     // Modifying a nest: let the user correct the discovery date.
     toggleNdDateEdit(true, (data && data.discovery_date) || null);
+    // Metadata only, from whatever detail is already cached -- modifyDiscovery's
+    // background fetch refreshes this line if the cache was cold.
+    setInsideNestHint(_nestDetailCache[nestId] ? _nestDetailCache[nestId].photos : null);
     showScreen("nestdata");
   }
 

@@ -452,6 +452,16 @@ map_tracking
         <div id="ndPhotoPreview" class="field-photo-preview"></div>
       </div>
 
+      <!-- Inside-nest photo (the nest cup itself) belongs to the NEST, not to
+           the waypoint, so it sits OUTSIDE #ndWaypointFields and stays visible
+           when modifying an existing nest as well as when adding one. -->
+      <label class="field-field-label">Inside nest photo
+        <!-- No `capture` attribute: the OS offers Take Photo *or* Choose File. -->
+        <input type="file" id="ndInsidePhoto" class="field-input" accept="image/*">
+      </label>
+      <div id="ndInsidePhotoPreview" class="field-photo-preview"></div>
+      <div id="ndInsidePhotoExisting" class="field-status" style="display:none;"></div>
+
       <div class="field-waypoint-actions">
         <button type="button" id="nestDataSaveBtn" class="field-button">
           Save nest data

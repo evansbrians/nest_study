@@ -187,9 +187,18 @@ function apiResolveNestPhoto(nestId) {
     return NestApi.api.getNest(nestId).then(function (detail) {
       var navUri = asDataUri(detail && detail.gps_point && detail.gps_point.nav_photo);
       if (navUri) return navUri;
+      // The nest page + map popup want the LOCATION shot. Backfilled rows are
+      // kind 'discovery', the app uploads 'original'. Never fall through to a
+      // concealment frame or the inside-nest photo -- those show the cup, not
+      // how to find it, and photos[0] would happily pick one.
       var photos = (detail && detail.photos) || [];
-      var pick = photos.filter(function (p) { return p && p.kind === "discovery"; })[0] ||
-        photos[0];
+      var notLocation = ["concealment", "inside_nest"];
+      var pick =
+        photos.filter(function (p) { return p && p.kind === "discovery"; })[0] ||
+        photos.filter(function (p) { return p && p.kind === "original"; })[0] ||
+        photos.filter(function (p) {
+          return p && notLocation.indexOf(p.kind) < 0;
+        })[0];
       if (!pick || pick.photo_id == null) return null;
       return apiFetchPhotoDataUrl(pick.photo_id);
     }).then(function (uri) {
