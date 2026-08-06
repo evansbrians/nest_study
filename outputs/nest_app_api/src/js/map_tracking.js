@@ -34,7 +34,10 @@ function(el, x) {
   var firstFix = true;
   var latestLatLng = null;
   var orientationBound = false;
-  
+  var followMode = false;
+  var followNeedsZoom = false;
+  var centerButtonEl = null;
+
   // detecting screen orientation angle ------------------------------------
   
   function getScreenAngle() {
@@ -89,19 +92,67 @@ function(el, x) {
     );
   }
   
+  // follow mode -------------------------------------------------------------
+
+  // The crosshair button's second job: pin the arrow to the middle of the
+  // screen and slide the map underneath it. Blue button = active (same
+  // treatment as the padlock); any manual pan hands the view back.
+
+  function applyFollowButton() {
+    if (!centerButtonEl) return;
+    centerButtonEl.title = followMode
+      ? "Stop following my location"
+      : "Center on my location";
+    centerButtonEl.style.background = followMode ? "#136aecdd" : "";
+  }
+
+  // Zoom 19 is applied once, on activation. With no fix yet the zoom is
+  // deferred to the first one.
+
+  function startFollow() {
+    followMode = true;
+    if (latestLatLng) {
+      centerOnLatestLocation();
+      followNeedsZoom = false;
+    } else {
+      followNeedsZoom = true;
+    }
+    applyFollowButton();
+  }
+
+  function stopFollow() {
+    followMode = false;
+    followNeedsZoom = false;
+    applyFollowButton();
+  }
+
+  function toggleFollow() {
+    if (followMode) stopFollow();
+    else startFollow();
+  }
+
+  // Dragging means the tech wants to look somewhere else, so let go. Only user
+  // drags fire dragstart -- setView below never does.
+
+  map.on("dragstart", function() {
+    if (followMode) stopFollow();
+  });
+
   // Make sure the position of the arrow is still centered on rotation.
   // Rotating phone orientations are a pain!
-  
+
   function refreshMapSizeAndCenter() {
     [100, 300, 600].forEach(function(delay) {
       setTimeout(function() {
         map.invalidateSize(false);
+        if (followMode && latestLatLng) {
+          map.setView(latestLatLng, map.getZoom(), { animate: false });
+        }
       }, delay);
     });
 
-    // No auto-recenter on GPS: the map defaults to the selected patch and only
-    // centers on the user's location when the crosshair button is tapped
-    // (which calls centerOnLatestLocation directly).
+    // No auto-recenter on GPS unless follow mode is on: the map defaults to the
+    // selected patch and otherwise only centers when the crosshair is tapped.
   }
 
   window.addEventListener("resize", refreshMapSizeAndCenter);
@@ -149,24 +200,25 @@ function(el, x) {
           ' stroke="#fff" stroke-width="6"/>' +
       '</svg>';
     button.title = "Center on my location";
-  
+
     L.DomEvent.disableClickPropagation(button);
     L.DomEvent.disableScrollPropagation(button);
-  
+
     L.DomEvent.on(button, "click", function(e) {
       L.DomEvent.stop(e);
-      
+
       // Also grants orientation access:
-      
+
       enableOrientation();
-  
-      if (latestLatLng) {
-        centerOnLatestLocation();
-      } else if (accuracyDiv) {
+
+      toggleFollow();
+
+      if (followMode && !latestLatLng && accuracyDiv) {
         accuracyDiv.innerHTML = "Locating ...";
       }
     });
-    
+
+    centerButtonEl = button;
     return button;
   };
 
@@ -215,7 +267,18 @@ function(el, x) {
       refreshMapSizeAndCenter();
       firstFix = false;
     }
-    
+
+    // Follow mode: hold the arrow at the centre and move the map instead.
+
+    if (followMode) {
+      if (followNeedsZoom) {
+        centerOnLatestLocation();
+        followNeedsZoom = false;
+      } else {
+        map.setView(e.latlng, map.getZoom(), { animate: false });
+      }
+    }
+
     // Update accuracy text
 
     if (accuracyDiv) {
