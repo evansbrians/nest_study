@@ -713,7 +713,10 @@ function(el, x) {
 
     // Re-fit only when the USER changed the filter. A re-render (new nest, live
     // refresh) must not move the map out from under them.
-    if (!noFit) {
+    // Follow mode owns the view while it is on: an automatic re-fit here is
+    // what yanked the map back to the patches mid-track.
+
+    if (!noFit && !(window.fieldFollow && window.fieldFollow.isActive())) {
       var tv = activeTestView(names || []);
       if (tv) {
         map.setView([tv.lat, tv.lng], tv.zoom);
@@ -745,6 +748,8 @@ function(el, x) {
 
   map.whenReady(function () {
     setTimeout(function () {
+      if (window.fieldFollow && window.fieldFollow.isActive()) return;
+
       var initialBounds = patchBounds(activePatchNames());
       if (initialBounds) {
         map.fitBounds(initialBounds, { padding: [25, 25], maxZoom: 19 });

@@ -2021,6 +2021,11 @@
   // 19 (the old fixed behaviour); the nest-info map passes 18.
   function zoomToPoint(lat, lng, zoom) {
     if (lat == null || lng == null) return;
+
+    // A deliberate jump, so hand the view back if follow mode holds it.
+
+    if (window.fieldFollow) window.fieldFollow.stop();
+
     if (window.fieldMap) {
       window.fieldMap.setView([lat, lng], (zoom == null) ? 19 : zoom);
     }

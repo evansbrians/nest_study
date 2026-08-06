@@ -37,6 +37,7 @@ function(el, x) {
   var followMode = false;
   var followNeedsZoom = false;
   var centerButtonEl = null;
+  var lastHeading = null;
 
   // detecting screen orientation angle ------------------------------------
   
@@ -98,6 +99,27 @@ function(el, x) {
   // screen and slide the map underneath it. Blue button = active (same
   // treatment as the padlock); any manual pan hands the view back.
 
+  // Recentring with setView reruns Leaflet's full view reset once a second --
+  // every layer repositioned, every tile rebuilt -- which is what made the map
+  // teleport instead of glide and left the main thread too busy to keep the
+  // compass arrow turning. panTo slides the map pane with a CSS transform
+  // instead, and Leaflet still hard-resets on its own once a jump is wider than
+  // the screen. The minimum move keeps a standing tech's GPS jitter off screen.
+
+  var FOLLOW_PAN_SECONDS = 1.2;
+  var FOLLOW_MIN_MOVE_M = 1;
+
+  function followTo(latlng) {
+    var center = map.getCenter();
+    if (center && map.distance(center, latlng) < FOLLOW_MIN_MOVE_M) return;
+
+    map.panTo(latlng, {
+      duration: FOLLOW_PAN_SECONDS,
+      easeLinearity: 1,
+      noMoveStart: true
+    });
+  }
+
   function applyFollowButton() {
     if (!centerButtonEl) return;
     centerButtonEl.title = followMode
@@ -131,8 +153,16 @@ function(el, x) {
     else startFollow();
   }
 
+  // map_weather.js checks this before any automatic re-fit, and field_map_app.js
+  // releases follow when the tech deliberately jumps the map to a nest.
+
+  window.fieldFollow = {
+    isActive: function() { return followMode; },
+    stop: stopFollow
+  };
+
   // Dragging means the tech wants to look somewhere else, so let go. Only user
-  // drags fire dragstart -- setView below never does.
+  // drags fire dragstart -- panTo never does.
 
   map.on("dragstart", function() {
     if (followMode) stopFollow();
@@ -275,7 +305,7 @@ function(el, x) {
         centerOnLatestLocation();
         followNeedsZoom = false;
       } else {
-        map.setView(e.latlng, map.getZoom(), { animate: false });
+        followTo(e.latlng);
       }
     }
 
@@ -325,6 +355,8 @@ function(el, x) {
         interactive: false,
         zIndexOffset: 1000
       }).addTo(map);
+
+      applyHeading();
     }
   });
 
@@ -544,16 +576,29 @@ function(el, x) {
   // Position is managed by locationfound, so setHeading only needs to update
   // the rotation of the existing marker.
 
+  // The heading is remembered so it can be re-applied whenever the marker's
+  // element is rebuilt (a view reset does that) -- otherwise the arrow quietly
+  // stops turning until the next compass event happens to land on a live
+  // element.
+
   function setHeading(degrees) {
-    if (!headingMarker) return;
+    lastHeading = degrees;
+    applyHeading();
+  }
+
+  function applyHeading() {
+    if (lastHeading === null || !headingMarker) return;
+
     var markerEl = headingMarker.getElement();
-    if (markerEl) {
-      var g = markerEl.querySelector('.heading-group');
-      if (g) {
-      g.setAttribute('transform', 'rotate(' + degrees + ', 20, 20)');
-      }
+    if (!markerEl) return;
+
+    var g = markerEl.querySelector('.heading-group');
+    if (g) {
+      g.setAttribute('transform', 'rotate(' + lastHeading + ', 20, 20)');
     }
   }
+
+  map.on("moveend zoomend", applyHeading);
   
   // Site magnetic declination (NOAA, Front Royal VA, ~2026): true = magnetic +
   // declination. West declination is negative. Update annually (~0.1 deg/yr) or
