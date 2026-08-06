@@ -14,11 +14,11 @@
 #
 # Run from the nest_study project root. Here's how with an album:
 #
-#   bash photo_bulk_upload/export_photos.sh -a "[album name]"
+#   bash scripts/image_proc/export_photos.sh -a "[album name]"
 #
 # You can also run it on selected pictures instead of an album
 #
-#   bash photo_bulk_upload/export_photos.sh
+#   bash scripts/image_proc/export_photos.sh
 
 set -euo pipefail
 
@@ -81,6 +81,15 @@ else
 fi
 
 # staging -----------------------------------------------------------------
+
+# out_dir is relative, so the wrong working directory would quietly scatter
+# output instead of failing.
+
+if [ ! -f "nest_study.Rproj" ]; then
+  echo "export_photos: run this from the nest_study project root." >&2
+  echo "  cd to the folder holding nest_study.Rproj, then try again." >&2
+  exit 1
+fi
 
 mkdir -p "$out_dir"
 out_dir="$(cd "$out_dir" && pwd)"
@@ -185,7 +194,7 @@ failed=0
 while IFS= read -r -d '' source_file; do
 
   # Under -O a live photo also yields a .mov and an edited one a .AAE sidecar,
-  # both expected company for a still, so they are counted rather than warned on.
+  # both expected company for a still, so they are counted, not warned about.
 
   extension="$(printf '%s' "${source_file##*.}" | tr '[:upper:]' '[:lower:]')"
 
